@@ -13,4 +13,4 @@ export type ActionError = {
   };
 };
 
-export type ActionResponse<T> = ActionError | ActionSuccess<T>;
+export type ActionResponseType<T> = ActionError | ActionSuccess<T>;

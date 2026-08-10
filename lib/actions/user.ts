@@ -1,13 +1,14 @@
 "use server";
 import { createUserType, userSchema } from "@/lib/validation/user";
 import { ActionResponse } from "../utils/action-response";
+import type { ActionResponseType } from "@/lib/types/action";
 import { ERROR_CODES } from "../constants/errors";
 import { db } from "../prisma";
 import bcrypt from "bcrypt";
 
 export const createUser = async (
   data: createUserType,
-): Promise<ActionResponse> => {
+): Promise<ActionResponseType<createUserType>> => {
   const validatedData = userSchema.safeParse(data);
   if (validatedData.error) {
     return ActionResponse.failure(
