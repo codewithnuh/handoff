@@ -38,6 +38,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "prebuild": "prisma generate",
     "test": "vitest run",
     "test:watch": "vitest ",
     "db:generate": "prisma generate",
