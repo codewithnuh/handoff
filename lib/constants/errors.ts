@@ -7,6 +7,7 @@ export const ERROR_CODES = {
   RATE_LIMITED: "RATE_LIMITED",
   DATABASE_ERROR: "DATABASE_ERROR",
   INTERNAL_ERROR: "INTERNAL_ERROR",
+  ALREADY_SIGNED_IN: "ALREADY_SIGNED_IN",
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];

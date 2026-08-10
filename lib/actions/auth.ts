@@ -57,7 +57,10 @@ const errorCodeForStatus = (status: number | string): ErrorCode => {
 
 const toActionError = (error: unknown): ActionError => {
   if (error instanceof APIError) {
-    return ActionResponse.failure(errorCodeForStatus(error.status), error.message);
+    return ActionResponse.failure(
+      errorCodeForStatus(error.status),
+      error.message,
+    );
   }
   console.error("Unexpected auth action error:", error);
   return ActionResponse.failure(
@@ -113,13 +116,23 @@ export const login = async (
       validated.error.flatten().fieldErrors,
     );
   }
-
+  // Only block login when there is an actual session (data is non-null).
+  const sessionState = await getSession();
+  if (sessionState.success && sessionState.data) {
+    return ActionResponse.failure(
+      ERROR_CODES.ALREADY_SIGNED_IN,
+      "You are already signed in",
+    );
+  }
   try {
     const result = await auth.api.signInEmail({
       body: validated.data,
       headers: await headers(),
     });
-    return ActionResponse.success({ user: result.user }, "Signed in successfully");
+    return ActionResponse.success(
+      { user: result.user },
+      "Signed in successfully",
+    );
   } catch (error) {
     return toActionError(error);
   }
@@ -197,12 +210,15 @@ export const resetPassword = async (
 };
 
 /** Get the current session (null when signed out). */
-export const getSession = async (): Promise<ActionResponseType<SessionResult>> => {
+export const getSession = async (): Promise<
+  ActionResponseType<SessionResult>
+> => {
   try {
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session) {
       return ActionResponse.success(null, "No active session");
     }
+
     return ActionResponse.success(session, "Active session found");
   } catch (error) {
     return toActionError(error);

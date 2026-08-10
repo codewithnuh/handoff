@@ -1,0 +1,210 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import type { Client } from "@/app/generated/prisma/client";
+import { db } from "@/lib/prisma";
+import { toActionError } from "@/lib/actions/helpers";
+import { requireWorkspace } from "@/lib/actions/guards";
+import { ERROR_CODES } from "@/lib/constants/errors";
+import type { ActionResponseType } from "@/lib/types/action";
+import { ActionResponse } from "@/lib/utils/action-response";
+import {
+  clientIdSchema,
+  createClientSchema,
+  updateClientSchema,
+} from "@/lib/validation/client";
+import type {
+  ClientIdInput,
+  CreateClientInput,
+  UpdateClientInput,
+} from "@/lib/validation/client";
+
+// ──────────────────────────────────────────────
+// Result types
+// ──────────────────────────────────────────────
+
+export type ClientResult = Client;
+export type ClientListResult = { items: Client[] };
+export type DeleteClientResult = { deleted: boolean };
+
+const arena = "/";
+
+// ──────────────────────────────────────────────
+// Server Actions
+// ──────────────────────────────────────────────
+
+export const listClients = async (): Promise<
+  ActionResponseType<ClientListResult>
+> => {
+  const guard = await requireWorkspace();
+  if (!guard.ok) return guard.error;
+
+  try {
+    const items = await db.client.findMany({
+      where: { workspaceId: guard.value.workspace.id },
+      orderBy: { createdAt: "desc" },
+    });
+    return ActionResponse.success({ items }, "Clients loaded");
+  } catch (error) {
+    return toActionError(error, { fallback: "Failed to load clients." });
+  }
+};
+
+export const getClient = async (
+  data: ClientIdInput,
+): Promise<ActionResponseType<ClientResult>> => {
+  const validated = clientIdSchema.safeParse(data);
+  if (!validated.success) {
+    return ActionResponse.failure(
+      ERROR_CODES.VALIDATION_ERROR,
+      "Invalid input",
+      validated.error.flatten().fieldErrors,
+    );
+  }
+
+  const guard = await requireWorkspace();
+  if (!guard.ok) return guard.error;
+
+  try {
+    const client = await db.client.findFirst({
+      where: {
+        id: validated.data.id,
+        workspaceId: guard.value.workspace.id,
+      },
+    });
+    if (!client) {
+      return ActionResponse.failure(
+        ERROR_CODES.NOT_FOUND,
+        "Client not found.",
+      );
+    }
+    return ActionResponse.success(client, "Client loaded");
+  } catch (error) {
+    return toActionError(error, { fallback: "Failed to load the client." });
+  }
+};
+
+export const createClient = async (
+  data: CreateClientInput,
+): Promise<ActionResponseType<ClientResult>> => {
+  const validated = createClientSchema.safeParse(data);
+  if (!validated.success) {
+    return ActionResponse.failure(
+      ERROR_CODES.VALIDATION_ERROR,
+      "Invalid input",
+      validated.error.flatten().fieldErrors,
+    );
+  }
+
+  const guard = await requireWorkspace();
+  if (!guard.ok) return guard.error;
+
+  try {
+    const client = await db.client.create({
+      data: {
+        workspaceId: guard.value.workspace.id,
+        name: validated.data.name,
+        email: validated.data.email,
+        company: validated.data.company ?? null,
+      },
+    });
+    revalidatePath(arena);
+    return ActionResponse.success(client, "Client created successfully");
+  } catch (error) {
+    return toActionError(error, {
+      fallback: "Failed to create the client.",
+      conflict: "A client with this email already exists.",
+    });
+  }
+};
+
+export const updateClient = async (
+  data: UpdateClientInput,
+): Promise<ActionResponseType<ClientResult>> => {
+  const validated = updateClientSchema.safeParse(data);
+  if (!validated.success) {
+    return ActionResponse.failure(
+      ERROR_CODES.VALIDATION_ERROR,
+      "Invalid input",
+      validated.error.flatten().fieldErrors,
+    );
+  }
+
+  const guard = await requireWorkspace();
+  if (!guard.ok) return guard.error;
+
+  try {
+    const client = await db.client.updateMany({
+      where: {
+        id: validated.data.id,
+        workspaceId: guard.value.workspace.id,
+      },
+      data: {
+        name: validated.data.name,
+        email: validated.data.email,
+        company: validated.data.company ?? null,
+      },
+    });
+    if (client.count === 0) {
+      return ActionResponse.failure(
+        ERROR_CODES.NOT_FOUND,
+        "Client not found.",
+      );
+    }
+
+    const updated = await db.client.findUnique({
+      where: { id: validated.data.id },
+    });
+    revalidatePath(arena);
+    return ActionResponse.success(
+      updated!,
+      "Client updated successfully",
+    );
+  } catch (error) {
+    return toActionError(error, {
+      fallback: "Failed to update the client.",
+      conflict: "A client with this email already exists.",
+    });
+  }
+};
+
+export const deleteClient = async (
+  data: ClientIdInput,
+): Promise<ActionResponseType<DeleteClientResult>> => {
+  const validated = clientIdSchema.safeParse(data);
+  if (!validated.success) {
+    return ActionResponse.failure(
+      ERROR_CODES.VALIDATION_ERROR,
+      "Invalid input",
+      validated.error.flatten().fieldErrors,
+    );
+  }
+
+  const guard = await requireWorkspace();
+  if (!guard.ok) return guard.error;
+
+  try {
+    const result = await db.client.deleteMany({
+      where: {
+        id: validated.data.id,
+        workspaceId: guard.value.workspace.id,
+      },
+    });
+    if (result.count === 0) {
+      return ActionResponse.failure(
+        ERROR_CODES.NOT_FOUND,
+        "Client not found.",
+      );
+    }
+    revalidatePath(arena);
+    return ActionResponse.success(
+      { deleted: true },
+      "Client deleted successfully",
+    );
+  } catch (error) {
+    return toActionError(error, {
+      fallback: "Failed to delete the client.",
+      referenced: "This client can't be deleted because it still has projects.",
+    });
+  }
+};

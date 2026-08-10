@@ -183,6 +183,12 @@ describe("register", () => {
 // ──────────────────────────────────────────────
 
 describe("login", () => {
+  // `login` short-circuits if a session already exists (ALREADY_SIGNED_IN).
+  // Default the session lookup to "signed out" so these tests reach the API.
+  beforeEach(() => {
+    getSessionApi.mockResolvedValue(null);
+  });
+
   it("rejects invalid input without calling the API", async () => {
     const result = await login({ email: "bad", password: "" });
 
