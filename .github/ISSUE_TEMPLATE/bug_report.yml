@@ -1,0 +1,71 @@
+name: 🐛 Bug report
+description: Report a bug or unexpected behavior.
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill out the form below.
+
+  - type: input
+    id: version
+    attributes:
+      label: Handoff version
+      description: Which version are you running? (e.g. 0.1.0, or the commit hash)
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Where does it happen?
+      options:
+        - Local dev (pnpm dev)
+        - Production build (pnpm build / pnpm start)
+        - Tests (pnpm test)
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is.
+      placeholder: "When I create a client with X, then Y happens instead of Z."
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Steps to reproduce the behavior.
+      placeholder: |
+        1. Go to ...
+        2. Click on ...
+        3. Scroll down to ...
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / stack trace
+      description: Any relevant error output.
+      render: shell
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots, environment details (Node/Postgres/database provider), anything else.

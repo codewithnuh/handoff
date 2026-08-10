@@ -1,8 +1,39 @@
 {
   "name": "handoff",
   "version": "0.1.0",
-  "private": true,
+  "description": "Open-source client & project management for freelancers — clients, projects, deliverables, requests, invoices, and a client portal in one place.",
+  "private": false,
+  "license": "MIT",
   "type": "module",
+  "keywords": [
+    "freelancer",
+    "freelancing",
+    "project-management",
+    "client-management",
+    "client-portal",
+    "deliverables",
+    "invoicing",
+    "proposals",
+    "nextjs",
+    "react",
+    "typescript",
+    "prisma",
+    "postgresql",
+    "server-actions",
+    "better-auth",
+    "zod",
+    "saas",
+    "open-source"
+  ],
+  "homepage": "https://github.com/codewithnuh/handoff#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codewithnuh/handoff.git"
+  },
+  "bugs": {
+    "url": "https://github.com/codewithnuh/handoff/issues"
+  },
+  "author": "codewithnuh",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

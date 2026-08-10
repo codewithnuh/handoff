@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discussions
+    url: https://github.com/codewithnuh/handoff/discussions
+    about: Ask questions, share ideas, or discuss features.
+  - name: Security
+    url: https://github.com/codewithnuh/handoff/security/policy
+    about: Please report security vulnerabilities here — never in a public issue.

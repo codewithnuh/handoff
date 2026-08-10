@@ -1,0 +1,14 @@
+# Default code owners for the whole repo.
+# Paths not matched by a later rule fall back to this owner.
+* @codewithnuh
+
+# Frontend
+/components/ @codewithnuh
+/app/ @codewithnuh
+
+# Backend / data layer
+/lib/ @codewithnuh
+/prisma/ @codewithnuh
+
+# Project tooling / CI
+/.github/ @codewithnuh
