@@ -31,10 +31,10 @@ jobs:
         node-version: [22]
 
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/handoff
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
       NODE_ENV: test
-      AUTH_SECRET: ${{ secrets.CI_AUTH_SECRET }}
-      BETTER_AUTH_SECRET: ${{ secrets.CI_BETTER_AUTH_SECRET }}
+      AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+      BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
       BETTER_AUTH_URL: http://localhost:3000
       NEXT_PUBLIC_APP_URL: http://localhost:3000
 
