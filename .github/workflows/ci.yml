@@ -11,9 +11,32 @@ jobs:
     name: Lint, typecheck & test
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: handoff
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d handoff"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
     strategy:
       matrix:
         node-version: [22]
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/handoff
+      NODE_ENV: test
+      AUTH_SECRET: ${{ secrets.CI_AUTH_SECRET }}
+      BETTER_AUTH_SECRET: ${{ secrets.CI_BETTER_AUTH_SECRET }}
+      BETTER_AUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
 
     steps:
       - name: Checkout
@@ -44,17 +67,19 @@ jobs:
 
       - name: Test
         run: pnpm test
-        env:
-          DATABASE_URL: ${{ secrets.CI_DATABASE_URL }}
-          AUTH_SECRET: ${{ secrets.CI_AUTH_SECRET }}
-          BETTER_AUTH_SECRET: ${{ secrets.CI_BETTER_AUTH_SECRET }}
-          BETTER_AUTH_URL: http://localhost:3000
-          NODE_ENV: test
 
   build:
     name: Production build
     runs-on: ubuntu-latest
     needs: check
+
+    env:
+      DATABASE_URL: ${{ secrets.CI_DATABASE_URL }}
+      AUTH_SECRET: ${{ secrets.CI_AUTH_SECRET }}
+      BETTER_AUTH_SECRET: ${{ secrets.CI_BETTER_AUTH_SECRET }}
+      BETTER_AUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NODE_ENV: production
 
     steps:
       - name: Checkout
@@ -74,11 +99,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate Prisma Client
+        run: pnpm db:generate
+
       - name: Build
         run: pnpm build
-        env:
-          DATABASE_URL: ${{ secrets.CI_DATABASE_URL }}
-          AUTH_SECRET: ${{ secrets.CI_AUTH_SECRET }}
-          BETTER_AUTH_SECRET: ${{ secrets.CI_BETTER_AUTH_SECRET }}
-          BETTER_AUTH_URL: http://localhost:3000
-          NODE_ENV: production
