@@ -21,6 +21,9 @@ import type {
   RequestPasswordResetInput,
   ResetPasswordInput,
 } from "@/lib/validation/auth";
+import { createWorkspace } from "./workspace";
+import { db } from "../prisma";
+import { User } from "lucide-react";
 
 // ──────────────────────────────────────────────
 // Result types (standardized response payloads)
@@ -95,6 +98,22 @@ export const register = async (
       body: { name, email, password },
       headers: await headers(),
     });
+    if (!result.user) {
+      throw new Error("Failed to create user");
+    }
+    await db.workspace.create({
+      data: {
+        name: result.user.name,
+        ownerId: result.user.id,
+        subscription: {
+          create: {
+            plan: "FREE",
+            status: "ACTIVE",
+          },
+        },
+      },
+    });
+
     return ActionResponse.success(
       { user: result.user },
       "Account created successfully",

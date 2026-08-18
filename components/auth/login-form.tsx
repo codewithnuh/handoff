@@ -4,6 +4,9 @@ import { useActionState } from "react";
 import { login } from "@/lib/actions/auth";
 import type { LoginResult } from "@/lib/actions/auth";
 import type { ActionResponseType } from "@/lib/types/action";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
+import { Button } from "../ui/button";
 
 type LoginState = ActionResponseType<LoginResult> | null;
 
@@ -26,13 +29,13 @@ export default function LoginForm() {
   return (
     <form
       action={formAction}
-      className="flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"
+      className="flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-zinc-200 bg-background p-6 shadow-sm"
     >
       <div className="flex flex-col gap-1">
-        <label htmlFor="email" className="text-sm font-medium text-zinc-700">
+        <Label htmlFor="email" className="text-sm font-medium text-zinc-700">
           Email
-        </label>
-        <input
+        </Label>
+        <Input
           id="email"
           name="email"
           type="email"
@@ -44,10 +47,10 @@ export default function LoginForm() {
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="password" className="text-sm font-medium text-zinc-700">
+        <Label htmlFor="password" className="text-sm font-medium text-zinc-700">
           Password
-        </label>
-        <input
+        </Label>
+        <Input
           id="password"
           name="password"
           type="password"
@@ -78,13 +81,9 @@ export default function LoginForm() {
         </div>
       )}
 
-      <button
-        type="submit"
-        disabled={isPending}
-        className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-60"
-      >
+      <Button type="submit" disabled={isPending} className="">
         {isPending ? "Signing in…" : "Sign in"}
-      </button>
+      </Button>
     </form>
   );
 }

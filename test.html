@@ -1,0 +1,754 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Handoff — Client updates without the chaos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* ─────────────────────────────────────────────
+       Design tokens (Handoff)
+    ───────────────────────────────────────────── */
+      :root {
+        --bg: #fafafa;
+        --fg: #111111;
+        --fg-muted: #666666;
+        --fg-subtle: #888888;
+        --card: #ffffff;
+        --border: #e5e5e5;
+        --primary: #4f46e5; /* restrained indigo */
+        --primary-hover: #4338ca;
+        --primary-fg: #ffffff;
+        --success: #16a34a;
+        --radius: 8px;
+        --radius-lg: 12px;
+
+        --font: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 12px;
+        --space-4: 16px;
+        --space-5: 24px;
+        --space-6: 32px;
+        --space-7: 48px;
+        --space-8: 64px;
+        --space-9: 96px;
+      }
+
+      /* ─────────────────────────────────────────────
+       Reset & base
+    ───────────────────────────────────────────── */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html {
+        font-family: var(--font);
+        font-size: 16px;
+        line-height: 1.5;
+        color: var(--fg);
+        background: var(--bg);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      body {
+        min-height: 100vh;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      ul {
+        list-style: none;
+      }
+      img {
+        max-width: 100%;
+        display: block;
+      }
+      button {
+        font: inherit;
+        cursor: pointer;
+        border: none;
+        background: none;
+      }
+
+      /* ─────────────────────────────────────────────
+       Typography hierarchy
+    ───────────────────────────────────────────── */
+      .text-display {
+        font-size: 2.25rem; /* 36px */
+        font-weight: 600;
+        letter-spacing: -0.035em;
+        line-height: 1.15;
+      }
+
+      .text-title {
+        font-size: 1.5rem; /* 24px */
+        font-weight: 600;
+        letter-spacing: -0.025em;
+        line-height: 1.25;
+      }
+
+      .text-heading {
+        font-size: 1.25rem; /* 20px */
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        line-height: 1.3;
+      }
+
+      .text-body {
+        font-size: 1.0625rem; /* 17px */
+        font-weight: 400;
+        line-height: 1.6;
+        color: var(--fg-muted);
+      }
+
+      .text-body-sm {
+        font-size: 0.9375rem; /* 15px */
+        font-weight: 400;
+        line-height: 1.55;
+        color: var(--fg-muted);
+      }
+
+      .text-caption {
+        font-size: 0.8125rem; /* 13px */
+        font-weight: 500;
+        letter-spacing: 0.01em;
+        color: var(--fg-subtle);
+      }
+
+      /* ─────────────────────────────────────────────
+       Layout helpers
+    ───────────────────────────────────────────── */
+      .container {
+        width: 100%;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 0 var(--space-5);
+      }
+
+      .section {
+        padding: var(--space-9) 0;
+      }
+
+      .section-header {
+        max-width: 580px;
+        margin-bottom: var(--space-7);
+      }
+
+      .section-header p {
+        margin-top: var(--space-3);
+      }
+
+      /* ─────────────────────────────────────────────
+       Buttons
+    ───────────────────────────────────────────── */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--space-2);
+        height: 44px;
+        padding: 0 20px;
+        border-radius: var(--radius);
+        font-size: 0.9375rem;
+        font-weight: 500;
+        transition:
+          background 0.15s ease,
+          transform 0.1s ease;
+      }
+
+      .btn:active {
+        transform: scale(0.98);
+      }
+
+      .btn-primary {
+        background: var(--primary);
+        color: var(--primary-fg);
+      }
+
+      .btn-primary:hover {
+        background: var(--primary-hover);
+      }
+
+      .btn-secondary {
+        background: transparent;
+        color: var(--fg);
+        border: 1px solid var(--border);
+      }
+
+      .btn-secondary:hover {
+        background: #f0f0f0;
+      }
+
+      .btn-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-3);
+        margin-top: var(--space-6);
+      }
+
+      /* ─────────────────────────────────────────────
+       Navigation
+    ───────────────────────────────────────────── */
+      .nav {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        background: rgba(250, 250, 250, 0.85);
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .nav-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 64px;
+      }
+
+      .logo {
+        font-size: 1.125rem;
+        font-weight: 600;
+        letter-spacing: -0.03em;
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: var(--space-6);
+      }
+
+      .nav-links a {
+        font-size: 0.9375rem;
+        color: var(--fg-muted);
+        transition: color 0.15s ease;
+      }
+
+      .nav-links a:hover {
+        color: var(--fg);
+      }
+
+      .nav-cta {
+        height: 36px;
+        padding: 0 14px;
+        font-size: 0.875rem;
+      }
+
+      /* ─────────────────────────────────────────────
+       Hero
+    ───────────────────────────────────────────── */
+      .hero {
+        padding: var(--space-9) 0 var(--space-8);
+        text-align: center;
+      }
+
+      .hero-eyebrow {
+        display: inline-block;
+        margin-bottom: var(--space-4);
+        padding: 4px 10px;
+        background: #eef2ff;
+        color: var(--primary);
+        border-radius: 999px;
+        font-size: 0.8125rem;
+        font-weight: 500;
+      }
+
+      .hero h1 {
+        max-width: 720px;
+        margin: 0 auto;
+      }
+
+      .hero .text-body {
+        max-width: 540px;
+        margin: var(--space-5) auto 0;
+        font-size: 1.125rem;
+      }
+
+      .hero-visual {
+        margin-top: var(--space-8);
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.06);
+      }
+
+      /* Fake client link preview */
+      .client-preview {
+        padding: var(--space-6);
+        text-align: left;
+      }
+
+      .client-preview-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: var(--space-5);
+        padding-bottom: var(--space-4);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .client-preview-title {
+        font-weight: 600;
+        font-size: 1.0625rem;
+      }
+
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 500;
+      }
+
+      .status-pill::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+
+      .status-progress {
+        background: #eef2ff;
+        color: var(--primary);
+      }
+
+      .status-accepted {
+        background: #dcfce7;
+        color: var(--success);
+      }
+
+      .deliverable {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: var(--space-3) 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .deliverable:last-child {
+        border-bottom: none;
+      }
+
+      .deliverable-name {
+        font-size: 0.9375rem;
+        font-weight: 500;
+      }
+
+      .deliverable-meta {
+        font-size: 0.8125rem;
+        color: var(--fg-subtle);
+        margin-top: 2px;
+      }
+
+      /* ─────────────────────────────────────────────
+       Problem
+    ───────────────────────────────────────────── */
+      .problem-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: var(--space-5);
+      }
+
+      .problem-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: var(--space-5);
+      }
+
+      .problem-card h3 {
+        margin-bottom: var(--space-2);
+      }
+
+      /* ─────────────────────────────────────────────
+       How it works
+    ───────────────────────────────────────────── */
+      .steps {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--space-6);
+        counter-reset: step;
+      }
+
+      .step {
+        position: relative;
+        padding-top: var(--space-6);
+      }
+
+      .step::before {
+        counter-increment: step;
+        content: counter(step);
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 28px;
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--primary);
+        color: white;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        border-radius: 50%;
+      }
+
+      .step h3 {
+        margin-bottom: var(--space-2);
+      }
+
+      /* ─────────────────────────────────────────────
+       Features
+    ───────────────────────────────────────────── */
+      .features-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: var(--space-5);
+      }
+
+      .feature {
+        padding: var(--space-5);
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+      }
+
+      .feature-icon {
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #eef2ff;
+        color: var(--primary);
+        border-radius: var(--radius);
+        margin-bottom: var(--space-4);
+        font-size: 1rem;
+        font-weight: 600;
+      }
+
+      .feature h3 {
+        margin-bottom: var(--space-2);
+      }
+
+      /* ─────────────────────────────────────────────
+       Final CTA
+    ───────────────────────────────────────────── */
+      .final-cta {
+        text-align: center;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: var(--space-8) var(--space-5);
+      }
+
+      .final-cta h2 {
+        margin-bottom: var(--space-3);
+      }
+
+      .final-cta .text-body {
+        max-width: 420px;
+        margin: 0 auto var(--space-6);
+      }
+
+      /* ─────────────────────────────────────────────
+       Footer
+    ───────────────────────────────────────────── */
+      .footer {
+        border-top: 1px solid var(--border);
+        padding: var(--space-6) 0;
+        margin-top: var(--space-8);
+      }
+
+      .footer-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: var(--space-4);
+      }
+
+      .footer-links {
+        display: flex;
+        gap: var(--space-5);
+      }
+
+      .footer-links a {
+        font-size: 0.875rem;
+        color: var(--fg-muted);
+      }
+
+      .footer-links a:hover {
+        color: var(--fg);
+      }
+
+      /* ─────────────────────────────────────────────
+       Responsive
+    ───────────────────────────────────────────── */
+      @media (max-width: 768px) {
+        .text-display {
+          font-size: 1.875rem;
+        }
+
+        .nav-links {
+          display: none;
+        }
+
+        .steps {
+          grid-template-columns: 1fr;
+          gap: var(--space-7);
+        }
+
+        .hero {
+          padding-top: var(--space-7);
+        }
+
+        .section {
+          padding: var(--space-8) 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Navigation -->
+    <header class="nav">
+      <div class="container nav-inner">
+        <a href="/" class="logo">Handoff</a>
+        <nav class="nav-links">
+          <a href="#how">How it works</a>
+          <a href="#features">Features</a>
+          <a href="#">Log in</a>
+          <a href="#" class="btn btn-primary nav-cta">Start free</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <!-- Hero -->
+      <section class="hero">
+        <div class="container">
+          <span class="hero-eyebrow">For freelancers</span>
+          <h1 class="text-display">Client updates without the chaos</h1>
+          <p class="text-body">
+            Create projects and deliverables, then share one private link.
+            Clients see progress, leave comments, and accept or reject — without
+            another tool to learn.
+          </p>
+          <div class="btn-group" style="justify-content: center">
+            <a href="#" class="btn btn-primary">Start free</a>
+            <a href="#how" class="btn btn-secondary">See how it works</a>
+          </div>
+
+          <!-- Client link preview (the product magic) -->
+          <div class="hero-visual">
+            <div class="client-preview">
+              <div class="client-preview-header">
+                <div>
+                  <div class="text-caption" style="margin-bottom: 4px">
+                    PRIVATE LINK
+                  </div>
+                  <div class="client-preview-title">
+                    Website Redesign — Acme Co
+                  </div>
+                </div>
+                <span class="status-pill status-progress">In progress</span>
+              </div>
+
+              <div class="deliverable">
+                <div>
+                  <div class="deliverable-name">Homepage mockups</div>
+                  <div class="deliverable-meta">3 screens · Updated 2h ago</div>
+                </div>
+                <span class="status-pill status-accepted">Accepted</span>
+              </div>
+
+              <div class="deliverable">
+                <div>
+                  <div class="deliverable-name">Component library</div>
+                  <div class="deliverable-meta">Buttons, forms, cards</div>
+                </div>
+                <span class="status-pill status-progress">In review</span>
+              </div>
+
+              <div class="deliverable">
+                <div>
+                  <div class="deliverable-name">Mobile navigation</div>
+                  <div class="deliverable-meta">Waiting on content</div>
+                </div>
+                <span
+                  class="status-pill"
+                  style="background: #f5f5f5; color: #666"
+                  >Pending</span
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Problem -->
+      <section class="section">
+        <div class="container">
+          <div class="section-header">
+            <h2 class="text-title">The status update problem</h2>
+            <p class="text-body">
+              Most freelancers lose time and professionalism to the same messy
+              loops.
+            </p>
+          </div>
+
+          <div class="problem-grid">
+            <div class="problem-card">
+              <h3 class="text-heading">Scattered questions</h3>
+              <p class="text-body-sm">
+                “What’s the status?” arrives in WhatsApp, email, and Slack —
+                often about work you already sent.
+              </p>
+            </div>
+            <div class="problem-card">
+              <h3 class="text-heading">No single source of truth</h3>
+              <p class="text-body-sm">
+                Clients dig through old threads looking for the latest file or
+                decision.
+              </p>
+            </div>
+            <div class="problem-card">
+              <h3 class="text-heading">Unclear decisions</h3>
+              <p class="text-body-sm">
+                Accepts, rejects, and feedback live in different places. Nothing
+                is cleanly recorded.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- How it works -->
+      <section class="section" id="how" style="background: #f5f5f5">
+        <div class="container">
+          <div class="section-header">
+            <h2 class="text-title">How Handoff works</h2>
+            <p class="text-body">
+              Three steps. No extra tools for your client to learn.
+            </p>
+          </div>
+
+          <div class="steps">
+            <div class="step">
+              <h3 class="text-heading">Create the work</h3>
+              <p class="text-body-sm">
+                Set up a project and break it into clear deliverables with
+                statuses.
+              </p>
+            </div>
+            <div class="step">
+              <h3 class="text-heading">Share one link</h3>
+              <p class="text-body-sm">
+                Generate a private link. Your client opens it and sees exactly
+                what’s ready.
+              </p>
+            </div>
+            <div class="step">
+              <h3 class="text-heading">Get decisions</h3>
+              <p class="text-body-sm">
+                They comment, accept, or request changes. Everything stays in
+                one place.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Features -->
+      <section class="section" id="features">
+        <div class="container">
+          <div class="section-header">
+            <h2 class="text-title">Built for clarity</h2>
+            <p class="text-body">
+              Only what freelancers and their clients actually need.
+            </p>
+          </div>
+
+          <div class="features-grid">
+            <div class="feature">
+              <div class="feature-icon">1</div>
+              <h3 class="text-heading">Live status clients trust</h3>
+              <p class="text-body-sm">
+                Deliverables show real progress. No more digging through
+                messages for the latest version.
+              </p>
+            </div>
+            <div class="feature">
+              <div class="feature-icon">2</div>
+              <h3 class="text-heading">Accept or reject in context</h3>
+              <p class="text-body-sm">
+                Clients make decisions directly on the work. Feedback and
+                history stay attached.
+              </p>
+            </div>
+            <div class="feature">
+              <div class="feature-icon">3</div>
+              <h3 class="text-heading">You control visibility</h3>
+              <p class="text-body-sm">
+                Share only what you want them to see. Internal notes and drafts
+                stay private.
+              </p>
+            </div>
+            <div class="feature">
+              <div class="feature-icon">4</div>
+              <h3 class="text-heading">Works on any phone</h3>
+              <p class="text-body-sm">
+                Most clients open links on mobile. The private view is clean and
+                readable there.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Final CTA -->
+      <section class="section">
+        <div class="container">
+          <div class="final-cta">
+            <h2 class="text-title">Stop repeating status updates</h2>
+            <p class="text-body">
+              Share progress the clean way. Start free — no credit card
+              required.
+            </p>
+            <a href="#" class="btn btn-primary">Start free</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="container footer-inner">
+        <div class="logo">Handoff</div>
+        <div class="footer-links">
+          <a href="#">Privacy</a>
+          <a href="#">Terms</a>
+          <a href="#">Contact</a>
+        </div>
+        <div class="text-caption">© 2026 Handoff</div>
+      </div>
+    </footer>
+  </body>
+</html>
