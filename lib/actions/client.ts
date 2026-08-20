@@ -27,7 +27,10 @@ export type ClientResult = Client;
 export type ClientListResult = { items: Client[] };
 export type DeleteClientResult = { deleted: boolean };
 
-const arena = "/";
+const revalidateDashboard = () => {
+  revalidatePath("/");
+  revalidatePath("/dashboard");
+};
 
 // ──────────────────────────────────────────────
 // Server Actions
@@ -108,7 +111,7 @@ export const createClient = async (
         company: validated.data.company ?? null,
       },
     });
-    revalidatePath(arena);
+    revalidateDashboard();
     return ActionResponse.success(client, "Client created successfully");
   } catch (error) {
     return toActionError(error, {
@@ -155,7 +158,7 @@ export const updateClient = async (
     const updated = await db.client.findUnique({
       where: { id: validated.data.id },
     });
-    revalidatePath(arena);
+    revalidateDashboard();
     return ActionResponse.success(
       updated!,
       "Client updated successfully",
@@ -196,7 +199,7 @@ export const deleteClient = async (
         "Client not found.",
       );
     }
-    revalidatePath(arena);
+    revalidateDashboard();
     return ActionResponse.success(
       { deleted: true },
       "Client deleted successfully",

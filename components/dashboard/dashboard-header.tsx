@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+
+import { useRef, useState } from "react";
 import { useForm } from "@tanstack/react-form";
 import { IconPlus } from "@tabler/icons-react";
 import { User } from "lucide-react";
@@ -16,61 +17,127 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { createProject } from "@/lib/actions/project";
-import { ClientCombobox } from "./create-client";
-const fakeClients = [
-  {
-    id: "cl_fake_acme_01",
-    workspaceId: "ws_fake_sarah_01",
-    name: "John Carter",
-    email: "john.carter@acme.com",
-    company: "Acme Corporation",
-    createdAt: new Date("2026-08-15T10:00:00.000Z"),
-    updatedAt: new Date("2026-08-15T10:00:00.000Z"),
-  },
-  {
-    id: "cl_fake_globex_02",
-    workspaceId: "ws_fake_sarah_01",
-    name: "Sarah Miller",
-    email: "sarah@globex.com",
-    company: "Globex",
-    createdAt: new Date("2026-08-16T12:30:00.000Z"),
-    updatedAt: new Date("2026-08-16T12:30:00.000Z"),
-  },
-  {
-    id: "cl_fake_stark_03",
-    workspaceId: "ws_fake_sarah_01",
-    name: "Tony Stark",
-    email: "tony@starkindustries.com",
-    company: "Stark Industries",
-    createdAt: new Date("2026-08-17T09:15:00.000Z"),
-    updatedAt: new Date("2026-08-17T09:15:00.000Z"),
-  },
-];
+import {
+  ActionTimeoutError,
+  withTimeout,
+} from "@/lib/utils/with-timeout";
+import { ClientCombobox, type ClientOption } from "./create-client";
+
+const ACTION_TIMEOUT_MS = 15_000;
+
 type DashboardHeaderProps = {
   userName: string;
   workspaceName: string;
+  clients: ClientOption[];
 };
 
 export function DashboardHeader({
   userName,
   workspaceName,
+  clients,
 }: DashboardHeaderProps) {
   const [open, setOpen] = useState(false);
+  const projectNameRef = useRef<HTMLInputElement | null>(null);
 
   const form = useForm({
     defaultValues: {
       projectName: "",
       projectDescription: "",
+      clientId: "",
       startDate: "",
       endDate: "",
     },
     onSubmit: async ({ value }) => {
-      console.log({ value });
-      // await createProject(value);
-      form.reset();
-      setOpen(false);
+      try {
+        const result = await withTimeout(
+          createProject({
+            name: value.projectName,
+            description: value.projectDescription.trim() || null,
+            clientId: value.clientId,
+            startDate: value.startDate ? new Date(value.startDate) : null,
+            dueDate: value.endDate ? new Date(value.endDate) : null,
+          }),
+          ACTION_TIMEOUT_MS,
+        );
+
+        if (!result.success) {
+          form.setFieldMeta("projectName", (meta) => ({
+            ...meta,
+            errorMap: {
+              onSubmit:
+                result.error.fieldErrors?.name?.join(", ") ??
+                meta.errorMap.onSubmit,
+            },
+          }));
+          form.setFieldMeta("projectDescription", (meta) => ({
+            ...meta,
+            errorMap: {
+              onSubmit:
+                result.error.fieldErrors?.description?.join(", ") ??
+                meta.errorMap.onSubmit,
+            },
+          }));
+          form.setFieldMeta("clientId", (meta) => ({
+            ...meta,
+            errorMap: {
+              onSubmit:
+                result.error.fieldErrors?.clientId?.join(", ") ??
+                meta.errorMap.onSubmit,
+            },
+          }));
+          form.setFieldMeta("startDate", (meta) => ({
+            ...meta,
+            errorMap: {
+              onSubmit:
+                result.error.fieldErrors?.startDate?.join(", ") ??
+                meta.errorMap.onSubmit,
+            },
+          }));
+          form.setFieldMeta("endDate", (meta) => ({
+            ...meta,
+            errorMap: {
+              onSubmit:
+                result.error.fieldErrors?.dueDate?.join(", ") ??
+                meta.errorMap.onSubmit,
+            },
+          }));
+
+          toast.add({
+            type: "error",
+            title: "Couldn't create project",
+            description: result.message,
+          });
+          return;
+        }
+
+        toast.add({
+          type: "success",
+          title: "Project created",
+          description: `"${result.data.name}" is ready to go.`,
+        });
+
+        form.reset();
+        setOpen(false);
+      } catch (error) {
+        if (error instanceof ActionTimeoutError) {
+          toast.add({
+            type: "error",
+            title: "Request timed out",
+            description: error.message,
+          });
+          return;
+        }
+
+        toast.add({
+          type: "error",
+          title: "Something went wrong",
+          description:
+            error instanceof Error ? error.message : "Please try again.",
+        });
+      }
     },
   });
 
@@ -97,10 +164,10 @@ export function DashboardHeader({
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Are you absolutely sure?</DialogTitle>
+              <DialogTitle>Invite a client</DialogTitle>
               <DialogDescription>
-                This action cannot be undone. This will permanently delete your
-                account and remove your data from our servers.
+                Invite a client to your portal so they can follow their
+                projects and deliverables.
               </DialogDescription>
             </DialogHeader>
           </DialogContent>
@@ -117,7 +184,10 @@ export function DashboardHeader({
             <IconPlus className="mr-2 h-4 w-4" />
             <span>Create Project</span>
           </DialogTrigger>
-          <DialogContent className="flex flex-col gap-4">
+          <DialogContent
+            initialFocus={projectNameRef}
+            className="flex flex-col gap-4"
+          >
             <DialogHeader>
               <DialogTitle>Create New Project</DialogTitle>
               <DialogDescription>
@@ -139,6 +209,9 @@ export function DashboardHeader({
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor={field.name}>Project Name</Label>
                     <Input
+                      ref={(node) => {
+                        projectNameRef.current = node;
+                      }}
                       id={field.name}
                       name={field.name}
                       value={field.state.value}
@@ -148,6 +221,14 @@ export function DashboardHeader({
                       onChange={(e) => field.handleChange(e.target.value)}
                       placeholder="Project Name"
                     />
+                    {field.state.meta.errors.length > 0 && (
+                      <p
+                        role="alert"
+                        className="text-xs text-destructive"
+                      >
+                        {field.state.meta.errors.join(", ")}
+                      </p>
+                    )}
                   </div>
                 )}
               </form.Field>
@@ -169,61 +250,76 @@ export function DashboardHeader({
                   </div>
                 )}
               </form.Field>
+
               <form.Field name="clientId">
                 {(field) => (
                   <div className="flex flex-col gap-1.5">
                     <Label>Client</Label>
 
                     <ClientCombobox
-                      clients={fakeClients}
+                      clients={clients}
                       value={field.state.value}
                       onChange={field.handleChange}
                     />
-                  </div>
-                )}
-              </form.Field>
-              {/* Start Date Field */}
-              <form.Field name="startDate">
-                {(field) => (
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor={field.name}>Start Date</Label>
-                    <Input
-                      id={field.name}
-                      name={field.name}
-                      type="date"
-                      required
-                      aria-required
-                      value={field.state.value}
-                      onBlur={field.handleBlur}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                    />
+
+                    {field.state.meta.errors.length > 0 && (
+                      <p
+                        role="alert"
+                        className="text-xs text-destructive"
+                      >
+                        {field.state.meta.errors.join(", ")}
+                      </p>
+                    )}
                   </div>
                 )}
               </form.Field>
 
-              {/* End Date Field */}
-              <form.Field name="endDate">
-                {(field) => (
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor={field.name}>Due Date</Label>
-                    <Input
-                      id={field.name}
-                      name={field.name}
-                      type="date"
-                      value={field.state.value}
-                      onBlur={field.handleBlur}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                    />
-                  </div>
-                )}
-              </form.Field>
+              <div className="grid grid-cols-2 gap-4">
+                {/* Start Date Field */}
+                <form.Field name="startDate">
+                  {(field) => (
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor={field.name}>Start Date</Label>
+                      <Input
+                        id={field.name}
+                        name={field.name}
+                        type="date"
+                        value={field.state.value}
+                        onBlur={field.handleBlur}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                      />
+                    </div>
+                  )}
+                </form.Field>
+
+                {/* End Date Field */}
+                <form.Field name="endDate">
+                  {(field) => (
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor={field.name}>Due Date</Label>
+                      <Input
+                        id={field.name}
+                        name={field.name}
+                        type="date"
+                        value={field.state.value}
+                        onBlur={field.handleBlur}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                      />
+                    </div>
+                  )}
+                </form.Field>
+              </div>
 
               {/* Submit Button */}
               <form.Subscribe
                 selector={(state) => [state.canSubmit, state.isSubmitting]}
               >
                 {([canSubmit, isSubmitting]) => (
-                  <Button type="submit" disabled={!canSubmit} className="mt-2">
+                  <Button
+                    type="submit"
+                    disabled={!canSubmit || isSubmitting}
+                    className="mt-2"
+                  >
                     {isSubmitting ? "Creating..." : "Create Project"}
                   </Button>
                 )}

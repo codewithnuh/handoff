@@ -55,7 +55,7 @@ export const requireWorkspace = async (): Promise<
   const authResult = await requireAuth();
   if (!authResult.ok) return authResult;
 
-  const workspace = await db.workspace.findUnique({
+  const workspace = await db.workspace.findFirst({
     where: { ownerId: authResult.value.id },
   });
   if (!workspace) {

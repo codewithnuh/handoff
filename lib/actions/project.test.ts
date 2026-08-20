@@ -16,7 +16,7 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/prisma", () => ({
   db: {
-    workspace: { findUnique: vi.fn() },
+    workspace: { findFirst: vi.fn() },
     client: { findFirst: vi.fn() },
     project: {
       findFirst: vi.fn(),
@@ -33,7 +33,7 @@ vi.mock("next/cache", () => ({
 }));
 
 const getSession = vi.mocked(auth.api.getSession);
-const findWorkspace = vi.mocked(db.workspace.findUnique);
+const findWorkspace = vi.mocked(db.workspace.findFirst);
 const findClient = vi.mocked(db.client.findFirst);
 const findProjectFirst = vi.mocked(db.project.findFirst);
 const findProjectUnique = vi.mocked(db.project.findUnique);

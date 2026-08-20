@@ -2,53 +2,48 @@ import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
 import { getCurrentWorkspace } from "@/lib/actions/workspace";
-import {
-  IconFolder,
-  IconUsers,
-  IconClipboardList,
-  IconClock,
-} from "@tabler/icons-react";
-
-const stats = [
-  {
-    title: "Total Projects",
-    value: "12",
-    icon: IconFolder,
-    change: "+2 this month",
-  },
-  {
-    title: "Active Requests",
-    value: "5",
-    icon: IconClipboardList,
-    change: "3 pending",
-  },
-  {
-    title: "Team Members",
-    value: "8",
-    icon: IconUsers,
-    change: "+1 new",
-  },
-  {
-    title: "Avg. Response",
-    value: "2.4h",
-    icon: IconClock,
-    change: "−12% faster",
-  },
-];
+import { listClients } from "@/lib/actions/client";
+import { getSession } from "@/lib/actions/auth";
 
 export default async function Dashboard() {
-  const currentWorkSpace = await getCurrentWorkspace();
-  let workspaceData;
-  if (currentWorkSpace.success && currentWorkSpace.data) {
-    workspaceData = currentWorkSpace.data;
-  }
-  console.log(workspaceData);
+  const [workspaceResult, sessionResult, clientsResult] = await Promise.all([
+    getCurrentWorkspace(),
+    getSession(),
+    listClients(),
+  ]);
+
+  const workspaceName =
+    workspaceResult.success && workspaceResult.data
+      ? workspaceResult.data.name
+      : "Your Workspace";
+
+  const user = sessionResult.success ? sessionResult.data : null;
+  const userName =
+    user?.user.name ??
+    (user?.user.email
+      ? user.user.email.split("@")[0].slice(0, 1).toUpperCase() +
+        user.user.email.split("@")[0].slice(1)
+      : "there");
+
+  const clients =
+    clientsResult.success
+      ? clientsResult.data.items.map((client) => ({
+          id: client.id,
+          name: client.name,
+          email: client.email,
+        }))
+      : [];
+
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
       <div className="flex items-center gap-2">
         <SidebarTrigger className="md:hidden" />
       </div>
-      <DashboardHeader userName="SARAH" workspaceName="Sarah Workspace" />
+      <DashboardHeader
+        userName={userName}
+        workspaceName={workspaceName}
+        clients={clients}
+      />
     </div>
   );
 }

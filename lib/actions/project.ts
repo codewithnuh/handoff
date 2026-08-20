@@ -36,7 +36,10 @@ export type ProjectResult = Project;
 export type ProjectListResult = { items: Project[] };
 export type DeleteProjectResult = { deleted: boolean };
 
-const arena = "/";
+const revalidateDashboard = () => {
+  revalidatePath("/");
+  revalidatePath("/dashboard");
+};
 
 // ──────────────────────────────────────────────
 // Server Actions
@@ -137,7 +140,7 @@ export const createProject = async (
       meta: { name: project.name },
     });
 
-    revalidatePath(arena);
+    revalidateDashboard();
     return ActionResponse.success(project, "Project created successfully");
   } catch (error) {
     return toActionError(error, { fallback: "Failed to create the project." });
@@ -226,7 +229,7 @@ export const updateProject = async (
       });
     }
 
-    revalidatePath(arena);
+    revalidateDashboard();
     return ActionResponse.success(project, "Project updated successfully");
   } catch (error) {
     return toActionError(error, { fallback: "Failed to update the project." });
@@ -279,7 +282,7 @@ export const updateProjectStatus = async (
       meta: { from: existing.status, to: project.status },
     });
 
-    revalidatePath(arena);
+    revalidateDashboard();
     return ActionResponse.success(
       project,
       "Project status updated successfully",
@@ -327,7 +330,7 @@ export const updateProjectProgress = async (
       meta: { progress: project.progress },
     });
 
-    revalidatePath(arena);
+    revalidateDashboard();
     return ActionResponse.success(
       project,
       "Project progress updated successfully",
@@ -367,7 +370,7 @@ export const deleteProject = async (
         "Project not found.",
       );
     }
-    revalidatePath(arena);
+    revalidateDashboard();
     return ActionResponse.success(
       { deleted: true },
       "Project deleted successfully",
@@ -376,6 +379,3 @@ export const deleteProject = async (
     return toActionError(error, { fallback: "Failed to delete the project." });
   }
 };
-
-export const handleInviteClient = async () => {};
-export const handleCreateNewProject = async () => {};
