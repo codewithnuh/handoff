@@ -3,8 +3,6 @@ import { Geist, Geist_Mono, Inter } from "next/font/google";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { cn } from "@/lib/utils";
-import { Navbar } from "@/components/globals/nav";
-import { Footer } from "@/components/landing-page/footer";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -56,11 +54,7 @@ export default function RootLayout({
         inter.variable,
       )}
     >
-      <body className="min-h-full flex flex-col">
-        <Navbar />
-        {children}
-        <Footer />
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

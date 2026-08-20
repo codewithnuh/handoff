@@ -144,7 +144,6 @@ export const createProject = async (
   }
 };
 
-
 export const updateProject = async (
   data: UpdateProjectInput,
 ): Promise<ActionResponseType<ProjectResult>> => {
@@ -378,3 +377,5 @@ export const deleteProject = async (
   }
 };
 
+export const handleInviteClient = async () => {};
+export const handleCreateNewProject = async () => {};

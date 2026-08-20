@@ -11,6 +11,7 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
 // ──────────────────────────────────────────────
 // Enums
 // ──────────────────────────────────────────────
@@ -78,22 +79,25 @@ enum ActivityType {
 // ──────────────────────────────────────────────
 
 model User {
-  id            String    @id @default(cuid())
+  id            String  @id @default(cuid())
   name          String
-  email         String    @unique
-  emailVerified Boolean   @default(false)
+  email         String  @unique
+  emailVerified Boolean @default(false)
   image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
 
-  // A freelancer owns one workspace for MVP simplicity.
-  // Easy to evolve to multi-workspace later if needed.
-  workspace Workspace?
+  // Track active workspace state
+  activeWorkspaceId String?
 
-  // Comments made by this user (freelancer side)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 1-to-many: User owns multiple workspaces
+  workspaces Workspace[] @relation("WorkspaceOwner")
+
+  // Self-relation to active workspace
+  activeWorkspace Workspace? @relation("ActiveWorkspace", fields: [activeWorkspaceId], references: [id], onDelete: SetNull)
+
   comments Comment[] @relation("CommentAuthor")
-
-  // Better Auth relations (sessions + accounts)
   sessions Session[]
   accounts Account[]
 
@@ -157,16 +161,18 @@ model Verification {
 
 model Workspace {
   id        String   @id @default(cuid())
-  name      String   // e.g. "Sarah's Studio" or just the user's name
-  ownerId   String   @unique
+  name      String
+  ownerId   String // Removed @unique to allow 1-to-many
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  owner        User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner        User          @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  activeUsers  User[]        @relation("ActiveWorkspace")
   clients      Client[]
   projects     Project[]
   subscription Subscription?
 
+  @@index([ownerId])
   @@map("workspaces")
 }
 
@@ -209,14 +215,14 @@ model Project {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  workspace   Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  client      Client             @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  workspace    Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client       Client             @relation(fields: [clientId], references: [id], onDelete: Restrict)
   deliverables Deliverable[]
-  requests    Request[]
-  invoices    Invoice[]
-  activities  Activity[]
-  invitations ClientInvitation[]
-  access      ProjectAccess[]
+  requests     Request[]
+  invoices     Invoice[]
+  activities   Activity[]
+  invitations  ClientInvitation[]
+  access       ProjectAccess[]
 
   @@index([workspaceId])
   @@index([clientId])
@@ -229,13 +235,13 @@ model Project {
 // ──────────────────────────────────────────────
 
 model ClientInvitation {
-  id          String    @id @default(cuid())
-  projectId   String
-  email       String    // should match the Client.email in most cases
-  token       String    @unique // long random token for the invite link
-  expiresAt   DateTime
-  acceptedAt  DateTime?
-  createdAt   DateTime  @default(now())
+  id         String    @id @default(cuid())
+  projectId  String
+  email      String // should match the Client.email in most cases
+  token      String    @unique // long random token for the invite link
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  createdAt  DateTime  @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
@@ -249,7 +255,7 @@ model ClientInvitation {
 model ProjectAccess {
   id        String   @id @default(cuid())
   projectId String
-  email     String   // the verified client email
+  email     String // the verified client email
   createdAt DateTime @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -286,7 +292,7 @@ model Deliverable {
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 
-  project  Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project  Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
   versions DeliverableVersion[]
   comments Comment[]
 
@@ -299,8 +305,8 @@ model DeliverableVersion {
   id            String   @id @default(cuid())
   deliverableId String
   versionNumber Int
-  fileId        String?  // reference to File
-  notes         String?  // optional internal note from freelancer
+  fileId        String? // reference to File
+  notes         String? // optional internal note from freelancer
   createdAt     DateTime @default(now())
 
   deliverable Deliverable @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
@@ -341,8 +347,8 @@ model Comment {
   content       String
   // Author can be either a User (freelancer) or a client email
   authorUserId  String?
-  authorEmail   String?  // for client comments
-  authorName    String?  // denormalized for display
+  authorEmail   String? // for client comments
+  authorName    String? // denormalized for display
   deliverableId String?
   requestId     String?
   createdAt     DateTime @default(now())
@@ -409,13 +415,13 @@ model Invoice {
 // ──────────────────────────────────────────────
 
 model File {
-  id          String   @id @default(cuid())
+  id        String   @id @default(cuid())
   // Storage key / path in S3, R2, local disk, etc.
-  key         String
-  filename    String
-  mimeType    String?
-  size        Int?     // bytes
-  createdAt   DateTime @default(now())
+  key       String
+  filename  String
+  mimeType  String?
+  size      Int? // bytes
+  createdAt DateTime @default(now())
 
   versions DeliverableVersion[]
 

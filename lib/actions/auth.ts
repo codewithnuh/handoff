@@ -92,33 +92,60 @@ export const register = async (
     );
   }
 
+  let createdUserId: string | null = null;
+
   try {
     const { name, email, password } = validated.data;
+
+    // 1. Create Identity via Better Auth
     const result = await auth.api.signUpEmail({
       body: { name, email, password },
       headers: await headers(),
     });
+
     if (!result.user) {
       throw new Error("Failed to create user");
     }
-    await db.workspace.create({
-      data: {
-        name: result.user.name,
-        ownerId: result.user.id,
-        subscription: {
-          create: {
-            plan: "FREE",
-            status: "ACTIVE",
+
+    createdUserId = result.user.id;
+
+    // 2. Atomic Workspace + Subscription Creation & Active Workspace Link
+    const workspace = await db.$transaction(async (tx) => {
+      // Create default workspace and its free subscription tier
+      const ws = await tx.workspace.create({
+        data: {
+          name: `${name}'s Workspace`,
+          ownerId: result.user.id,
+          subscription: {
+            create: {
+              plan: "FREE",
+              status: "ACTIVE",
+            },
           },
         },
-      },
+      });
+
+      // Link newly created workspace as activeWorkspaceId on User model
+      await tx.user.update({
+        where: { id: result.user.id },
+        data: { activeWorkspaceId: ws.id },
+      });
+
+      return ws;
     });
 
     return ActionResponse.success(
-      { user: result.user },
+      { user: result.user, workspace },
       "Account created successfully",
     );
   } catch (error) {
+    // 3. Rollback: Clean up orphaned auth user if DB setup fails
+    if (createdUserId) {
+      await db.user.delete({ where: { id: createdUserId } }).catch(() => {
+        // Log critical rollback error if user deletion fails
+      });
+    }
+
     return toActionError(error);
   }
 };

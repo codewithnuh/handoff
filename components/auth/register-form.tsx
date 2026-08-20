@@ -1,15 +1,19 @@
 "use client";
 
 import { useActionState } from "react";
+
 import { register } from "@/lib/actions/auth";
 import type { RegisterResult } from "@/lib/actions/auth";
 import type { ActionResponseType } from "@/lib/types/action";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
 type RegisterState = ActionResponseType<RegisterResult> | null;
 
 /**
- * Wraps the `register` server action so it can be driven by a native HTML form.
- * Reads the raw FormData and hands a validated payload to the server action.
+ * Wraps the register server action so it can be driven by a native HTML form.
  */
 async function registerAction(
   _prev: RegisterState,
@@ -18,6 +22,7 @@ async function registerAction(
   const name = String(formData.get("name") ?? "");
   const email = String(formData.get("email") ?? "");
   const password = String(formData.get("password") ?? "");
+
   return register({ name, email, password });
 }
 
@@ -27,43 +32,38 @@ export default function RegisterForm() {
   return (
     <form
       action={formAction}
-      className="flex w-full text-black max-w-sm flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"
+      className="flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"
     >
-      <div className="flex flex-col gap-1">
-        <label htmlFor="name" className="text-sm font-medium text-zinc-700">
-          Name
-        </label>
-        <input
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="name">Name</Label>
+
+        <Input
           id="name"
           name="name"
           type="text"
           required
           autoComplete="name"
           placeholder="Jane Doe"
-          className="rounded-lg border text-black border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
         />
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="email" className="text-sm font-medium text-zinc-700">
-          Email
-        </label>
-        <input
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="email">Email</Label>
+
+        <Input
           id="email"
           name="email"
           type="email"
           required
           autoComplete="email"
           placeholder="you@example.com"
-          className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
         />
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="password" className="text-sm font-medium text-zinc-700">
-          Password
-        </label>
-        <input
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="password">Password</Label>
+
+        <Input
           id="password"
           name="password"
           type="password"
@@ -71,7 +71,6 @@ export default function RegisterForm() {
           minLength={8}
           autoComplete="new-password"
           placeholder="At least 8 characters"
-          className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
         />
       </div>
 
@@ -86,6 +85,7 @@ export default function RegisterForm() {
           <p role="alert" className="text-sm font-medium text-red-600">
             {state.message}
           </p>
+
           {state.error.fieldErrors &&
             Object.entries(state.error.fieldErrors).map(([field, messages]) => (
               <p key={field} className="text-xs text-red-500">
@@ -95,13 +95,9 @@ export default function RegisterForm() {
         </div>
       )}
 
-      <button
-        type="submit"
-        disabled={isPending}
-        className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-60"
-      >
+      <Button type="submit" disabled={isPending}>
         {isPending ? "Creating account…" : "Create account"}
-      </button>
+      </Button>
     </form>
   );
 }

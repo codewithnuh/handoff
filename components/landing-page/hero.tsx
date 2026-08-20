@@ -4,8 +4,11 @@ import { IconEye } from "@tabler/icons-react";
 export const Hero = () => {
   return (
     <div className="py-10 mx-auto gap-y-3  max-w-2xl my-20 flex flex-col items-center justify-center">
-      <Badge>
-        <div className="bg-accent w-1 h-1 rounded-full animate-ping"></div>{" "}
+      <Badge className="gap-2">
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
+        </span>
         <span>For Freelancers</span>
       </Badge>
       <h1 className="text-4xl text-center text-wrap font-bold text-foreground">

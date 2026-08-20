@@ -41,12 +41,47 @@ export const getCurrentWorkspace = async (): Promise<
   if (!guard.ok) return guard.error;
 
   try {
-    const workspace = await db.workspace.findUnique({
-      where: { ownerId: guard.value.id },
+    const userId = guard.value.id;
+
+    // 1. Fetch user to check their active workspace selection
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { activeWorkspaceId: true },
     });
+
+    let workspace = null;
+
+    if (user?.activeWorkspaceId) {
+      workspace = await db.workspace.findUnique({
+        where: { id: user.activeWorkspaceId },
+        include: {
+          subscription: true, // Includes subscription if part of WorkspaceResult
+        },
+      });
+    }
+
+    // 2. Fallback: If activeWorkspaceId is missing or deleted, fetch their first workspace
+    if (!workspace) {
+      workspace = await db.workspace.findFirst({
+        where: { ownerId: userId },
+        orderBy: { createdAt: "asc" },
+        include: {
+          subscription: true,
+        },
+      });
+
+      // 3. Auto-heal: Link activeWorkspaceId so future queries hit directly
+      if (workspace) {
+        await db.user.update({
+          where: { id: userId },
+          data: { activeWorkspaceId: workspace.id },
+        });
+      }
+    }
+
     return ActionResponse.success(
       workspace,
-      workspace ? "Workspace loaded" : "No workspace yet",
+      workspace ? "Workspace loaded" : "No workspace found",
     );
   } catch (error) {
     return toActionError(error, {
@@ -54,7 +89,6 @@ export const getCurrentWorkspace = async (): Promise<
     });
   }
 };
-
 /**
  * Create the freelancer's workspace. A user owns only one workspace.
  */
@@ -74,7 +108,7 @@ export const createWorkspace = async (
   if (!guard.ok) return guard.error;
 
   try {
-    const existing = await db.workspace.findUnique({
+    const existing = await db.workspace.findFirst({
       where: { ownerId: guard.value.id },
     });
     if (existing) {
@@ -88,10 +122,7 @@ export const createWorkspace = async (
       data: { name: validated.data.name, ownerId: guard.value.id },
     });
     revalidatePath(arena);
-    return ActionResponse.success(
-      workspace,
-      "Workspace created successfully",
-    );
+    return ActionResponse.success(workspace, "Workspace created successfully");
   } catch (error) {
     return toActionError(error, {
       fallback: "Failed to create the workspace.",
@@ -123,10 +154,7 @@ export const updateWorkspace = async (
       data: { name: validated.data.name },
     });
     revalidatePath(arena);
-    return ActionResponse.success(
-      workspace,
-      "Workspace updated successfully",
-    );
+    return ActionResponse.success(workspace, "Workspace updated successfully");
   } catch (error) {
     return toActionError(error, {
       fallback: "Failed to update the workspace.",
@@ -147,10 +175,7 @@ export const deleteWorkspace = async (): Promise<
   try {
     await db.workspace.delete({ where: { id: guard.value.workspace.id } });
     revalidatePath(arena);
-    return ActionResponse.success(
-      { deleted: true },
-      "Workspace deleted",
-    );
+    return ActionResponse.success({ deleted: true }, "Workspace deleted");
   } catch (error) {
     return toActionError(error, {
       fallback: "Failed to delete the workspace.",
