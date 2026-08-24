@@ -46,8 +46,15 @@ export const requireAuth = async (): Promise<Guarded<AuthUser>> => {
 export type WorkspaceContext = { user: AuthUser; workspace: Workspace };
 
 /**
- * Resolves the current user AND the freelancer-owned workspace.
- * A freelancer owns exactly one workspace for MVP simplicity.
+ * Resolves the current user AND their active workspace.
+ *
+ * Strategy:
+ * 1. Read the user's `activeWorkspaceId` from the database.
+ * 2. Load that workspace and **verify ownership** in a single query
+ *    (ownerId === userId) so a tampered activeWorkspaceId can never
+ *    grant access to another user's workspace.
+ * 3. Fallback: if the active workspace is missing or ownership fails,
+ *    auto-heal by picking the user's first workspace.
  */
 export const requireWorkspace = async (): Promise<
   Guarded<WorkspaceContext>
@@ -55,9 +62,34 @@ export const requireWorkspace = async (): Promise<
   const authResult = await requireAuth();
   if (!authResult.ok) return authResult;
 
-  const workspace = await db.workspace.findFirst({
-    where: { ownerId: authResult.value.id },
+  const userId = authResult.value.id;
+
+  // 1. Try the active workspace first — ownership is verified in the query
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { activeWorkspaceId: true },
   });
+
+  if (user?.activeWorkspaceId) {
+    const workspace = await db.workspace.findFirst({
+      where: { id: user.activeWorkspaceId, ownerId: userId },
+    });
+    if (workspace) {
+      return { ok: true, value: { user: authResult.value, workspace } };
+    }
+    // activeWorkspaceId points to a deleted or unowned workspace — clear it
+    await db.user.update({
+      where: { id: userId },
+      data: { activeWorkspaceId: null },
+    }).catch(() => {});
+  }
+
+  // 2. Fallback: pick the first owned workspace and auto-heal
+  const workspace = await db.workspace.findFirst({
+    where: { ownerId: userId },
+    orderBy: { createdAt: "asc" },
+  });
+
   if (!workspace) {
     return {
       ok: false,
@@ -67,6 +99,12 @@ export const requireWorkspace = async (): Promise<
       ),
     };
   }
+
+  // Auto-heal: set the fallback as the active workspace
+  await db.user.update({
+    where: { id: userId },
+    data: { activeWorkspaceId: workspace.id },
+  }).catch(() => {});
 
   return { ok: true, value: { user: authResult.value, workspace } };
 };

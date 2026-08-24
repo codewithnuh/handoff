@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import type { ClientInvitation } from "@/app/generated/prisma/client";
 import { db } from "@/lib/prisma";
+import { env } from "@/env";
 import { recordActivity } from "@/lib/actions/activity";
 import { toActionError } from "@/lib/actions/helpers";
 import {
@@ -15,22 +16,57 @@ import type { ActionResponseType } from "@/lib/types/action";
 import { ActionResponse } from "@/lib/utils/action-response";
 import {
   inviteClientSchema,
-  listInvitationsSchema,
+  revokeAccessSchema,
 } from "@/lib/validation/invitation";
 import type {
   InviteClientInput,
-  ListInvitationsInput,
+  RevokeAccessInput,
 } from "@/lib/validation/invitation";
 
 // ──────────────────────────────────────────────
 // Result types
 // ──────────────────────────────────────────────
 
-export type ClientInvitationResult = ClientInvitation;
-export type ClientInvitationListResult = { items: ClientInvitation[] };
+export type ClientInvitationResult = ClientInvitation & {
+  /** Portal accept URL — the freelancer shares this manually */
+  acceptUrl: string;
+};
+export type RevokeAccessResult = { revoked: boolean; email: string; projectId: string };
+export type ResendInvitationResult = ClientInvitationResult;
 
-const arena = "/";
 const INVITE_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+
+const revalidatePortalPages = () => {
+  revalidatePath("/dashboard/portal");
+};
+
+/**
+ * Creates an invitation token for the given email + project.
+ * Any previous unaccepted invitations for the same email + project are
+ * invalidated so exactly one live link exists at a time.
+ */
+async function createInvitation(projectId: string, email: string) {
+  await db.clientInvitation.updateMany({
+    where: {
+      projectId,
+      email,
+      acceptedAt: null,
+    },
+    data: {
+      // Set expiry to now so old tokens are immediately invalid
+      expiresAt: new Date(),
+    },
+  });
+
+  return db.clientInvitation.create({
+    data: {
+      projectId,
+      email,
+      token: randomBytes(32).toString("hex"),
+      expiresAt: new Date(Date.now() + INVITE_TTL_MS),
+    },
+  });
+}
 
 // ──────────────────────────────────────────────
 // Server Actions
@@ -58,14 +94,10 @@ export const inviteClient = async (
   if (!projectInScope.ok) return projectInScope.error;
 
   try {
-    const invitation = await db.clientInvitation.create({
-      data: {
-        projectId: validated.data.projectId,
-        email: validated.data.email,
-        token: randomBytes(32).toString("hex"),
-        expiresAt: new Date(Date.now() + INVITE_TTL_MS),
-      },
-    });
+    const invitation = await createInvitation(
+      validated.data.projectId,
+      validated.data.email,
+    );
 
     await recordActivity({
       projectId: validated.data.projectId,
@@ -76,20 +108,32 @@ export const inviteClient = async (
       meta: { email: invitation.email },
     });
 
-    revalidatePath(arena);
+    // The accept endpoint lives under /api — the old /portal/accept path 404'd
+    const acceptUrl = `${env.NEXT_PUBLIC_APP_URL}/api/portal/accept?token=${invitation.token}`;
+
+    revalidatePortalPages();
     return ActionResponse.success(
-      invitation,
-      "Client invited successfully",
+      { ...invitation, acceptUrl },
+      "Invitation link generated. Copy and share it with your client.",
     );
   } catch (error) {
-    return toActionError(error, { fallback: "Failed to invite the client." });
+    return toActionError(error, { fallback: "Failed to create invitation." });
   }
 };
 
-export const listClientInvitations = async (
-  data: ListInvitationsInput,
-): Promise<ActionResponseType<ClientInvitationListResult>> => {
-  const validated = listInvitationsSchema.safeParse(data);
+// ──────────────────────────────────────────────
+// Revoke client access
+// ──────────────────────────────────────────────
+
+/**
+ * Revoke a client's access to a specific project.
+ * Deletes the ProjectAccess row AND all ClientSessions for that email,
+ * so the client immediately loses portal access on next request.
+ */
+export const revokeClientAccess = async (
+  data: RevokeAccessInput,
+): Promise<ActionResponseType<RevokeAccessResult>> => {
+  const validated = revokeAccessSchema.safeParse(data);
   if (!validated.success) {
     return ActionResponse.failure(
       ERROR_CODES.VALIDATION_ERROR,
@@ -108,12 +152,89 @@ export const listClientInvitations = async (
   if (!projectInScope.ok) return projectInScope.error;
 
   try {
-    const items = await db.clientInvitation.findMany({
-      where: { projectId: validated.data.projectId },
-      orderBy: { createdAt: "desc" },
+    // 1. Delete ProjectAccess
+    const result = await db.projectAccess.deleteMany({
+      where: {
+        projectId: validated.data.projectId,
+        email: validated.data.email,
+      },
     });
-    return ActionResponse.success({ items }, "Invitations loaded");
+
+    if (result.count === 0) {
+      return ActionResponse.failure(
+        ERROR_CODES.NOT_FOUND,
+        "No access record found for this client on this project.",
+      );
+    }
+
+    // 2. Immediately revoke all active sessions for this email
+    await db.clientSession.deleteMany({
+      where: { email: validated.data.email },
+    });
+
+    revalidatePortalPages();
+    return ActionResponse.success(
+      {
+        revoked: true,
+        email: validated.data.email,
+        projectId: validated.data.projectId,
+      },
+      "Client access revoked successfully",
+    );
   } catch (error) {
-    return toActionError(error, { fallback: "Failed to load invitations." });
+    return toActionError(error, {
+      fallback: "Failed to revoke client access.",
+    });
+  }
+};
+
+// ──────────────────────────────────────────────
+// Re-invite client
+// ──────────────────────────────────────────────
+
+/**
+ * Generate a fresh invitation link for a client.
+ * Invalidates any previous unaccepted invitations for this email+project.
+ * No email is sent — the freelancer copies and shares the link manually.
+ */
+export const resendInvitation = async (
+  data: InviteClientInput,
+): Promise<ActionResponseType<ResendInvitationResult>> => {
+  const validated = inviteClientSchema.safeParse(data);
+  if (!validated.success) {
+    return ActionResponse.failure(
+      ERROR_CODES.VALIDATION_ERROR,
+      "Invalid input",
+      validated.error.flatten().fieldErrors,
+    );
+  }
+
+  const guard = await requireWorkspace();
+  if (!guard.ok) return guard.error;
+
+  const projectInScope = await requireProjectInWorkspace(
+    guard.value.workspace.id,
+    validated.data.projectId,
+  );
+  if (!projectInScope.ok) return projectInScope.error;
+
+  try {
+    // Invalidate old links + create a fresh invitation
+    const invitation = await createInvitation(
+      validated.data.projectId,
+      validated.data.email,
+    );
+
+    const acceptUrl = `${env.NEXT_PUBLIC_APP_URL}/api/portal/accept?token=${invitation.token}`;
+
+    revalidatePortalPages();
+    return ActionResponse.success(
+      { ...invitation, acceptUrl },
+      "New invitation link generated. Copy and share it with your client.",
+    );
+  } catch (error) {
+    return toActionError(error, {
+      fallback: "Failed to generate new invitation.",
+    });
   }
 };

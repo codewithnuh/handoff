@@ -24,10 +24,10 @@ export const Navbar = () => {
   return (
     <header
       className={cn(
-        "fixed inset-x-0  top-0 z-50 shadow-xs transition-all duration-300",
+        "fixed inset-x-0  border-b-2 border-dotted border-transparent   top-0 z-50 shadow-xs transition-all duration-300",
         scrolled
-          ? "border-b border-border/50 bg-background/50 backdrop-blur-xl"
-          : "border-b border-transparent bg-transparent",
+          ? "bg-background/50 backdrop-blur-xl"
+          : "border-neutral-400 bg-transparent",
       )}
     >
       <Container>

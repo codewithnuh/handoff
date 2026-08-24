@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { login } from "@/lib/actions/auth";
 import type { LoginResult } from "@/lib/actions/auth";
 import type { ActionResponseType } from "@/lib/types/action";
@@ -25,6 +26,15 @@ async function loginAction(
 
 export default function LoginForm() {
   const [state, formAction, isPending] = useActionState(loginAction, null);
+  const router = useRouter();
+
+  // Route to the dashboard once the session exists
+  useEffect(() => {
+    if (state?.success && state.data) {
+      router.push("/dashboard");
+      router.refresh();
+    }
+  }, [state, router]);
 
   return (
     <form

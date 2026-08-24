@@ -49,11 +49,14 @@ enum SubscriptionPlan {
   PRO
 }
 
+// Paddle subscription statuses (Billing API v2):
+// https://developer.paddle.com/concepts/subscriptions/status
 enum SubscriptionStatus {
   ACTIVE
-  PAST_DUE
-  CANCELLED
   TRIALING
+  PAST_DUE
+  PAUSED
+  CANCELLED
 }
 
 enum ActivityType {
@@ -245,7 +248,6 @@ model ClientInvitation {
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  @@index([token])
   @@index([projectId])
   @@map("client_invitations")
 }
@@ -275,7 +277,6 @@ model ClientSession {
   createdAt DateTime @default(now())
 
   @@index([email])
-  @@index([token])
   @@map("client_sessions")
 }
 
@@ -289,6 +290,7 @@ model Deliverable {
   title       String
   description String?
   status      DeliverableStatus @default(DRAFT)
+  version     Int               @default(1) // optimistic locking — client must send current version
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 
@@ -407,6 +409,7 @@ model Invoice {
   @@unique([projectId, invoiceNumber])
   @@index([projectId])
   @@index([status])
+  @@index([status, dueDate])
   @@map("invoices")
 }
 
@@ -430,20 +433,49 @@ model File {
 
 // ──────────────────────────────────────────────
 // SaaS Subscription (freelancer → your product)
+// Billed via Paddle (Billing API v2)
 // ──────────────────────────────────────────────
 
 model Subscription {
-  id                   String             @id @default(cuid())
-  workspaceId          String             @unique
-  plan                 SubscriptionPlan   @default(FREE)
-  status               SubscriptionStatus @default(ACTIVE)
-  stripeCustomerId     String?            @unique
-  stripeSubscriptionId String?            @unique
-  currentPeriodEnd     DateTime?
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
+  id          String             @id @default(cuid())
+  workspaceId String             @unique
+  plan        SubscriptionPlan   @default(FREE)
+  status      SubscriptionStatus @default(ACTIVE)
+
+  // Paddle identifiers — https://developer.paddle.com/concepts/overview
+  paddleCustomerId     String? @unique // ctm_... — one per workspace owner
+  paddleSubscriptionId String? @unique // sub_...
+  paddlePriceId        String? // pri_... — identifies which plan/interval they're on
+
+  // Paddle's billing-cycle field is "next_billed_at", not "current_period_end"
+  nextBilledAt       DateTime?
+  canceledAt         DateTime? // set when Paddle reports subscription.canceled
+  pausedAt           DateTime? // set when Paddle reports subscription.paused
+  gracePeriodEndsAt  DateTime? // when set, workspace is in grace period after downgrade/cancellation. Read-only after this date.
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@map("subscriptions")
+}
+
+// ──────────────────────────────────────────────
+// Paddle webhook idempotency
+// Paddle can and will redeliver the same event — always check
+// this table before processing, insert before (or in the same
+// transaction as) applying side effects.
+// https://developer.paddle.com/webhooks/overview
+// ──────────────────────────────────────────────
+
+model PaddleWebhookEvent {
+  id            String   @id @default(cuid())
+  paddleEventId String   @unique // event_id from the webhook payload
+  eventType     String // e.g. "subscription.updated", "transaction.paid"
+  payload       Json // raw payload, kept for debugging/replay
+  processedAt   DateTime @default(now())
+
+  @@index([eventType])
+  @@map("paddle_webhook_events")
 }

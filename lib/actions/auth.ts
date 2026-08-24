@@ -21,15 +21,13 @@ import type {
   RequestPasswordResetInput,
   ResetPasswordInput,
 } from "@/lib/validation/auth";
-import { createWorkspace } from "./workspace";
 import { db } from "../prisma";
-import { User } from "lucide-react";
 
 // ──────────────────────────────────────────────
 // Result types (standardized response payloads)
 // ──────────────────────────────────────────────
 
-export type RegisterResult = { user: AuthUser };
+export type RegisterResult = { user: AuthUser; workspaceId: string };
 export type LoginResult = { user: AuthUser };
 export type LogoutResult = { success: boolean };
 export type PasswordResetResult = { status: boolean };
@@ -135,7 +133,7 @@ export const register = async (
     });
 
     return ActionResponse.success(
-      { user: result.user, workspace },
+      { user: result.user, workspaceId: workspace.id },
       "Account created successfully",
     );
   } catch (error) {

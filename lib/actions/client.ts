@@ -1,10 +1,11 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import type { Client } from "@/app/generated/prisma/client";
 import { db } from "@/lib/prisma";
+import { revalidateDashboard } from "@/lib/actions/revalidate";
 import { toActionError } from "@/lib/actions/helpers";
 import { requireWorkspace } from "@/lib/actions/guards";
+import { assertWorkspaceWritable } from "@/lib/services/plan-limits";
 import { ERROR_CODES } from "@/lib/constants/errors";
 import type { ActionResponseType } from "@/lib/types/action";
 import { ActionResponse } from "@/lib/utils/action-response";
@@ -26,11 +27,6 @@ import type {
 export type ClientResult = Client;
 export type ClientListResult = { items: Client[] };
 export type DeleteClientResult = { deleted: boolean };
-
-const revalidateDashboard = () => {
-  revalidatePath("/");
-  revalidatePath("/dashboard");
-};
 
 // ──────────────────────────────────────────────
 // Server Actions
@@ -102,6 +98,9 @@ export const createClient = async (
   const guard = await requireWorkspace();
   if (!guard.ok) return guard.error;
 
+  const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
+  if (readOnlyError) return readOnlyError;
+
   try {
     const client = await db.client.create({
       data: {
@@ -135,6 +134,9 @@ export const updateClient = async (
 
   const guard = await requireWorkspace();
   if (!guard.ok) return guard.error;
+
+  const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
+  if (readOnlyError) return readOnlyError;
 
   try {
     const client = await db.client.updateMany({
@@ -185,6 +187,9 @@ export const deleteClient = async (
 
   const guard = await requireWorkspace();
   if (!guard.ok) return guard.error;
+
+  const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
+  if (readOnlyError) return readOnlyError;
 
   try {
     const result = await db.client.deleteMany({

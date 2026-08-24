@@ -1,20 +1,23 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import type { Workspace } from "@/app/generated/prisma/client";
 import { db } from "@/lib/prisma";
+import { revalidateDashboard } from "@/lib/actions/revalidate";
 import { toActionError } from "@/lib/actions/helpers";
 import { requireAuth, requireWorkspace } from "@/lib/actions/guards";
 import { ERROR_CODES } from "@/lib/constants/errors";
+import { assertCanCreateWorkspace } from "@/lib/services/plan-limits";
 import type { ActionResponseType } from "@/lib/types/action";
 import { ActionResponse } from "@/lib/utils/action-response";
 import {
   createWorkspaceSchema,
   updateWorkspaceSchema,
+  workspaceIdSchema,
 } from "@/lib/validation/workspace";
 import type {
   CreateWorkspaceInput,
   UpdateWorkspaceInput,
+  WorkspaceIdInput,
 } from "@/lib/validation/workspace";
 
 // ──────────────────────────────────────────────
@@ -22,17 +25,26 @@ import type {
 // ──────────────────────────────────────────────
 
 export type WorkspaceResult = Workspace;
-export type WorkspaceListResult = { items: Workspace[] };
+export type WorkspaceListItem = {
+  id: string;
+  name: string;
+  isOwner: boolean;
+  isActive: boolean;
+};
+export type WorkspaceListResult = { items: WorkspaceListItem[] };
 export type DeleteWorkspaceResult = { deleted: boolean };
+export type SwitchWorkspaceResult = { workspace: Workspace };
 
-const arena = "/";
+const revalidateAll = () => {
+  revalidateDashboard();
+};
 
 // ──────────────────────────────────────────────
 // Server Actions
 // ──────────────────────────────────────────────
 
 /**
- * Get the current user's workspace (null when none exists yet).
+ * Get the current user's active workspace (null when none exists yet).
  */
 export const getCurrentWorkspace = async (): Promise<
   ActionResponseType<WorkspaceResult | null>
@@ -43,7 +55,6 @@ export const getCurrentWorkspace = async (): Promise<
   try {
     const userId = guard.value.id;
 
-    // 1. Fetch user to check their active workspace selection
     const user = await db.user.findUnique({
       where: { id: userId },
       select: { activeWorkspaceId: true },
@@ -52,30 +63,25 @@ export const getCurrentWorkspace = async (): Promise<
     let workspace = null;
 
     if (user?.activeWorkspaceId) {
-      workspace = await db.workspace.findUnique({
-        where: { id: user.activeWorkspaceId },
-        include: {
-          subscription: true, // Includes subscription if part of WorkspaceResult
-        },
+      workspace = await db.workspace.findFirst({
+        where: { id: user.activeWorkspaceId, ownerId: userId },
+        include: { subscription: true },
       });
     }
 
-    // 2. Fallback: If activeWorkspaceId is missing or deleted, fetch their first workspace
+    // Fallback: if active workspace is missing or unowned, pick the first
     if (!workspace) {
       workspace = await db.workspace.findFirst({
         where: { ownerId: userId },
         orderBy: { createdAt: "asc" },
-        include: {
-          subscription: true,
-        },
+        include: { subscription: true },
       });
 
-      // 3. Auto-heal: Link activeWorkspaceId so future queries hit directly
       if (workspace) {
         await db.user.update({
           where: { id: userId },
           data: { activeWorkspaceId: workspace.id },
-        });
+        }).catch(() => {});
       }
     }
 
@@ -89,8 +95,48 @@ export const getCurrentWorkspace = async (): Promise<
     });
   }
 };
+
 /**
- * Create the freelancer's workspace. A user owns only one workspace.
+ * List all workspaces the current user owns, with active indicator.
+ */
+export const listWorkspaces = async (): Promise<
+  ActionResponseType<WorkspaceListResult>
+> => {
+  const guard = await requireAuth();
+  if (!guard.ok) return guard.error;
+
+  try {
+    const userId = guard.value.id;
+
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { activeWorkspaceId: true },
+    });
+
+    const workspaces = await db.workspace.findMany({
+      where: { ownerId: userId },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, name: true },
+    });
+
+    const items: WorkspaceListItem[] = workspaces.map((ws) => ({
+      id: ws.id,
+      name: ws.name,
+      isOwner: true, // all listed workspaces are owned by this user
+      isActive: ws.id === user?.activeWorkspaceId,
+    }));
+
+    return ActionResponse.success({ items }, "Workspaces loaded");
+  } catch (error) {
+    return toActionError(error, {
+      fallback: "Failed to load workspaces.",
+    });
+  }
+};
+
+/**
+ * Create a new workspace for the current user.
+ * Enforces plan-based workspace count limits.
  */
 export const createWorkspace = async (
   data: CreateWorkspaceInput,
@@ -108,20 +154,34 @@ export const createWorkspace = async (
   if (!guard.ok) return guard.error;
 
   try {
-    const existing = await db.workspace.findFirst({
-      where: { ownerId: guard.value.id },
-    });
-    if (existing) {
-      return ActionResponse.failure(
-        ERROR_CODES.CONFLICT,
-        "You already have a workspace.",
-      );
-    }
+    const userId = guard.value.id;
 
-    const workspace = await db.workspace.create({
-      data: { name: validated.data.name, ownerId: guard.value.id },
+    // 1. Enforce plan-based workspace count limit
+    const limitCheck = await assertCanCreateWorkspace(userId);
+    if (!limitCheck.ok) return limitCheck.error;
+
+    // 2. Create workspace + subscription in a transaction
+    const workspace = await db.$transaction(async (tx) => {
+      const ws = await tx.workspace.create({
+        data: {
+          name: validated.data.name,
+          ownerId: userId,
+          subscription: {
+            create: { plan: "FREE", status: "ACTIVE" },
+          },
+        },
+      });
+
+      // Set as active workspace
+      await tx.user.update({
+        where: { id: userId },
+        data: { activeWorkspaceId: ws.id },
+      });
+
+      return ws;
     });
-    revalidatePath(arena);
+
+    revalidateAll();
     return ActionResponse.success(workspace, "Workspace created successfully");
   } catch (error) {
     return toActionError(error, {
@@ -131,7 +191,59 @@ export const createWorkspace = async (
 };
 
 /**
- * Rename the current user's workspace.
+ * Switch the user's active workspace.
+ * Validates the workspace belongs to the caller — no cross-tenant switching.
+ */
+export const switchWorkspace = async (
+  data: WorkspaceIdInput,
+): Promise<ActionResponseType<SwitchWorkspaceResult>> => {
+  const validated = workspaceIdSchema.safeParse(data);
+  if (!validated.success) {
+    return ActionResponse.failure(
+      ERROR_CODES.VALIDATION_ERROR,
+      "Invalid input",
+      validated.error.flatten().fieldErrors,
+    );
+  }
+
+  const guard = await requireAuth();
+  if (!guard.ok) return guard.error;
+
+  try {
+    const userId = guard.value.id;
+
+    // Verify the workspace belongs to this user (ownership check)
+    const workspace = await db.workspace.findFirst({
+      where: { id: validated.data.id, ownerId: userId },
+    });
+
+    if (!workspace) {
+      return ActionResponse.failure(
+        ERROR_CODES.NOT_FOUND,
+        "Workspace not found or you don't have access.",
+      );
+    }
+
+    // Update active workspace
+    await db.user.update({
+      where: { id: userId },
+      data: { activeWorkspaceId: workspace.id },
+    });
+
+    revalidateAll();
+    return ActionResponse.success(
+      { workspace },
+      `Switched to "${workspace.name}"`,
+    );
+  } catch (error) {
+    return toActionError(error, {
+      fallback: "Failed to switch workspace.",
+    });
+  }
+};
+
+/**
+ * Rename the current user's active workspace.
  */
 export const updateWorkspace = async (
   data: UpdateWorkspaceInput,
@@ -153,7 +265,7 @@ export const updateWorkspace = async (
       where: { id: guard.value.workspace.id },
       data: { name: validated.data.name },
     });
-    revalidatePath(arena);
+    revalidateAll();
     return ActionResponse.success(workspace, "Workspace updated successfully");
   } catch (error) {
     return toActionError(error, {
@@ -174,7 +286,7 @@ export const deleteWorkspace = async (): Promise<
 
   try {
     await db.workspace.delete({ where: { id: guard.value.workspace.id } });
-    revalidatePath(arena);
+    revalidateAll();
     return ActionResponse.success({ deleted: true }, "Workspace deleted");
   } catch (error) {
     return toActionError(error, {

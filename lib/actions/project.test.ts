@@ -16,14 +16,17 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/prisma", () => ({
   db: {
+    user: { findUnique: vi.fn(), update: vi.fn() },
     workspace: { findFirst: vi.fn() },
     client: { findFirst: vi.fn() },
     project: {
       findFirst: vi.fn(),
       findUnique: vi.fn(),
+      count: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
     },
+    subscription: { findUnique: vi.fn() },
     activity: { create: vi.fn() },
   },
 }));
@@ -73,9 +76,14 @@ const projectRow = {
   updatedAt: new Date("2026-01-01T00:00:00.000Z"),
 };
 
+const findUser = vi.mocked(db.user.findUnique);
+const findSubscription = vi.mocked(db.subscription.findUnique);
+
 const signedIn = async () => {
   getSession.mockResolvedValue({ session: {} as never, user });
+  findUser.mockResolvedValue({ activeWorkspaceId: "ws-1" } as never);
   findWorkspace.mockResolvedValue(workspace);
+  findSubscription.mockResolvedValue({ plan: "FREE", status: "ACTIVE", canceledAt: null, pausedAt: null, gracePeriodEndsAt: null } as never);
 };
 
 beforeEach(() => {

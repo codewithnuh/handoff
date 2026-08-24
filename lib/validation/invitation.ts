@@ -7,7 +7,8 @@ export const inviteClientSchema = z.object({
 });
 export type InviteClientInput = z.infer<typeof inviteClientSchema>;
 
-export const listInvitationsSchema = z.object({
+export const revokeAccessSchema = z.object({
   projectId: idSchema,
+  email: emailSchema,
 });
-export type ListInvitationsInput = z.infer<typeof listInvitationsSchema>;
+export type RevokeAccessInput = z.infer<typeof revokeAccessSchema>;

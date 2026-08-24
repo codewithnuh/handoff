@@ -18,7 +18,7 @@ Built with **Next.js**, **TypeScript**, **Prisma** (PostgreSQL), **Better Auth**
 - **Deliverables** with versioned uploads and status transitions.
 - **Requests** — client-initiated work items with status tracking.
 - **Comments** — threaded on deliverables and requests (freelancer side).
-- **Invoices** — project-level invoicing with status workflow (draft → sent → paid).
+- **Invoices** — project-level invoice tracking surfaced on the project detail view.
 - **Activity timeline** — an audit trail of what changed and who did it.
 - **Client portal** — magic-link invitation flow (planned).
 
@@ -89,7 +89,7 @@ app/          App Router pages & API routes
 components/   UI components
 lib/actions/  Server actions (type-safe, validated, workspace-scoped)
 lib/validation/zod schemas + inferred input types
-lib/utils/    Response helpers & serializers
+lib/utils/    Response helpers
 prisma/       Prisma schema & @@map tables
 ```
 

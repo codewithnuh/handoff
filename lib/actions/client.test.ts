@@ -33,6 +33,7 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/prisma", () => ({
   db: {
+    user: { findUnique: vi.fn(), update: vi.fn() },
     workspace: { findFirst: vi.fn() },
     client: {
       findMany: vi.fn(),
@@ -44,6 +45,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     project: { findFirst: vi.fn() },
     activity: { create: vi.fn() },
+    subscription: { findUnique: vi.fn() },
   },
 }));
 
@@ -97,9 +99,20 @@ const prismaError = (code: string) =>
     clientVersion: "9.0.0",
   });
 
+const findUser = vi.mocked(db.user.findUnique);
+const findSubscription = vi.mocked(db.subscription.findUnique);
+
 const signedIn = async () => {
   getSession.mockResolvedValue({ session: {} as never, user });
+  findUser.mockResolvedValue({ activeWorkspaceId: "ws-1" } as never);
   findWorkspace.mockResolvedValue(workspace);
+  findSubscription.mockResolvedValue({
+    plan: "FREE",
+    status: "ACTIVE",
+    canceledAt: null,
+    pausedAt: null,
+    gracePeriodEndsAt: null,
+  } as never);
 };
 
 beforeEach(() => {

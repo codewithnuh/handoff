@@ -1,18 +1,19 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import type {
   Deliverable,
   DeliverableVersion,
 } from "@/app/generated/prisma/client";
 import { db } from "@/lib/prisma";
 import { recordActivity } from "@/lib/actions/activity";
+import { revalidateDashboard } from "@/lib/actions/revalidate";
 import { toActionError } from "@/lib/actions/helpers";
 import {
   requireProjectInWorkspace,
   requireWorkspace,
 } from "@/lib/actions/guards";
 import { ERROR_CODES } from "@/lib/constants/errors";
+import { assertWorkspaceWritable } from "@/lib/services/plan-limits";
 import type { ActionResponseType } from "@/lib/types/action";
 import { ActionResponse } from "@/lib/utils/action-response";
 import {
@@ -39,7 +40,7 @@ export type DeliverableListResult = { items: Deliverable[] };
 export type DeliverableVersionResult = DeliverableVersion;
 export type DeleteResult = { deleted: boolean };
 
-const arena = "/";
+// dashboard paths handled via shared helper
 
 // ──────────────────────────────────────────────
 // Server Actions
@@ -130,6 +131,9 @@ export const createDeliverable = async (
   const guard = await requireWorkspace();
   if (!guard.ok) return guard.error;
 
+  const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
+  if (readOnlyError) return readOnlyError;
+
   const projectInScope = await requireProjectInWorkspace(
     guard.value.workspace.id,
     validated.data.projectId,
@@ -154,7 +158,7 @@ export const createDeliverable = async (
       meta: { title: deliverable.title },
     });
 
-    revalidatePath(arena);
+    revalidateDashboard();
     return ActionResponse.success(
       deliverable,
       "Deliverable created successfully",
@@ -182,10 +186,15 @@ export const updateDeliverable = async (
   const guard = await requireWorkspace();
   if (!guard.ok) return guard.error;
 
+  const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
+  if (readOnlyError) return readOnlyError;
+
+  const { id, expectedVersion, title, description, status } = validated.data;
+
   try {
     const existing = await db.deliverable.findFirst({
       where: {
-        id: validated.data.id,
+        id,
         project: { workspaceId: guard.value.workspace.id },
       },
     });
@@ -196,18 +205,42 @@ export const updateDeliverable = async (
       );
     }
 
-    const statusChanged =
-      validated.data.status !== undefined &&
-      validated.data.status !== existing.status;
+    // Optimistic locking: if the caller sends the version it loaded,
+    // reject stale writes instead of silently overwriting concurrent
+    // changes (e.g. the client approving/rejecting this deliverable).
+    if (expectedVersion !== undefined && existing.version !== expectedVersion) {
+      return ActionResponse.failure(
+        ERROR_CODES.CONFLICT,
+        "This deliverable was modified by someone else. Refresh and try again.",
+      );
+    }
+
+    // Partial-update semantics: only touch the fields the caller sent.
+    // (Blanket `?? null` mapping used to wipe description on status-only updates.)
+    const data: {
+      title?: string;
+      description?: string | null;
+      status?: (typeof existing)["status"];
+      version: { increment: number };
+    } = {
+      // Every freelancer mutation bumps the lock version so portal
+      // clients are prompted to refresh before acting on stale content.
+      version: { increment: 1 },
+    };
+    if (title !== undefined) data.title = title;
+    if (description !== undefined) data.description = description;
+    if (status !== undefined) data.status = status;
 
     const deliverable = await db.deliverable.update({
-      where: { id: validated.data.id },
-      data: {
-        title: validated.data.title,
-        description: validated.data.description ?? null,
-        status: validated.data.status,
-      },
+      // Atomic guard — rejects with P2025 if the row changed since the read
+      where:
+        expectedVersion !== undefined
+          ? { id, version: expectedVersion }
+          : { id },
+      data,
     });
+
+    const statusChanged = data.status !== undefined && data.status !== existing.status;
 
     if (statusChanged) {
       const activityType = (() => {
@@ -235,7 +268,7 @@ export const updateDeliverable = async (
       }
     }
 
-    revalidatePath(arena);
+    revalidateDashboard();
     return ActionResponse.success(
       deliverable,
       "Deliverable updated successfully",
@@ -243,6 +276,7 @@ export const updateDeliverable = async (
   } catch (error) {
     return toActionError(error, {
       fallback: "Failed to update the deliverable.",
+      notFound: "This deliverable was just modified by someone else. Refresh and try again.",
     });
   }
 };
@@ -263,6 +297,9 @@ export const deleteDeliverable = async (
   const guard = await requireWorkspace();
   if (!guard.ok) return guard.error;
 
+  const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
+  if (readOnlyError) return readOnlyError;
+
   try {
     const deliverable = await db.deliverable.findFirst({
       where: {
@@ -279,7 +316,7 @@ export const deleteDeliverable = async (
     }
 
     await db.deliverable.delete({ where: { id: validated.data.id } });
-    revalidatePath(arena);
+    revalidateDashboard();
     return ActionResponse.success(
       { deleted: true },
       "Deliverable deleted successfully",
@@ -305,6 +342,9 @@ export const addDeliverableVersion = async (
 
   const guard = await requireWorkspace();
   if (!guard.ok) return guard.error;
+
+  const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
+  if (readOnlyError) return readOnlyError;
 
   try {
     const deliverable = await db.deliverable.findFirst({
@@ -348,7 +388,7 @@ export const addDeliverableVersion = async (
       meta: { versionNumber },
     });
 
-    revalidatePath(arena);
+    revalidateDashboard();
     return ActionResponse.success(
       version,
       "Deliverable version uploaded successfully",

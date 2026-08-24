@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 import { register } from "@/lib/actions/auth";
 import type { RegisterResult } from "@/lib/actions/auth";
@@ -28,6 +29,15 @@ async function registerAction(
 
 export default function RegisterForm() {
   const [state, formAction, isPending] = useActionState(registerAction, null);
+  const router = useRouter();
+
+  // Route to the dashboard once the account + session exist
+  useEffect(() => {
+    if (state?.success && state.data) {
+      router.push("/dashboard");
+      router.refresh();
+    }
+  }, [state, router]);
 
   return (
     <form

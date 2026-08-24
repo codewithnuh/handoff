@@ -20,6 +20,11 @@ export const updateDeliverableSchema = z.object({
   title: titleSchema.optional(),
   description: optionalNullableString(5000, "Description"),
   status: deliverableStatusSchema.optional(),
+  /**
+   * Optimistic locking: version the caller loaded. When provided, a
+   * mismatch returns CONFLICT instead of overwriting concurrent changes.
+   */
+  expectedVersion: z.number().int().positive().optional(),
 });
 export type UpdateDeliverableInput = z.infer<
   typeof updateDeliverableSchema

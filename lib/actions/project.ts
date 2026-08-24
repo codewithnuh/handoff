@@ -1,16 +1,17 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import type { Project } from "@/app/generated/prisma/client";
 import { db } from "@/lib/prisma";
 import { recordActivity } from "@/lib/actions/activity";
 import { toActionError } from "@/lib/actions/helpers";
+import { revalidateDashboard } from "@/lib/actions/revalidate";
 import {
   requireClientInWorkspace,
   requireProjectInWorkspace,
   requireWorkspace,
 } from "@/lib/actions/guards";
 import { ERROR_CODES } from "@/lib/constants/errors";
+import { assertCanCreateProject, assertWorkspaceWritable } from "@/lib/services/plan-limits";
 import type { ActionResponseType } from "@/lib/types/action";
 import { ActionResponse } from "@/lib/utils/action-response";
 import {
@@ -36,15 +37,9 @@ export type ProjectResult = Project;
 export type ProjectListResult = { items: Project[] };
 export type DeleteProjectResult = { deleted: boolean };
 
-const revalidateDashboard = () => {
-  revalidatePath("/");
-  revalidatePath("/dashboard");
-};
-
 // ──────────────────────────────────────────────
 // Server Actions
 // ──────────────────────────────────────────────
-
 export const listProjects = async (): Promise<
   ActionResponseType<ProjectListResult>
 > => {
@@ -117,6 +112,14 @@ export const createProject = async (
   );
   if (!clientInWorkspace.ok) return clientInWorkspace.error;
 
+  // 1. Enforce per-workspace project limit
+  const limitCheck = await assertCanCreateProject(guard.value.workspace.id);
+  if (!limitCheck.ok) return limitCheck.error;
+
+  // 2. Check read-only mode (downgrade grace period expired)
+  const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
+  if (readOnlyError) return readOnlyError;
+
   try {
     const project = await db.project.create({
       data: {
@@ -162,6 +165,9 @@ export const updateProject = async (
   const guard = await requireWorkspace();
   if (!guard.ok) return guard.error;
 
+  const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
+  if (readOnlyError) return readOnlyError;
+
   const projectInWorkspace = await requireProjectInWorkspace(
     guard.value.workspace.id,
     validated.data.id,
@@ -177,8 +183,8 @@ export const updateProject = async (
   }
 
   try {
-    const existing = await db.project.findUnique({
-      where: { id: validated.data.id },
+    const existing = await db.project.findFirst({
+      where: { id: validated.data.id, workspaceId: guard.value.workspace.id },
     });
     if (!existing) {
       return ActionResponse.failure(
@@ -194,17 +200,25 @@ export const updateProject = async (
       validated.data.progress !== undefined &&
       validated.data.progress !== existing.progress;
 
+    // Partial-update semantics: only touch fields the caller sent so a
+    // narrow edit (e.g. rename only) can't wipe description or dates.
+    const data: Record<string, unknown> = {};
+    if (validated.data.clientId !== undefined)
+      data.clientId = validated.data.clientId;
+    if (validated.data.name !== undefined) data.name = validated.data.name;
+    if (validated.data.description !== undefined)
+      data.description = validated.data.description;
+    if (validated.data.status !== undefined) data.status = validated.data.status;
+    if (validated.data.progress !== undefined)
+      data.progress = validated.data.progress;
+    if (validated.data.startDate !== undefined)
+      data.startDate = validated.data.startDate;
+    if (validated.data.dueDate !== undefined)
+      data.dueDate = validated.data.dueDate;
+
     const project = await db.project.update({
       where: { id: validated.data.id },
-      data: {
-        clientId: validated.data.clientId,
-        name: validated.data.name,
-        description: validated.data.description ?? null,
-        status: validated.data.status,
-        progress: validated.data.progress,
-        startDate: validated.data.startDate ?? null,
-        dueDate: validated.data.dueDate ?? null,
-      },
+      data,
     });
 
     const actor = {
@@ -250,6 +264,9 @@ export const updateProjectStatus = async (
 
   const guard = await requireWorkspace();
   if (!guard.ok) return guard.error;
+
+  const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
+  if (readOnlyError) return readOnlyError;
 
   const projectInWorkspace = await requireProjectInWorkspace(
     guard.value.workspace.id,
@@ -309,6 +326,9 @@ export const updateProjectProgress = async (
   const guard = await requireWorkspace();
   if (!guard.ok) return guard.error;
 
+  const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
+  if (readOnlyError) return readOnlyError;
+
   const projectInWorkspace = await requireProjectInWorkspace(
     guard.value.workspace.id,
     validated.data.id,
@@ -356,6 +376,9 @@ export const deleteProject = async (
 
   const guard = await requireWorkspace();
   if (!guard.ok) return guard.error;
+
+  const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
+  if (readOnlyError) return readOnlyError;
 
   try {
     const result = await db.project.deleteMany({

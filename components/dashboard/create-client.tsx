@@ -55,6 +55,7 @@ export function ClientCombobox({
           placeholder={
             clients.length ? "Select a client" : "Create your first client"
           }
+          value={selectedClient?.name ?? ""}
         />
 
         <ComboboxContent>

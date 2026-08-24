@@ -45,6 +45,17 @@ vi.mock("@/lib/auth", () => ({
   },
 }));
 
+vi.mock("@/lib/prisma", () => ({
+  db: {
+    $transaction: vi.fn(),
+    user: { delete: vi.fn() },
+  },
+}));
+
+import { db } from "@/lib/prisma";
+
+const dbTransaction = vi.mocked(db.$transaction);
+
 const signUpEmail = vi.mocked(auth.api.signUpEmail);
 const signInEmail = vi.mocked(auth.api.signInEmail);
 const signOut = vi.mocked(auth.api.signOut);
@@ -136,6 +147,21 @@ describe("register", () => {
 
   it("registers a user and returns the created user", async () => {
     signUpEmail.mockResolvedValue({ token: "token-1", user: userFixture });
+    dbTransaction.mockImplementation(async (fn) => {
+      const tx = {
+        workspace: {
+          create: vi.fn().mockResolvedValue({
+            id: "ws-1",
+            name: "John Doe's Workspace",
+            ownerId: "user-1",
+          }),
+        },
+        user: {
+          update: vi.fn().mockResolvedValue({}),
+        },
+      } as never;
+      return fn(tx);
+    });
 
     const result = await register({
       name: "John Doe",

@@ -1,33 +1,43 @@
-import { getSession } from "./lib/actions/auth";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const protectedRoutes = ["/dashboard"];
-const publicRoutes = ["/login", "/signup", "/"];
+/**
+ * Lightweight route protection.
+ *
+ * The proxy runs before every matched request and CANNOT query the
+ * database or resolve real sessions — so it only checks for the presence
+ * of the Better Auth session cookie to short-circuit obvious cases:
+ *  - signed-out users hitting /dashboard are bounced to /login
+ *  - signed-in users hitting /login or /register skip straight to /dashboard
+ *
+ * Real verification still happens in server components/actions via
+ * requireAuth/requireWorkspace, so a forged cookie gains nothing.
+ */
 
-export default async function proxy(request: NextRequest) {
+const BETTER_AUTH_SESSION_COOKIE_PREFIX = "better-auth.session_token";
+
+const protectedRoutes = ["/dashboard"];
+const authRoutes = ["/login", "/register"];
+
+export default function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
   const isProtectedRoute = protectedRoutes.some((route) =>
     path.startsWith(route),
   );
+  const isAuthRoute = authRoutes.includes(path);
 
-  const isPublicRoute = publicRoutes.includes(path);
+  // Cookie presence is a cheap heuristic; validity is verified server-side.
+  // In production the secure variant gets a __Secure- prefix.
+  const hasSessionCookie =
+    request.cookies.has(BETTER_AUTH_SESSION_COOKIE_PREFIX) ||
+    request.cookies.has(`__Secure-${BETTER_AUTH_SESSION_COOKIE_PREFIX}`);
 
-  const session = await getSession();
-
-  const isUserLoggedIn = session.success && !!session.data?.session;
-
-  console.log("Path:", path);
-  console.log("Logged in:", isUserLoggedIn);
-
-  // Logged-in user trying to access login/signup
-  if (isUserLoggedIn && (path === "/login" || path === "/signup")) {
+  if (hasSessionCookie && isAuthRoute) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  // Logged-out user trying to access protected route
-  if (!isUserLoggedIn && isProtectedRoute) {
+  if (!hasSessionCookie && isProtectedRoute) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
@@ -35,5 +45,5 @@ export default async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/login", "/signup", "/"],
+  matcher: ["/dashboard/:path*", "/login", "/register"],
 };

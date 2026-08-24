@@ -18,12 +18,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toast";
-import { cn } from "@/lib/utils";
 import { createProject } from "@/lib/actions/project";
-import {
-  ActionTimeoutError,
-  withTimeout,
-} from "@/lib/utils/with-timeout";
+import { createClient } from "@/lib/actions/client";
+import { ActionTimeoutError, withTimeout } from "@/lib/utils/with-timeout";
 import { ClientCombobox, type ClientOption } from "./create-client";
 
 const ACTION_TIMEOUT_MS = 15_000;
@@ -39,10 +36,13 @@ export function DashboardHeader({
   workspaceName,
   clients,
 }: DashboardHeaderProps) {
-  const [open, setOpen] = useState(false);
+  const [projectOpen, setProjectOpen] = useState(false);
+  const [clientOpen, setClientOpen] = useState(false);
   const projectNameRef = useRef<HTMLInputElement | null>(null);
+  const clientNameRef = useRef<HTMLInputElement | null>(null);
 
-  const form = useForm({
+  // ── Create Project Form ──
+  const projectForm = useForm({
     defaultValues: {
       projectName: "",
       projectDescription: "",
@@ -64,7 +64,7 @@ export function DashboardHeader({
         );
 
         if (!result.success) {
-          form.setFieldMeta("projectName", (meta) => ({
+          projectForm.setFieldMeta("projectName", (meta) => ({
             ...meta,
             errorMap: {
               onSubmit:
@@ -72,7 +72,7 @@ export function DashboardHeader({
                 meta.errorMap.onSubmit,
             },
           }));
-          form.setFieldMeta("projectDescription", (meta) => ({
+          projectForm.setFieldMeta("projectDescription", (meta) => ({
             ...meta,
             errorMap: {
               onSubmit:
@@ -80,7 +80,7 @@ export function DashboardHeader({
                 meta.errorMap.onSubmit,
             },
           }));
-          form.setFieldMeta("clientId", (meta) => ({
+          projectForm.setFieldMeta("clientId", (meta) => ({
             ...meta,
             errorMap: {
               onSubmit:
@@ -88,7 +88,7 @@ export function DashboardHeader({
                 meta.errorMap.onSubmit,
             },
           }));
-          form.setFieldMeta("startDate", (meta) => ({
+          projectForm.setFieldMeta("startDate", (meta) => ({
             ...meta,
             errorMap: {
               onSubmit:
@@ -96,7 +96,7 @@ export function DashboardHeader({
                 meta.errorMap.onSubmit,
             },
           }));
-          form.setFieldMeta("endDate", (meta) => ({
+          projectForm.setFieldMeta("endDate", (meta) => ({
             ...meta,
             errorMap: {
               onSubmit:
@@ -119,8 +119,63 @@ export function DashboardHeader({
           description: `"${result.data.name}" is ready to go.`,
         });
 
-        form.reset();
-        setOpen(false);
+        projectForm.reset();
+        setProjectOpen(false);
+      } catch (error) {
+        if (error instanceof ActionTimeoutError) {
+          toast.add({
+            type: "error",
+            title: "Request timed out",
+            description: error.message,
+          });
+          return;
+        }
+
+        toast.add({
+          type: "error",
+          title: "Something went wrong",
+          description:
+            error instanceof Error ? error.message : "Please try again.",
+        });
+      }
+    },
+  });
+
+  // ── Create Client Form ──
+  const clientForm = useForm({
+    defaultValues: {
+      clientName: "",
+      clientEmail: "",
+      clientCompany: "",
+    },
+    onSubmit: async ({ value }) => {
+      try {
+        const result = await withTimeout(
+          createClient({
+            name: value.clientName,
+            email: value.clientEmail,
+            company: value.clientCompany.trim() || null,
+          }),
+          ACTION_TIMEOUT_MS,
+        );
+
+        if (!result.success) {
+          toast.add({
+            type: "error",
+            title: "Couldn't create client",
+            description: result.message,
+          });
+          return;
+        }
+
+        toast.add({
+          type: "success",
+          title: "Client created",
+          description: `"${result.data.name}" has been added to your workspace.`,
+        });
+
+        clientForm.reset();
+        setClientOpen(false);
       } catch (error) {
         if (error instanceof ActionTimeoutError) {
           toast.add({
@@ -154,32 +209,121 @@ export function DashboardHeader({
       </div>
 
       <div className="flex items-center gap-x-4">
-        {/* Client Invite Modal */}
-        <Dialog>
-          <DialogTrigger>
-            <Button size={"lg"} variant={"secondary"}>
-              <User className="mr-2 h-4 w-4" />
-              Invite Client
-            </Button>
+        {/* Create Client Modal */}
+        <Dialog open={clientOpen} onOpenChange={setClientOpen}>
+          <DialogTrigger render={<Button size="lg" variant="secondary" />}>
+            <User className="mr-2 h-4 w-4" />
+            Add Client
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent
+            initialFocus={clientNameRef}
+            className="flex flex-col gap-4"
+          >
             <DialogHeader>
-              <DialogTitle>Invite a client</DialogTitle>
+              <DialogTitle>Add a new client</DialogTitle>
               <DialogDescription>
-                Invite a client to your portal so they can follow their
-                projects and deliverables.
+                Add a client to your workspace. You can then invite them to
+                specific projects from the project page.
               </DialogDescription>
             </DialogHeader>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                clientForm.handleSubmit();
+              }}
+              className="flex flex-col gap-4 mt-2"
+            >
+              <clientForm.Field name="clientName">
+                {(field) => (
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor={field.name}>Client Name</Label>
+                    <Input
+                      ref={(node) => {
+                        clientNameRef.current = node;
+                      }}
+                      id={field.name}
+                      name={field.name}
+                      value={field.state.value}
+                      required
+                      aria-required
+                      onBlur={field.handleBlur}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      placeholder="e.g. Acme Corp"
+                    />
+                    {field.state.meta.errors.length > 0 && (
+                      <p role="alert" className="text-xs text-destructive">
+                        {field.state.meta.errors.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </clientForm.Field>
+
+              <clientForm.Field name="clientEmail">
+                {(field) => (
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor={field.name}>Email</Label>
+                    <Input
+                      id={field.name}
+                      name={field.name}
+                      type="email"
+                      value={field.state.value}
+                      required
+                      aria-required
+                      onBlur={field.handleBlur}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      placeholder="client@example.com"
+                    />
+                    {field.state.meta.errors.length > 0 && (
+                      <p role="alert" className="text-xs text-destructive">
+                        {field.state.meta.errors.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </clientForm.Field>
+
+              <clientForm.Field name="clientCompany">
+                {(field) => (
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor={field.name}>Company (optional)</Label>
+                    <Input
+                      id={field.name}
+                      name={field.name}
+                      value={field.state.value}
+                      onBlur={field.handleBlur}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      placeholder="Acme Inc."
+                    />
+                  </div>
+                )}
+              </clientForm.Field>
+
+              <clientForm.Subscribe
+                selector={(state) => [state.canSubmit, state.isSubmitting]}
+              >
+                {([canSubmit, isSubmitting]) => (
+                  <Button
+                    type="submit"
+                    disabled={!canSubmit || isSubmitting}
+                    className="mt-2"
+                  >
+                    {isSubmitting ? "Adding..." : "Add Client"}
+                  </Button>
+                )}
+              </clientForm.Subscribe>
+            </form>
           </DialogContent>
         </Dialog>
 
         {/* Create Project Modal */}
-        <Dialog disablePointerDismissal open={open} onOpenChange={setOpen}>
+        <Dialog disablePointerDismissal open={projectOpen} onOpenChange={setProjectOpen}>
           <DialogTrigger
-            className={cn(
-              "group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding text-xs/relaxed font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-2 hover:cursor-pointer focus-visible:ring-ring/30 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 bg-primary text-primary-foreground hover:bg-primary/80 hover",
-              "h-8 gap-1 px-2.5 text-xs/relaxed has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 [&_svg:not([class*='size-'])]:size-4",
-            )}
+            render={
+              <Button size="sm" className="h-8 gap-1 px-2.5 text-xs/relaxed" />
+            }
           >
             <IconPlus className="mr-2 h-4 w-4" />
             <span>Create Project</span>
@@ -199,12 +343,12 @@ export function DashboardHeader({
               onSubmit={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                form.handleSubmit();
+                projectForm.handleSubmit();
               }}
               className="flex flex-col gap-4 mt-2"
             >
               {/* Project Name Field */}
-              <form.Field name="projectName">
+              <projectForm.Field name="projectName">
                 {(field) => (
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor={field.name}>Project Name</Label>
@@ -222,19 +366,16 @@ export function DashboardHeader({
                       placeholder="Project Name"
                     />
                     {field.state.meta.errors.length > 0 && (
-                      <p
-                        role="alert"
-                        className="text-xs text-destructive"
-                      >
+                      <p role="alert" className="text-xs text-destructive">
                         {field.state.meta.errors.join(", ")}
                       </p>
                     )}
                   </div>
                 )}
-              </form.Field>
+              </projectForm.Field>
 
               {/* Project Description Field */}
-              <form.Field name="projectDescription">
+              <projectForm.Field name="projectDescription">
                 {(field) => (
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor={field.name}>Project Description</Label>
@@ -249,9 +390,9 @@ export function DashboardHeader({
                     />
                   </div>
                 )}
-              </form.Field>
+              </projectForm.Field>
 
-              <form.Field name="clientId">
+              <projectForm.Field name="clientId">
                 {(field) => (
                   <div className="flex flex-col gap-1.5">
                     <Label>Client</Label>
@@ -263,20 +404,17 @@ export function DashboardHeader({
                     />
 
                     {field.state.meta.errors.length > 0 && (
-                      <p
-                        role="alert"
-                        className="text-xs text-destructive"
-                      >
+                      <p role="alert" className="text-xs text-destructive">
                         {field.state.meta.errors.join(", ")}
                       </p>
                     )}
                   </div>
                 )}
-              </form.Field>
+              </projectForm.Field>
 
               <div className="grid grid-cols-2 gap-4">
                 {/* Start Date Field */}
-                <form.Field name="startDate">
+                <projectForm.Field name="startDate">
                   {(field) => (
                     <div className="flex flex-col gap-1.5">
                       <Label htmlFor={field.name}>Start Date</Label>
@@ -290,10 +428,10 @@ export function DashboardHeader({
                       />
                     </div>
                   )}
-                </form.Field>
+                </projectForm.Field>
 
                 {/* End Date Field */}
-                <form.Field name="endDate">
+                <projectForm.Field name="endDate">
                   {(field) => (
                     <div className="flex flex-col gap-1.5">
                       <Label htmlFor={field.name}>Due Date</Label>
@@ -307,11 +445,11 @@ export function DashboardHeader({
                       />
                     </div>
                   )}
-                </form.Field>
+                </projectForm.Field>
               </div>
 
               {/* Submit Button */}
-              <form.Subscribe
+              <projectForm.Subscribe
                 selector={(state) => [state.canSubmit, state.isSubmitting]}
               >
                 {([canSubmit, isSubmitting]) => (
@@ -323,7 +461,7 @@ export function DashboardHeader({
                     {isSubmitting ? "Creating..." : "Create Project"}
                   </Button>
                 )}
-              </form.Subscribe>
+              </projectForm.Subscribe>
             </form>
           </DialogContent>
         </Dialog>

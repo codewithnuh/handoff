@@ -1,7 +1,9 @@
 import { AppSidebar } from "@/components/dashboard/sidebar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { logout } from "@/lib/actions/auth";
 import { type ReactNode } from "react";
+
+// Session-scoped: every dashboard page reads the auth session.
+export const dynamic = "force-dynamic";
 
 export default function Layout({
   children,
@@ -10,12 +12,7 @@ export default function Layout({
 }>) {
   return (
     <SidebarProvider>
-      <AppSidebar
-        handleLogout={async () => {
-          "use server";
-          await logout();
-        }}
-      />
+      <AppSidebar />
       <SidebarInset>{children}</SidebarInset>
     </SidebarProvider>
   );
