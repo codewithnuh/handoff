@@ -1,8 +1,10 @@
 /**
  * Plan-specific resource limits.
  *
- * FREE: 1 workspace, up to 10 projects per workspace
- * PRO:  3 workspaces, up to 20 projects per workspace
+ * FREE: 1 workspace, up to 3 projects — enough to deliver real work and
+ *       feel the product, tight enough that growth means upgrading.
+ * PRO ($12/mo): 5 workspaces, up to 100 projects each — for studios
+ *       running many clients in parallel.
  *
  * When a paid user cancels, they enter a 30-day grace period.
  * After the grace period, the workspace becomes read-only and
@@ -11,11 +13,11 @@
 export const PLAN_LIMITS = {
   FREE: {
     maxWorkspaces: 1,
-    maxProjectsPerWorkspace: 10,
+    maxProjectsPerWorkspace: 3,
   },
   PRO: {
-    maxWorkspaces: 3,
-    maxProjectsPerWorkspace: 20,
+    maxWorkspaces: 5,
+    maxProjectsPerWorkspace: 100,
   },
 } as const;
 

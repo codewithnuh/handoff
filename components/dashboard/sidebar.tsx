@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   IconDashboard,
   IconFolder,
@@ -9,6 +10,9 @@ import {
   IconLogout,
   IconUser,
   IconShield,
+  IconUsers,
+  IconCreditCard,
+  IconSettings,
 } from "@tabler/icons-react";
 
 import {
@@ -30,6 +34,8 @@ interface NavItem {
   title: string;
   url: string;
   icon: Icon;
+  /** Only shown to owners/admins */
+  adminOnly?: boolean;
 }
 
 const defaultNavItems: NavItem[] = [
@@ -37,21 +43,31 @@ const defaultNavItems: NavItem[] = [
   { title: "Projects", url: "/dashboard/projects", icon: IconFolder },
   { title: "Clients", url: "/dashboard/clients", icon: IconUser },
   { title: "Portal", url: "/dashboard/portal", icon: IconShield },
+  { title: "Team", url: "/dashboard/team", icon: IconUsers },
+  { title: "Billing", url: "/dashboard/billing", icon: IconCreditCard, adminOnly: true },
+  { title: "Settings", url: "/dashboard/settings", icon: IconSettings },
 ];
 
 interface AppSidebarProps {
   items?: NavItem[];
-  activeUrl?: string;
   logo?: React.ReactNode;
+  /** Owner/admin — unlocks Team management & Billing */
+  isAdmin?: boolean;
 }
 
 export function AppSidebar({
   items = defaultNavItems,
-  activeUrl,
   logo,
+  isAdmin = true,
 }: AppSidebarProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const visibleItems = items.filter((item) => !item.adminOnly || isAdmin);
+
+  const isActive = (url: string) =>
+    url === "/dashboard" ? pathname === url : pathname.startsWith(url);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -85,12 +101,12 @@ export function AppSidebar({
 
       <SidebarContent>
         <SidebarMenu>
-          {items.map((item) => (
+          {visibleItems.map((item) => (
             <SidebarMenuItem key={item.title}>
               <Link href={item.url} className="w-full">
                 <SidebarMenuButton
                   tooltip={item.title}
-                  isActive={activeUrl === item.url}
+                  isActive={isActive(item.url)}
                 >
                   <item.icon />
                   <span>{item.title}</span>

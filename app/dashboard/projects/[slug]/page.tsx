@@ -2,8 +2,9 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { getProjectDetail } from "@/lib/queries/project";
-import { ProjectDetail } from "@/components/dashboard/project-detail";
+import { getProjectDetailForViewer } from "@/lib/queries/project";
+import { getProjectTasks } from "@/lib/queries/tasks";
+import { ProjectDetail } from "@/components/dashboard/project";
 import { getWorkspaceUsage } from "@/lib/queries/project";
 import {
   UsageBanner,
@@ -104,11 +105,16 @@ export default async function SingleProjectPage({
     notFound();
   }
 
-  const data = await getProjectDetail(slug);
+  const result = await getProjectDetailForViewer(slug);
 
-  if (!data) {
+  if (!result) {
     notFound();
   }
+
+  const [{ data, permissions }, tasks] = await Promise.all([
+    Promise.resolve(result),
+    getProjectTasks(slug).then((t) => t ?? []),
+  ]);
 
   return (
     <div className="space-y-4">
@@ -118,7 +124,11 @@ export default async function SingleProjectPage({
       </Suspense>
 
       <Suspense fallback={<ProjectDetailSkeleton />}>
-        <ProjectDetail data={data} />
+        <ProjectDetail
+          data={data}
+          permissions={permissions}
+          initialTasks={tasks}
+        />
       </Suspense>
     </div>
   );

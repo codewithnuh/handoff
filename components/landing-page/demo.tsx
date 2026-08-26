@@ -28,7 +28,7 @@ const TASK = {
 
 export const Demo = () => {
   return (
-    <div className="w-full min-w-0 overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-sm">
+    <div id="demo" className="scroll-mt-20 w-full min-w-0 overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-sm">
       <div className="px-4 sm:px-6">
         {/* Header */}
         <header className="border-b py-5">

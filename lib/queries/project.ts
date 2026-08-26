@@ -8,18 +8,43 @@
  */
 
 import { db } from "@/lib/prisma";
-import { requireWorkspace } from "@/lib/actions/guards";
+import {
+  getVisibleProjectIds,
+  requireWorkspace,
+  resolveProjectAccess,
+} from "@/lib/actions/guards";
+import type { EffectiveRole } from "@/lib/actions/guards";
+import type { WorkspaceContext } from "@/lib/actions/guards";
 import { getEffectivePlan } from "@/lib/services/plan-limits";
 import type { PlanKey } from "@/lib/constants/plans";
 
 // ──────────────────────────────────────────────
-// Helper: extract workspaceId or throw
+// Helpers: auth context + need-to-know scoping
 // ──────────────────────────────────────────────
 
-async function getWorkspaceId(): Promise<string> {
+async function getContext(): Promise<WorkspaceContext> {
   const guard = await requireWorkspace();
   if (!guard.ok) throw guard.error;
-  return guard.value.workspace.id;
+  return guard.value;
+}
+
+/** Prisma `project` filter limiting results to the caller's visible projects. */
+async function projectScope(
+  ctx: WorkspaceContext,
+): Promise<{ workspaceId: string; id?: { in: string[] } }> {
+  const visibleIds = await getVisibleProjectIds(
+    ctx.workspace.id,
+    ctx.user.id,
+    ctx.isAdmin,
+  );
+  return {
+    workspaceId: ctx.workspace.id,
+    ...(visibleIds ? { id: { in: visibleIds } } : {}),
+  };
+}
+
+async function getWorkspaceId(): Promise<string> {
+  return (await getContext()).workspace.id;
 }
 
 // ──────────────────────────────────────────────
@@ -103,12 +128,13 @@ export async function getWorkspaceUsage(): Promise<WorkspaceUsageData | null> {
  * Returns `null` when the caller is not authenticated.
  */
 export async function getDashboardOverview(): Promise<DashboardOverviewData | null> {
-  let workspaceId: string;
+  let ctx: WorkspaceContext;
   try {
-    workspaceId = await getWorkspaceId();
+    ctx = await getContext();
   } catch {
     return null;
   }
+  const scope = await projectScope(ctx);
 
   const [
     activeProjectCount,
@@ -117,25 +143,25 @@ export async function getDashboardOverview(): Promise<DashboardOverviewData | nu
     invoices,
   ] = await Promise.all([
     db.project.count({
-      where: { workspaceId, status: "IN_PROGRESS" },
+      where: { ...scope, status: "IN_PROGRESS" },
     }),
     db.deliverable.groupBy({
       by: ["status"],
       where: {
-        project: { workspaceId },
+        project: scope,
         status: { in: ["IN_REVIEW", "CHANGES_REQUESTED"] },
       },
       _count: true,
     }),
     db.request.count({
       where: {
-        project: { workspaceId },
+        project: scope,
         status: "OPEN",
       },
     }),
     db.invoice.findMany({
       where: {
-        project: { workspaceId },
+        project: scope,
         status: { in: ["SENT", "OVERDUE"] },
       },
       select: { amount: true, status: true },
@@ -198,11 +224,12 @@ export type ProjectListData = {
  * the workspace's clients (for filter dropdown) in parallel.
  */
 export async function getProjectListData(): Promise<ProjectListData> {
-  const workspaceId = await getWorkspaceId();
+  const ctx = await getContext();
+  const scope = await projectScope(ctx);
 
   const [projects, clients] = await Promise.all([
     db.project.findMany({
-      where: { workspaceId },
+      where: scope,
       orderBy: { createdAt: "desc" },
       include: {
         client: {
@@ -212,7 +239,10 @@ export async function getProjectListData(): Promise<ProjectListData> {
       },
     }),
     db.client.findMany({
-      where: { workspaceId },
+      where: {
+        workspaceId: ctx.workspace.id,
+        ...(scope.id ? { projects: { some: { id: scope.id } } } : {}),
+      },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
@@ -283,17 +313,29 @@ export type ProjectDetailData = {
   }[];
 };
 
+export type ViewerPermissions = {
+  role: EffectiveRole;
+  canEditProject: boolean;
+  canDeleteProject: boolean;
+  canManageDeliverables: boolean;
+  canSubmitForReview: boolean;
+  canUpdateRequests: boolean;
+  isObserver: boolean;
+};
+
 /**
- * Fetches all data for the single-project detail page in parallel.
+ * Fetches all data for the single-project detail page in parallel,
+ * plus the caller's effective permissions so the UI can gate mutations.
  * Returns `null` when the project is not found or the user has no access.
  */
-export async function getProjectDetail(
+export async function getProjectDetailForViewer(
   projectId: string,
-): Promise<ProjectDetailData | null> {
-  const workspaceId = await getWorkspaceId();
+): Promise<{ data: ProjectDetailData; permissions: ViewerPermissions } | null> {
+  const access = await resolveProjectAccess(projectId).catch(() => null);
+  if (!access || !access.ok) return null;
 
   const project = await db.project.findFirst({
-    where: { id: projectId, workspaceId },
+    where: { id: projectId, workspaceId: access.value.workspaceId },
     include: {
       client: {
         select: { id: true, name: true, email: true, company: true },
@@ -340,14 +382,25 @@ export async function getProjectDetail(
   ]);
 
   return {
-    project,
-    deliverables,
-    requests,
-    invoices: invoices.map((inv) => ({
-      ...inv,
-      amount: String(inv.amount),
-    })),
-    activities,
+    data: {
+      project,
+      deliverables,
+      requests,
+      invoices: invoices.map((inv) => ({
+        ...inv,
+        amount: String(inv.amount),
+      })),
+      activities,
+    },
+    permissions: {
+      role: access.value.role,
+      canEditProject: access.value.canEditProject,
+      canDeleteProject: access.value.canDeleteProject,
+      canManageDeliverables: access.value.canManageDeliverables,
+      canSubmitForReview: access.value.canSubmitForReview,
+      canUpdateRequests: access.value.canUpdateRequests,
+      isObserver: access.value.isObserver,
+    },
   };
 }
 
@@ -710,10 +763,11 @@ export type RecentActivityItem = {
 export async function getRecentWorkspaceActivity(
   take = 15,
 ): Promise<RecentActivityItem[]> {
-  const workspaceId = await getWorkspaceId();
+  const ctx = await getContext();
+  const scope = await projectScope(ctx);
 
   const activities = await db.activity.findMany({
-    where: { project: { workspaceId } },
+    where: { project: scope },
     orderBy: { createdAt: "desc" },
     take,
     select: {
@@ -737,4 +791,49 @@ export async function getRecentWorkspaceActivity(
     projectId: a.project.id,
     createdAt: a.createdAt,
   }));
+}
+
+// ──────────────────────────────────────────────
+// Team Page Data
+// ──────────────────────────────────────────────
+
+export type TeamAssignmentProject = {
+  id: string;
+  name: string;
+};
+
+/**
+ * Projects whose assignments the caller may manage on the team page:
+ * everything for owner/admin, only led projects for regular members.
+ */
+export async function getManageableProjects(): Promise<{
+  projects: TeamAssignmentProject[];
+}> {
+  const ctx = await getContext();
+
+  if (ctx.isAdmin) {
+    const projects = await db.project.findMany({
+      where: { workspaceId: ctx.workspace.id },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, name: true },
+    });
+    return { projects };
+  }
+
+  // Leads manage the projects they lead
+  const memberships = await db.projectMember.findMany({
+    where: {
+      userId: ctx.user.id,
+      role: "LEAD",
+      project: { workspaceId: ctx.workspace.id },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { project: { select: { id: true, name: true } } },
+  });
+  return {
+    projects: memberships.map((m) => ({
+      id: m.project.id,
+      name: m.project.name,
+    })),
+  };
 }

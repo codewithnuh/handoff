@@ -4,7 +4,11 @@ import type { Client } from "@/app/generated/prisma/client";
 import { db } from "@/lib/prisma";
 import { revalidateDashboard } from "@/lib/actions/revalidate";
 import { toActionError } from "@/lib/actions/helpers";
-import { requireWorkspace } from "@/lib/actions/guards";
+import {
+  getVisibleProjectIds,
+  requireWorkspace,
+  requireWorkspaceAdmin,
+} from "@/lib/actions/guards";
 import { assertWorkspaceWritable } from "@/lib/services/plan-limits";
 import { ERROR_CODES } from "@/lib/constants/errors";
 import type { ActionResponseType } from "@/lib/types/action";
@@ -38,9 +42,19 @@ export const listClients = async (): Promise<
   const guard = await requireWorkspace();
   if (!guard.ok) return guard.error;
 
+  // Members only see clients tied to their assigned projects
+  const visibleIds = await getVisibleProjectIds(
+    guard.value.workspace.id,
+    guard.value.user.id,
+    guard.value.isAdmin,
+  );
+
   try {
     const items = await db.client.findMany({
-      where: { workspaceId: guard.value.workspace.id },
+      where: {
+        workspaceId: guard.value.workspace.id,
+        ...(visibleIds ? { projects: { some: { id: { in: visibleIds } } } } : {}),
+      },
       orderBy: { createdAt: "desc" },
     });
     return ActionResponse.success({ items }, "Clients loaded");
@@ -64,11 +78,20 @@ export const getClient = async (
   const guard = await requireWorkspace();
   if (!guard.ok) return guard.error;
 
+  const visibleIds = await getVisibleProjectIds(
+    guard.value.workspace.id,
+    guard.value.user.id,
+    guard.value.isAdmin,
+  );
+
   try {
     const client = await db.client.findFirst({
       where: {
         id: validated.data.id,
         workspaceId: guard.value.workspace.id,
+        ...(visibleIds
+          ? { projects: { some: { id: { in: visibleIds } } } }
+          : {}),
       },
     });
     if (!client) {
@@ -95,7 +118,8 @@ export const createClient = async (
     );
   }
 
-  const guard = await requireWorkspace();
+  // The client directory is workspace-wide — owner/admin manage it
+  const guard = await requireWorkspaceAdmin();
   if (!guard.ok) return guard.error;
 
   const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
@@ -132,7 +156,7 @@ export const updateClient = async (
     );
   }
 
-  const guard = await requireWorkspace();
+  const guard = await requireWorkspaceAdmin();
   if (!guard.ok) return guard.error;
 
   const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
@@ -185,7 +209,7 @@ export const deleteClient = async (
     );
   }
 
-  const guard = await requireWorkspace();
+  const guard = await requireWorkspaceAdmin();
   if (!guard.ok) return guard.error;
 
   const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);

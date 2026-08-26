@@ -111,8 +111,8 @@ describe("assertCanCreateWorkspace", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("blocks creation when at the PRO limit (3 workspaces, max 3)", async () => {
-    workspaceCount.mockResolvedValue(3);
+  it("blocks creation when at the PRO limit (5 workspaces)", async () => {
+    workspaceCount.mockResolvedValue(5);
     findFirstWorkspace.mockResolvedValue({
       subscription: proSubscription,
     } as never);
@@ -121,7 +121,7 @@ describe("assertCanCreateWorkspace", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.error.code).toBe(ERROR_CODES.PLAN_LIMIT_EXCEEDED);
-      expect(result.error.message).toContain("3 workspaces");
+      expect(result.error.message).toContain("5 workspaces");
     }
   });
 
@@ -159,41 +159,41 @@ describe("assertCanCreateWorkspace", () => {
 describe("assertCanCreateProject", () => {
   it("allows creation when under the FREE project limit", async () => {
     findSubscription.mockResolvedValue(freeSubscription as never);
-    projectCount.mockResolvedValue(5);
+    projectCount.mockResolvedValue(2);
 
     const result = await assertCanCreateProject("ws-1");
     expect(result.ok).toBe(true);
   });
 
-  it("blocks creation when at the FREE project limit (10 projects)", async () => {
+  it("blocks creation when at the FREE project limit (3 projects)", async () => {
     findSubscription.mockResolvedValue(freeSubscription as never);
-    projectCount.mockResolvedValue(10);
+    projectCount.mockResolvedValue(3);
 
     const result = await assertCanCreateProject("ws-1");
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.error.code).toBe(ERROR_CODES.PLAN_LIMIT_EXCEEDED);
-      expect(result.error.message).toContain("10");
+      expect(result.error.message).toContain("3");
     }
   });
 
-  it("allows creation when under the PRO project limit (15 projects, max 20)", async () => {
+  it("allows creation when under the PRO project limit (40 projects, max 100)", async () => {
     findSubscription.mockResolvedValue(proSubscription as never);
-    projectCount.mockResolvedValue(15);
+    projectCount.mockResolvedValue(40);
 
     const result = await assertCanCreateProject("ws-1");
     expect(result.ok).toBe(true);
   });
 
-  it("blocks creation when at the PRO project limit (20 projects)", async () => {
+  it("blocks creation when at the PRO project limit (100 projects)", async () => {
     findSubscription.mockResolvedValue(proSubscription as never);
-    projectCount.mockResolvedValue(20);
+    projectCount.mockResolvedValue(100);
 
     const result = await assertCanCreateProject("ws-1");
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.error.code).toBe(ERROR_CODES.PLAN_LIMIT_EXCEEDED);
-      expect(result.error.message).toContain("20");
+      expect(result.error.message).toContain("100");
     }
   });
 
@@ -223,7 +223,7 @@ describe("getEffectivePlan", () => {
     expect(result.plan).toBe("FREE");
     expect(result.isDowngraded).toBe(false);
     expect(result.limits.maxWorkspaces).toBe(1);
-    expect(result.limits.maxProjectsPerWorkspace).toBe(10);
+    expect(result.limits.maxProjectsPerWorkspace).toBe(3);
   });
 
   it("returns PRO plan for active PRO subscription", async () => {
@@ -232,8 +232,8 @@ describe("getEffectivePlan", () => {
     const result = await getEffectivePlan("ws-1");
     expect(result.plan).toBe("PRO");
     expect(result.isDowngraded).toBe(false);
-    expect(result.limits.maxWorkspaces).toBe(3);
-    expect(result.limits.maxProjectsPerWorkspace).toBe(20);
+    expect(result.limits.maxWorkspaces).toBe(5);
+    expect(result.limits.maxProjectsPerWorkspace).toBe(100);
   });
 
   it("returns PRO plan during grace period (not yet downgraded)", async () => {
@@ -251,7 +251,7 @@ describe("getEffectivePlan", () => {
     expect(result.plan).toBe("FREE");
     expect(result.isDowngraded).toBe(true);
     expect(result.limits.maxWorkspaces).toBe(1);
-    expect(result.limits.maxProjectsPerWorkspace).toBe(10);
+    expect(result.limits.maxProjectsPerWorkspace).toBe(3);
   });
 
   it("returns FREE defaults when no subscription exists", async () => {

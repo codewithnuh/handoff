@@ -7,10 +7,7 @@ import { db } from "@/lib/prisma";
 import { env } from "@/env";
 import { recordActivity } from "@/lib/actions/activity";
 import { toActionError } from "@/lib/actions/helpers";
-import {
-  requireProjectInWorkspace,
-  requireWorkspace,
-} from "@/lib/actions/guards";
+import { resolveProjectAccess } from "@/lib/actions/guards";
 import { ERROR_CODES } from "@/lib/constants/errors";
 import type { ActionResponseType } from "@/lib/types/action";
 import { ActionResponse } from "@/lib/utils/action-response";
@@ -84,14 +81,17 @@ export const inviteClient = async (
     );
   }
 
-  const guard = await requireWorkspace();
-  if (!guard.ok) return guard.error;
+  // Client-facing actions are lead-level (quality gate): inviting,
+  // re-inviting, and revoking portal access push work to the client.
+  const access = await resolveProjectAccess(validated.data.projectId);
+  if (!access.ok) return access.error;
 
-  const projectInScope = await requireProjectInWorkspace(
-    guard.value.workspace.id,
-    validated.data.projectId,
-  );
-  if (!projectInScope.ok) return projectInScope.error;
+  if (!access.value.canSubmitForReview) {
+    return ActionResponse.failure(
+      ERROR_CODES.FORBIDDEN,
+      "Only a project lead can manage client access.",
+    );
+  }
 
   try {
     const invitation = await createInvitation(
@@ -102,9 +102,9 @@ export const inviteClient = async (
     await recordActivity({
       projectId: validated.data.projectId,
       type: "CLIENT_INVITED",
-      actorUserId: guard.value.user.id,
-      actorEmail: guard.value.user.email,
-      actorName: guard.value.user.name,
+      actorUserId: access.value.user.id,
+      actorEmail: access.value.user.email,
+      actorName: access.value.user.name,
       meta: { email: invitation.email },
     });
 
@@ -142,14 +142,17 @@ export const revokeClientAccess = async (
     );
   }
 
-  const guard = await requireWorkspace();
-  if (!guard.ok) return guard.error;
+  // Client-facing actions are lead-level (quality gate): inviting,
+  // re-inviting, and revoking portal access push work to the client.
+  const access = await resolveProjectAccess(validated.data.projectId);
+  if (!access.ok) return access.error;
 
-  const projectInScope = await requireProjectInWorkspace(
-    guard.value.workspace.id,
-    validated.data.projectId,
-  );
-  if (!projectInScope.ok) return projectInScope.error;
+  if (!access.value.canSubmitForReview) {
+    return ActionResponse.failure(
+      ERROR_CODES.FORBIDDEN,
+      "Only a project lead can manage client access.",
+    );
+  }
 
   try {
     // 1. Delete ProjectAccess
@@ -209,14 +212,17 @@ export const resendInvitation = async (
     );
   }
 
-  const guard = await requireWorkspace();
-  if (!guard.ok) return guard.error;
+  // Client-facing actions are lead-level (quality gate): inviting,
+  // re-inviting, and revoking portal access push work to the client.
+  const access = await resolveProjectAccess(validated.data.projectId);
+  if (!access.ok) return access.error;
 
-  const projectInScope = await requireProjectInWorkspace(
-    guard.value.workspace.id,
-    validated.data.projectId,
-  );
-  if (!projectInScope.ok) return projectInScope.error;
+  if (!access.value.canSubmitForReview) {
+    return ActionResponse.failure(
+      ERROR_CODES.FORBIDDEN,
+      "Only a project lead can manage client access.",
+    );
+  }
 
   try {
     // Invalidate old links + create a fresh invitation

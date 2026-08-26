@@ -213,7 +213,7 @@ export const requestPasswordReset = async (
     const result = await auth.api.requestPasswordReset({
       body: {
         email: validated.data.email,
-        redirectTo: `${env.NEXT_PUBLIC_APP_URL}/reset-password`,
+        redirectTo: `${env.NEXT_PUBLIC_APP_URL}/reset-password?verify=true`,
       },
       headers: await headers(),
     });

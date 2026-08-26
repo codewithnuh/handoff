@@ -7,8 +7,10 @@ import { toActionError } from "@/lib/actions/helpers";
 import { revalidateDashboard } from "@/lib/actions/revalidate";
 import {
   requireClientInWorkspace,
-  requireProjectInWorkspace,
   requireWorkspace,
+  requireWorkspaceAdmin,
+  resolveProjectAccess,
+  getVisibleProjectIds,
 } from "@/lib/actions/guards";
 import { ERROR_CODES } from "@/lib/constants/errors";
 import { assertCanCreateProject, assertWorkspaceWritable } from "@/lib/services/plan-limits";
@@ -47,8 +49,18 @@ export const listProjects = async (): Promise<
   if (!guard.ok) return guard.error;
 
   try {
+    // Need-to-know scoping: regular members only see assigned projects
+    const visibleIds = await getVisibleProjectIds(
+      guard.value.workspace.id,
+      guard.value.user.id,
+      guard.value.isAdmin,
+    );
+
     const items = await db.project.findMany({
-      where: { workspaceId: guard.value.workspace.id },
+      where: {
+        workspaceId: guard.value.workspace.id,
+        ...(visibleIds ? { id: { in: visibleIds } } : {}),
+      },
       orderBy: { createdAt: "desc" },
     });
     return ActionResponse.success({ items }, "Projects loaded");
@@ -71,6 +83,9 @@ export const getProject = async (
 
   const guard = await requireWorkspace();
   if (!guard.ok) return guard.error;
+
+  const access = await resolveProjectAccess(validated.data.id);
+  if (!access.ok) return access.error;
 
   try {
     const project = await db.project.findFirst({
@@ -103,7 +118,9 @@ export const createProject = async (
     );
   }
 
-  const guard = await requireWorkspace();
+  // Creating projects is an owner/admin capability — members work on
+  // projects assigned to them
+  const guard = await requireWorkspaceAdmin();
   if (!guard.ok) return guard.error;
 
   const clientInWorkspace = await requireClientInWorkspace(
@@ -162,21 +179,22 @@ export const updateProject = async (
     );
   }
 
-  const guard = await requireWorkspace();
-  if (!guard.ok) return guard.error;
+  const access = await resolveProjectAccess(validated.data.id);
+  if (!access.ok) return access.error;
 
-  const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
+  if (!access.value.canEditProject) {
+    return ActionResponse.failure(
+      ERROR_CODES.FORBIDDEN,
+      "You don't have permission to edit this project.",
+    );
+  }
+
+  const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
   if (readOnlyError) return readOnlyError;
-
-  const projectInWorkspace = await requireProjectInWorkspace(
-    guard.value.workspace.id,
-    validated.data.id,
-  );
-  if (!projectInWorkspace.ok) return projectInWorkspace.error;
 
   if (validated.data.clientId) {
     const clientInWorkspace = await requireClientInWorkspace(
-      guard.value.workspace.id,
+      access.value.workspaceId,
       validated.data.clientId,
     );
     if (!clientInWorkspace.ok) return clientInWorkspace.error;
@@ -184,7 +202,7 @@ export const updateProject = async (
 
   try {
     const existing = await db.project.findFirst({
-      where: { id: validated.data.id, workspaceId: guard.value.workspace.id },
+      where: { id: validated.data.id, workspaceId: access.value.workspaceId },
     });
     if (!existing) {
       return ActionResponse.failure(
@@ -222,9 +240,9 @@ export const updateProject = async (
     });
 
     const actor = {
-      actorUserId: guard.value.user.id,
-      actorEmail: guard.value.user.email,
-      actorName: guard.value.user.name,
+      actorUserId: access.value.user.id,
+      actorEmail: access.value.user.email,
+      actorName: access.value.user.name,
     };
     if (statusChanged) {
       await recordActivity({
@@ -262,17 +280,18 @@ export const updateProjectStatus = async (
     );
   }
 
-  const guard = await requireWorkspace();
-  if (!guard.ok) return guard.error;
+  const access = await resolveProjectAccess(validated.data.id);
+  if (!access.ok) return access.error;
 
-  const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
+  if (!access.value.canEditProject) {
+    return ActionResponse.failure(
+      ERROR_CODES.FORBIDDEN,
+      "You don't have permission to edit this project.",
+    );
+  }
+
+  const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
   if (readOnlyError) return readOnlyError;
-
-  const projectInWorkspace = await requireProjectInWorkspace(
-    guard.value.workspace.id,
-    validated.data.id,
-  );
-  if (!projectInWorkspace.ok) return projectInWorkspace.error;
 
   try {
     const existing = await db.project.findUnique({
@@ -293,9 +312,9 @@ export const updateProjectStatus = async (
     await recordActivity({
       projectId: project.id,
       type: "PROJECT_STATUS_CHANGED",
-      actorUserId: guard.value.user.id,
-      actorEmail: guard.value.user.email,
-      actorName: guard.value.user.name,
+      actorUserId: access.value.user.id,
+      actorEmail: access.value.user.email,
+      actorName: access.value.user.name,
       meta: { from: existing.status, to: project.status },
     });
 
@@ -323,17 +342,18 @@ export const updateProjectProgress = async (
     );
   }
 
-  const guard = await requireWorkspace();
-  if (!guard.ok) return guard.error;
+  const access = await resolveProjectAccess(validated.data.id);
+  if (!access.ok) return access.error;
 
-  const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
+  if (!access.value.canEditProject) {
+    return ActionResponse.failure(
+      ERROR_CODES.FORBIDDEN,
+      "You don't have permission to edit this project.",
+    );
+  }
+
+  const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
   if (readOnlyError) return readOnlyError;
-
-  const projectInWorkspace = await requireProjectInWorkspace(
-    guard.value.workspace.id,
-    validated.data.id,
-  );
-  if (!projectInWorkspace.ok) return projectInWorkspace.error;
 
   try {
     const project = await db.project.update({
@@ -344,9 +364,9 @@ export const updateProjectProgress = async (
     await recordActivity({
       projectId: project.id,
       type: "PROJECT_PROGRESS_UPDATED",
-      actorUserId: guard.value.user.id,
-      actorEmail: guard.value.user.email,
-      actorName: guard.value.user.name,
+      actorUserId: access.value.user.id,
+      actorEmail: access.value.user.email,
+      actorName: access.value.user.name,
       meta: { progress: project.progress },
     });
 
@@ -374,17 +394,24 @@ export const deleteProject = async (
     );
   }
 
-  const guard = await requireWorkspace();
-  if (!guard.ok) return guard.error;
+  const access = await resolveProjectAccess(validated.data.id);
+  if (!access.ok) return access.error;
 
-  const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
+  if (!access.value.canDeleteProject) {
+    return ActionResponse.failure(
+      ERROR_CODES.FORBIDDEN,
+      "Only the workspace owner or an admin can delete projects.",
+    );
+  }
+
+  const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
   if (readOnlyError) return readOnlyError;
 
   try {
     const result = await db.project.deleteMany({
       where: {
         id: validated.data.id,
-        workspaceId: guard.value.workspace.id,
+        workspaceId: access.value.workspaceId,
       },
     });
     if (result.count === 0) {

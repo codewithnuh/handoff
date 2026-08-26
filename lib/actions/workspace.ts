@@ -4,7 +4,10 @@ import type { Workspace } from "@/app/generated/prisma/client";
 import { db } from "@/lib/prisma";
 import { revalidateDashboard } from "@/lib/actions/revalidate";
 import { toActionError } from "@/lib/actions/helpers";
-import { requireAuth, requireWorkspace } from "@/lib/actions/guards";
+import {
+  requireAuth,
+  requireWorkspaceAdmin,
+} from "@/lib/actions/guards";
 import { ERROR_CODES } from "@/lib/constants/errors";
 import { assertCanCreateWorkspace } from "@/lib/services/plan-limits";
 import type { ActionResponseType } from "@/lib/types/action";
@@ -64,25 +67,38 @@ export const getCurrentWorkspace = async (): Promise<
 
     if (user?.activeWorkspaceId) {
       workspace = await db.workspace.findFirst({
-        where: { id: user.activeWorkspaceId, ownerId: userId },
+        where: {
+          id: user.activeWorkspaceId,
+          OR: [{ ownerId: userId }, { members: { some: { userId } } }],
+        },
         include: { subscription: true },
       });
     }
 
-    // Fallback: if active workspace is missing or unowned, pick the first
+    // Fallback: if active workspace is inaccessible, pick the first owned,
+    // then the first membership
     if (!workspace) {
       workspace = await db.workspace.findFirst({
         where: { ownerId: userId },
         orderBy: { createdAt: "asc" },
         include: { subscription: true },
       });
+    }
 
-      if (workspace) {
-        await db.user.update({
-          where: { id: userId },
-          data: { activeWorkspaceId: workspace.id },
-        }).catch(() => {});
-      }
+    if (!workspace) {
+      const membership = await db.workspaceMember.findFirst({
+        where: { userId },
+        orderBy: { createdAt: "asc" },
+        include: { workspace: { include: { subscription: true } } },
+      });
+      workspace = membership?.workspace ?? null;
+    }
+
+    if (workspace) {
+      await db.user.update({
+        where: { id: userId },
+        data: { activeWorkspaceId: workspace.id },
+      }).catch(() => {});
     }
 
     return ActionResponse.success(
@@ -97,7 +113,8 @@ export const getCurrentWorkspace = async (): Promise<
 };
 
 /**
- * List all workspaces the current user owns, with active indicator.
+ * List all workspaces the current user owns or is a member of,
+ * with the active one flagged.
  */
 export const listWorkspaces = async (): Promise<
   ActionResponseType<WorkspaceListResult>
@@ -113,18 +130,39 @@ export const listWorkspaces = async (): Promise<
       select: { activeWorkspaceId: true },
     });
 
-    const workspaces = await db.workspace.findMany({
-      where: { ownerId: userId },
-      orderBy: { createdAt: "asc" },
-      select: { id: true, name: true },
-    });
+    const [owned, memberships] = await Promise.all([
+      db.workspace.findMany({
+        where: { ownerId: userId },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, name: true },
+      }),
+      db.workspaceMember.findMany({
+        where: { userId },
+        orderBy: { createdAt: "asc" },
+        select: {
+          workspaceId: true,
+          role: true,
+          workspace: { select: { id: true, name: true, ownerId: true } },
+        },
+      }),
+    ]);
 
-    const items: WorkspaceListItem[] = workspaces.map((ws) => ({
-      id: ws.id,
-      name: ws.name,
-      isOwner: true, // all listed workspaces are owned by this user
-      isActive: ws.id === user?.activeWorkspaceId,
-    }));
+    const items: WorkspaceListItem[] = [
+      ...owned.map((ws) => ({
+        id: ws.id,
+        name: ws.name,
+        isOwner: true,
+        isActive: ws.id === user?.activeWorkspaceId,
+      })),
+      ...memberships
+        .filter((m) => m.workspace.ownerId !== userId)
+        .map((m) => ({
+          id: m.workspace.id,
+          name: m.workspace.name,
+          isOwner: false,
+          isActive: m.workspaceId === user?.activeWorkspaceId,
+        })),
+    ];
 
     return ActionResponse.success({ items }, "Workspaces loaded");
   } catch (error) {
@@ -192,7 +230,8 @@ export const createWorkspace = async (
 
 /**
  * Switch the user's active workspace.
- * Validates the workspace belongs to the caller — no cross-tenant switching.
+ * Validates the caller owns the workspace OR is a member — no cross-tenant
+ * switching.
  */
 export const switchWorkspace = async (
   data: WorkspaceIdInput,
@@ -212,9 +251,12 @@ export const switchWorkspace = async (
   try {
     const userId = guard.value.id;
 
-    // Verify the workspace belongs to this user (ownership check)
+    // Verify access: owner OR active membership
     const workspace = await db.workspace.findFirst({
-      where: { id: validated.data.id, ownerId: userId },
+      where: {
+        id: validated.data.id,
+        OR: [{ ownerId: userId }, { members: { some: { userId } } }],
+      },
     });
 
     if (!workspace) {
@@ -243,7 +285,7 @@ export const switchWorkspace = async (
 };
 
 /**
- * Rename the current user's active workspace.
+ * Rename the active workspace (owner or admin only).
  */
 export const updateWorkspace = async (
   data: UpdateWorkspaceInput,
@@ -257,7 +299,7 @@ export const updateWorkspace = async (
     );
   }
 
-  const guard = await requireWorkspace();
+  const guard = await requireWorkspaceAdmin();
   if (!guard.ok) return guard.error;
 
   try {
@@ -277,12 +319,20 @@ export const updateWorkspace = async (
 /**
  * ⚠️ Destructive: deleting the workspace cascades to ALL owned data
  * (clients, projects, deliverables, invoices, activities, …).
+ * Owner only.
  */
 export const deleteWorkspace = async (): Promise<
   ActionResponseType<DeleteWorkspaceResult>
 > => {
-  const guard = await requireWorkspace();
+  const guard = await requireWorkspaceAdmin();
   if (!guard.ok) return guard.error;
+
+  if (!guard.value.isOwner) {
+    return ActionResponse.failure(
+      ERROR_CODES.FORBIDDEN,
+      "Only the workspace owner can delete the workspace.",
+    );
+  }
 
   try {
     await db.workspace.delete({ where: { id: guard.value.workspace.id } });

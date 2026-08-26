@@ -8,10 +8,7 @@ import { db } from "@/lib/prisma";
 import { recordActivity } from "@/lib/actions/activity";
 import { revalidateDashboard } from "@/lib/actions/revalidate";
 import { toActionError } from "@/lib/actions/helpers";
-import {
-  requireProjectInWorkspace,
-  requireWorkspace,
-} from "@/lib/actions/guards";
+import { resolveProjectAccess } from "@/lib/actions/guards";
 import { ERROR_CODES } from "@/lib/constants/errors";
 import { assertWorkspaceWritable } from "@/lib/services/plan-limits";
 import type { ActionResponseType } from "@/lib/types/action";
@@ -58,14 +55,8 @@ export const listDeliverables = async (
     );
   }
 
-  const guard = await requireWorkspace();
-  if (!guard.ok) return guard.error;
-
-  const projectInScope = await requireProjectInWorkspace(
-    guard.value.workspace.id,
-    validated.data.projectId,
-  );
-  if (!projectInScope.ok) return projectInScope.error;
+  const access = await resolveProjectAccess(validated.data.projectId);
+  if (!access.ok) return access.error;
 
   try {
     const items = await db.deliverable.findMany({
@@ -92,15 +83,9 @@ export const getDeliverable = async (
     );
   }
 
-  const guard = await requireWorkspace();
-  if (!guard.ok) return guard.error;
-
   try {
-    const deliverable = await db.deliverable.findFirst({
-      where: {
-        id: validated.data.id,
-        project: { workspaceId: guard.value.workspace.id },
-      },
+    const deliverable = await db.deliverable.findUnique({
+      where: { id: validated.data.id },
     });
     if (!deliverable) {
       return ActionResponse.failure(
@@ -108,6 +93,11 @@ export const getDeliverable = async (
         "Deliverable not found.",
       );
     }
+
+    // RBAC + need-to-know scoping
+    const access = await resolveProjectAccess(deliverable.projectId);
+    if (!access.ok) return access.error;
+
     return ActionResponse.success(deliverable, "Deliverable loaded");
   } catch (error) {
     return toActionError(error, {
@@ -128,17 +118,18 @@ export const createDeliverable = async (
     );
   }
 
-  const guard = await requireWorkspace();
-  if (!guard.ok) return guard.error;
+  const access = await resolveProjectAccess(validated.data.projectId);
+  if (!access.ok) return access.error;
 
-  const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
+  if (!access.value.canManageDeliverables) {
+    return ActionResponse.failure(
+      ERROR_CODES.FORBIDDEN,
+      "You have view-only access to this project.",
+    );
+  }
+
+  const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
   if (readOnlyError) return readOnlyError;
-
-  const projectInScope = await requireProjectInWorkspace(
-    guard.value.workspace.id,
-    validated.data.projectId,
-  );
-  if (!projectInScope.ok) return projectInScope.error;
 
   try {
     const deliverable = await db.deliverable.create({
@@ -152,9 +143,9 @@ export const createDeliverable = async (
     await recordActivity({
       projectId: validated.data.projectId,
       type: "DELIVERABLE_CREATED",
-      actorUserId: guard.value.user.id,
-      actorEmail: guard.value.user.email,
-      actorName: guard.value.user.name,
+      actorUserId: access.value.user.id,
+      actorEmail: access.value.user.email,
+      actorName: access.value.user.name,
       meta: { title: deliverable.title },
     });
 
@@ -183,25 +174,57 @@ export const updateDeliverable = async (
     );
   }
 
-  const guard = await requireWorkspace();
-  if (!guard.ok) return guard.error;
-
-  const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
-  if (readOnlyError) return readOnlyError;
-
   const { id, expectedVersion, title, description, status } = validated.data;
 
   try {
-    const existing = await db.deliverable.findFirst({
-      where: {
-        id,
-        project: { workspaceId: guard.value.workspace.id },
-      },
-    });
+    const existing = await db.deliverable.findUnique({ where: { id } });
     if (!existing) {
       return ActionResponse.failure(
         ERROR_CODES.NOT_FOUND,
         "Deliverable not found.",
+      );
+    }
+
+    // RBAC + need-to-know scoping (also verifies workspace membership)
+    const access = await resolveProjectAccess(existing.projectId);
+    if (!access.ok) return access.error;
+
+    if (access.value.isObserver || !access.value.canManageDeliverables) {
+      return ActionResponse.failure(
+        ERROR_CODES.FORBIDDEN,
+        "You have view-only access to this project.",
+      );
+    }
+
+    const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
+    if (readOnlyError) return readOnlyError;
+
+    // ── Quality gate ──
+    // Contributors work on drafts; once a deliverable is submitted it is
+    // client-facing, so only a lead (or admin/owner) can touch it or push
+    // it back into review. Approvals/change-requests belong to the client.
+    const touchesContent =
+      title !== undefined || description !== undefined;
+    if (
+      (touchesContent && existing.status !== "DRAFT") ||
+      (status === "IN_REVIEW" && existing.status !== "IN_REVIEW")
+    ) {
+      if (!access.value.canSubmitForReview) {
+        return ActionResponse.failure(
+          ERROR_CODES.FORBIDDEN,
+          "Only a project lead can modify or submit deliverables under review.",
+        );
+      }
+    }
+    if (
+      status !== undefined &&
+      status !== existing.status &&
+      status !== "DRAFT" &&
+      status !== "IN_REVIEW"
+    ) {
+      return ActionResponse.failure(
+        ERROR_CODES.FORBIDDEN,
+        "Approvals and change requests are made by the client in the portal.",
       );
     }
 
@@ -260,9 +283,9 @@ export const updateDeliverable = async (
         await recordActivity({
           projectId: deliverable.projectId,
           type: activityType,
-          actorUserId: guard.value.user.id,
-          actorEmail: guard.value.user.email,
-          actorName: guard.value.user.name,
+          actorUserId: access.value.user.id,
+          actorEmail: access.value.user.email,
+          actorName: access.value.user.name,
           meta: { from: existing.status, to: deliverable.status },
         });
       }
@@ -294,18 +317,9 @@ export const deleteDeliverable = async (
     );
   }
 
-  const guard = await requireWorkspace();
-  if (!guard.ok) return guard.error;
-
-  const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
-  if (readOnlyError) return readOnlyError;
-
   try {
-    const deliverable = await db.deliverable.findFirst({
-      where: {
-        id: validated.data.id,
-        project: { workspaceId: guard.value.workspace.id },
-      },
+    const deliverable = await db.deliverable.findUnique({
+      where: { id: validated.data.id },
       select: { id: true, projectId: true },
     });
     if (!deliverable) {
@@ -314,6 +328,19 @@ export const deleteDeliverable = async (
         "Deliverable not found.",
       );
     }
+
+    // Deleting is a lead-level action (destructive + client-visible surface)
+    const access = await resolveProjectAccess(deliverable.projectId);
+    if (!access.ok) return access.error;
+    if (!access.value.canSubmitForReview) {
+      return ActionResponse.failure(
+        ERROR_CODES.FORBIDDEN,
+        "Only a project lead can delete deliverables.",
+      );
+    }
+
+    const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
+    if (readOnlyError) return readOnlyError;
 
     await db.deliverable.delete({ where: { id: validated.data.id } });
     revalidateDashboard();
@@ -340,19 +367,10 @@ export const addDeliverableVersion = async (
     );
   }
 
-  const guard = await requireWorkspace();
-  if (!guard.ok) return guard.error;
-
-  const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
-  if (readOnlyError) return readOnlyError;
-
   try {
-    const deliverable = await db.deliverable.findFirst({
-      where: {
-        id: validated.data.deliverableId,
-        project: { workspaceId: guard.value.workspace.id },
-      },
-      select: { id: true, projectId: true },
+    const deliverable = await db.deliverable.findUnique({
+      where: { id: validated.data.deliverableId },
+      select: { id: true, projectId: true, status: true },
     });
     if (!deliverable) {
       return ActionResponse.failure(
@@ -360,6 +378,29 @@ export const addDeliverableVersion = async (
         "Deliverable not found.",
       );
     }
+
+    const access = await resolveProjectAccess(deliverable.projectId);
+    if (!access.ok) return access.error;
+    if (access.value.isObserver || !access.value.canManageDeliverables) {
+      return ActionResponse.failure(
+        ERROR_CODES.FORBIDDEN,
+        "You have view-only access to this project.",
+      );
+    }
+    // Contributors may upload versions to drafts; submitted work is
+    // client-facing and lead-only.
+    if (
+      deliverable.status !== "DRAFT" &&
+      !access.value.canSubmitForReview
+    ) {
+      return ActionResponse.failure(
+        ERROR_CODES.FORBIDDEN,
+        "Only a project lead can add versions once a deliverable is submitted.",
+      );
+    }
+
+    const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
+    if (readOnlyError) return readOnlyError;
 
     const lastVersion = await db.deliverableVersion.findFirst({
       where: { deliverableId: deliverable.id },
@@ -382,9 +423,9 @@ export const addDeliverableVersion = async (
     await recordActivity({
       projectId: deliverable.projectId,
       type: "DELIVERABLE_VERSION_UPLOADED",
-      actorUserId: guard.value.user.id,
-      actorEmail: guard.value.user.email,
-      actorName: guard.value.user.name,
+      actorUserId: access.value.user.id,
+      actorEmail: access.value.user.email,
+      actorName: access.value.user.name,
       meta: { versionNumber },
     });
 

@@ -35,6 +35,7 @@ vi.mock("@/lib/prisma", () => ({
   db: {
     user: { findUnique: vi.fn(), update: vi.fn() },
     workspace: { findFirst: vi.fn() },
+    workspaceMember: { findUnique: vi.fn(), findFirst: vi.fn() },
     client: {
       findMany: vi.fn(),
       findFirst: vi.fn(),

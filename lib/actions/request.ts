@@ -5,7 +5,7 @@ import { db } from "@/lib/prisma";
 import { recordActivity } from "@/lib/actions/activity";
 import { revalidateDashboard } from "@/lib/actions/revalidate";
 import { toActionError } from "@/lib/actions/helpers";
-import { requireWorkspace } from "@/lib/actions/guards";
+import { resolveProjectAccess } from "@/lib/actions/guards";
 import { ERROR_CODES } from "@/lib/constants/errors";
 import { assertWorkspaceWritable } from "@/lib/services/plan-limits";
 import type { ActionResponseType } from "@/lib/types/action";
@@ -35,18 +35,9 @@ export const updateRequestStatus = async (
     );
   }
 
-  const guard = await requireWorkspace();
-  if (!guard.ok) return guard.error;
-
-  const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
-  if (readOnlyError) return readOnlyError;
-
   try {
-    const existing = await db.request.findFirst({
-      where: {
-        id: validated.data.id,
-        project: { workspaceId: guard.value.workspace.id },
-      },
+    const existing = await db.request.findUnique({
+      where: { id: validated.data.id },
     });
     if (!existing) {
       return ActionResponse.failure(
@@ -54,6 +45,18 @@ export const updateRequestStatus = async (
         "Request not found.",
       );
     }
+
+    const access = await resolveProjectAccess(existing.projectId);
+    if (!access.ok) return access.error;
+    if (!access.value.canUpdateRequests) {
+      return ActionResponse.failure(
+        ERROR_CODES.FORBIDDEN,
+        "You don't have permission to update requests on this project.",
+      );
+    }
+
+    const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
+    if (readOnlyError) return readOnlyError;
 
     const request = await db.request.update({
       where: { id: validated.data.id },
@@ -63,9 +66,9 @@ export const updateRequestStatus = async (
     await recordActivity({
       projectId: request.projectId,
       type: "REQUEST_STATUS_CHANGED",
-      actorUserId: guard.value.user.id,
-      actorEmail: guard.value.user.email,
-      actorName: guard.value.user.name,
+      actorUserId: access.value.user.id,
+      actorEmail: access.value.user.email,
+      actorName: access.value.user.name,
       meta: { from: existing.status, to: request.status },
     });
 

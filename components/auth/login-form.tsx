@@ -8,6 +8,7 @@ import type { ActionResponseType } from "@/lib/types/action";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Button } from "../ui/button";
+import Link from "next/link";
 
 type LoginState = ActionResponseType<LoginResult> | null;
 
@@ -90,7 +91,12 @@ export default function LoginForm() {
             ))}
         </div>
       )}
-
+      <Link
+        href={"/reset-password"}
+        className="text-xs underline text-foreground"
+      >
+        Forget Password
+      </Link>
       <Button type="submit" disabled={isPending} className="">
         {isPending ? "Signing in…" : "Sign in"}
       </Button>
