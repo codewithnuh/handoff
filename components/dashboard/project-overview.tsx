@@ -1,11 +1,6 @@
 import { Clock, DollarSign, Folder, MessageSquare } from "lucide-react";
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDashboardOverview } from "@/lib/queries/project";
 import { ProjectOverviewError } from "./project-overview-error";
@@ -18,7 +13,7 @@ export function ProjectOverviewSkeleton() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {Array.from({ length: 4 }).map((_, i) => (
-        <Card className="shadow-xs" key={i}>
+        <Card className="shadow-md" key={i}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <Skeleton className="h-4 w-28" />
             <Skeleton className="size-4 rounded-full" />
@@ -41,7 +36,9 @@ export async function ProjectOverview() {
   const data = await getDashboardOverview();
 
   if (!data) {
-    return <ProjectOverviewError message="Please sign in to view your dashboard." />;
+    return (
+      <ProjectOverviewError message="Please sign in to view your dashboard." />
+    );
   }
 
   const stats = [
@@ -85,7 +82,7 @@ export async function ProjectOverview() {
         const Icon = stat.icon;
 
         return (
-          <Card className="shadow-xs" key={stat.id}>
+          <Card className="shadow-md" key={stat.id}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 {stat.title}

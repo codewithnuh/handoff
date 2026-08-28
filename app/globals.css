@@ -10,6 +10,7 @@
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
+
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -18,27 +19,36 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
+
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
+
   --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);
+
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
+
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
+
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -49,72 +59,240 @@
 }
 
 :root {
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.514 0.222 16.935);
-  --primary-foreground: oklch(0.969 0.015 12.422);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.81 0.117 11.638);
-  --chart-2: oklch(0.645 0.246 16.439);
-  --chart-3: oklch(0.586 0.253 17.585);
-  --chart-4: oklch(0.514 0.222 16.935);
-  --chart-5: oklch(0.455 0.188 13.697);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.586 0.253 17.585);
-  --sidebar-primary-foreground: oklch(0.969 0.015 12.422);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* =========================================================
+     CORE APP COLORS
+     ========================================================= */
+
+  --background: #fffafa;
+  --foreground: #1d1c1d;
+
+  /* =========================================================
+     SURFACES
+     ========================================================= */
+
+  --card: #ffffff;
+  --card-foreground: #1d1c1d;
+
+  --popover: #ffffff;
+  --popover-foreground: #1d1c1d;
+
+  /* =========================================================
+     BRAND
+     ========================================================= */
+
+  --primary: #9f1239;
+  --primary-foreground: #ffffff;
+
+  /* =========================================================
+     SECONDARY
+     ========================================================= */
+
+  --secondary: #fff1f3;
+  --secondary-foreground: #6b102f;
+
+  /* =========================================================
+     MUTED
+     ========================================================= */
+
+  --muted: #f3f0f1;
+  --muted-foreground: #696969;
+
+  /* =========================================================
+     ACCENT
+     ========================================================= */
+
+  --accent: #f8dce2;
+  --accent-foreground: #6b102f;
+
+  /* =========================================================
+     DESTRUCTIVE
+     ========================================================= */
+
+  --destructive: #b42318;
+
+  /* =========================================================
+     BORDERS / INPUTS
+     ========================================================= */
+
+  --border: #d8d1d4;
+  --input: #cec5c9;
+  --ring: #9f1239;
+
+  /* =========================================================
+     CHARTS
+     ========================================================= */
+
+  --chart-1: #9f1239;
+  --chart-2: #1264a3;
+  --chart-3: #be365b;
+  --chart-4: #2f8ab7;
+  --chart-5: #d97891;
+
+  --radius: 0.75rem;
+
+  /* =========================================================
+     SIDEBAR
+     ========================================================= */
+
+  --sidebar: #3a071b;
+  --sidebar-foreground: #fff7f8;
+
+  --sidebar-primary: #f19aae;
+  --sidebar-primary-foreground: #320716;
+
+  --sidebar-accent: #5a0d2a;
+  --sidebar-accent-foreground: #ffffff;
+
+  --sidebar-border: #64102f;
+  --sidebar-ring: #f19aae;
+
+  /* =========================================================
+     DESIGN SYSTEM COLORS
+     ========================================================= */
+
+  --color-aubergine: #9f1239;
+  --color-deep-plum: #6b102f;
+  --color-purple-haze: #fff1f3;
+  --color-lavender-mist: #f3c0cb;
+  --color-vivid-violet: #be365b;
+  --color-plum-shadow: #43091f;
+  --color-iris: #7f1737;
+  --color-iris-light: #f19aae;
+
+  --color-channel-blue: #1264a3;
+  --color-mid-blue: #0b4c8c;
+  --color-sky-mist: #2f8ab7;
+
+  --color-carbon: #1d1c1d;
+  --color-charcoal: #454245;
+  --color-mid-gray: #696969;
+  --color-steel: #808080;
+  --color-fog: #ede9ea;
+
+  --color-pure-white: #ffffff;
+  --color-soft-white: #fffafa;
+  --color-ice-blue: #e8f5fa;
+  --color-black: #000000;
+
+  /* =========================================================
+     GRADIENTS
+     ========================================================= */
+
+  --gradient-vivid-violet: linear-gradient(
+    104deg,
+    #000000 9.56%,
+    #9f1239 102.66%
+  );
+
+  /* =========================================================
+     SEMANTIC SURFACES
+     ========================================================= */
+
+  --surface-canvas: #fffafa;
+  --surface-card: #ffffff;
+  --surface-wash: #fff1f3;
+  --surface-cool-wash: #e8f5fa;
+  --surface-inverted: #3a071b;
+
+  /* =========================================================
+     SHADOWS
+     ========================================================= */
+
+  --shadow-xl: rgba(29, 28, 29, 0.1) 0px 0px 32px 0px;
+
+  /* More visible card edge */
+  --shadow-subtle: rgba(29, 28, 29, 0.06) 0px 0px 0px 1px;
+
+  --shadow-subtle-2: rgba(29, 28, 29, 0.08) 0px 1px 3px 0px;
+
+  --shadow-lg: rgba(29, 28, 29, 0.1) 0px 5px 20px 0px;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.455 0.188 13.697);
-  --primary-foreground: oklch(0.969 0.015 12.422);
-  --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.81 0.117 11.638);
-  --chart-2: oklch(0.645 0.246 16.439);
-  --chart-3: oklch(0.586 0.253 17.585);
-  --chart-4: oklch(0.514 0.222 16.935);
-  --chart-5: oklch(0.455 0.188 13.697);
-  --sidebar: oklch(0.21 0.006 285.885);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.645 0.246 16.439);
-  --sidebar-primary-foreground: oklch(0.969 0.015 12.422);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* =========================================================
+     CORE
+     ========================================================= */
+
+  --background: #180b10;
+  --foreground: #fff5f7;
+
+  /* =========================================================
+     SURFACES
+     ========================================================= */
+
+  --card: #241017;
+  --card-foreground: #fff5f7;
+
+  --popover: #35101e;
+  --popover-foreground: #fff0f3;
+
+  /* =========================================================
+     BRAND
+     ========================================================= */
+
+  --primary: #f4a0b5;
+  --primary-foreground: #3b071b;
+
+  /* =========================================================
+     SECONDARY
+     ========================================================= */
+
+  --secondary: #32121e;
+  --secondary-foreground: #ffe8ee;
+
+  /* =========================================================
+     MUTED
+     ========================================================= */
+
+  --muted: #2b151d;
+  --muted-foreground: #bdaeb3;
+
+  /* =========================================================
+     ACCENT
+     ========================================================= */
+
+  --accent: #4b1729;
+  --accent-foreground: #ffe8ee;
+
+  /* =========================================================
+     DESTRUCTIVE
+     ========================================================= */
+
+  --destructive: #f87171;
+
+  /* =========================================================
+     BORDERS / INPUTS
+     ========================================================= */
+
+  --border: #ffffff1a;
+  --input: #ffffff24;
+  --ring: #f4a0b5;
+
+  /* =========================================================
+     CHARTS
+     ========================================================= */
+
+  --chart-1: #f4a0b5;
+  --chart-2: #e87994;
+  --chart-3: #d45b76;
+  --chart-4: #be365b;
+  --chart-5: #9f1239;
+
+  /* =========================================================
+     SIDEBAR
+     ========================================================= */
+
+  --sidebar: #2a0615;
+  --sidebar-foreground: #fff5f7;
+
+  --sidebar-primary: #f4a0b5;
+  --sidebar-primary-foreground: #3b071b;
+
+  --sidebar-accent: #571027;
+  --sidebar-accent-foreground: #ffe8ee;
+
+  --sidebar-border: #641530;
+  --sidebar-ring: #f4a0b5;
 }
 
 @theme inline {
@@ -127,6 +305,7 @@
   100% {
     opacity: 1;
   }
+
   20%,
   50% {
     opacity: 0;
@@ -137,9 +316,11 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
+
   html {
     @apply font-sans;
   }

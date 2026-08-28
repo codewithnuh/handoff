@@ -1,81 +1,103 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { cn } from "@/lib/utils";
 import Link from "next/link";
+import Image from "next/image";
+import { motion, useScroll, useTransform } from "motion/react";
+
 import { Container } from "./container";
-import { IconHandOff } from "@tabler/icons-react";
 import { Button } from "../ui/button";
+
+const NAV_LINKS = [
+  { label: "Features", href: "#features" },
+  { label: "Pricing", href: "#pricing" },
+  { label: "About", href: "#about" },
+] as const;
+
 export const Navbar = () => {
-  const [scrolled, setScrolled] = useState(false);
+  const { scrollY } = useScroll();
 
-  useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 20);
-    };
+  // Navbar gets slightly more compact as you scroll.
+  const py = useTransform(scrollY, [0, 100], ["1.25rem", "0.75rem"]);
 
-    handleScroll();
+  // Subtle horizontal movement like your reference navbar.
+  const leftOffset = useTransform(scrollY, [0, 100], [0, 16]);
+  const rightOffset = useTransform(scrollY, [0, 100], [0, -16]);
 
-    window.addEventListener("scroll", handleScroll, { passive: true });
-
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+  // Border fades in after scrolling.
+  const borderOpacity = useTransform(scrollY, [0, 40], [0, 1]);
 
   return (
-    <header
-      className={cn(
-        "fixed inset-x-0  border-b-2 border-dotted border-transparent   top-0 z-50 shadow-xs transition-all duration-300",
-        scrolled
-          ? "bg-background/50 backdrop-blur-xl"
-          : "border-neutral-400 bg-transparent",
-      )}
+    <motion.header
+      style={{
+        paddingTop: py,
+        paddingBottom: py,
+      }}
+      className="sticky top-0 z-50 w-full border-b border-transparent bg-background/70 backdrop-blur-md"
     >
+      {/* Scroll border */}
+      <motion.div
+        style={{ opacity: borderOpacity }}
+        className="absolute inset-x-0 bottom-0 h-px bg-border"
+      />
+
       <Container>
-        <nav className="mx-auto  flex h-16 max-w-6xl items-center justify-between sm:px-6">
-          {/* Logo */}
-          <Link
-            href="/"
-            className="font-heading flex text-lg font-semibold tracking-tight text-foreground"
+        <nav
+          aria-label="Main navigation"
+          className="flex min-w-0 items-center justify-between"
+        >
+          {/* Brand */}
+          <motion.div className="shrink-0" style={{ x: leftOffset }}>
+            <Link
+              href="/"
+              className="flex items-center gap-0.5 text-foreground transition-opacity hover:opacity-80"
+              aria-label="Handoff home"
+            >
+              <Image
+                src="/logo.png"
+                width={32}
+                height={32}
+                alt=""
+                aria-hidden="true"
+                className="size-8 object-contain"
+                priority
+              />
+
+              <span className="font-heading text-xl font-semibold leading-none tracking-[-0.025em]">
+                handoff
+              </span>
+            </Link>
+          </motion.div>
+
+          {/* Desktop Navigation */}
+          <motion.div
+            className="hidden items-center gap-1 md:flex"
+            style={{ x: rightOffset }}
           >
-            <IconHandOff /> <span>HandOff </span>
-          </Link>
-
-          {/* Navigation */}
-          <div className="hidden items-center gap-1 md:flex">
-            <a
-              href="#features"
-              className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              Features
-            </a>
-
-            <a
-              href="#pricing"
-              className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              Pricing
-            </a>
-
-            <a
-              href="#about"
-              className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              About
-            </a>
-          </div>
+            {NAV_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </motion.div>
 
           {/* Actions */}
-          <div className="flex items-center gap-2">
-            <Button size={"lg"}>
-              <Link href={"/login"}>Login</Link>
-            </Button>
+          <motion.div
+            className="flex items-center gap-2"
+            style={{ x: rightOffset }}
+          >
+            <Button
+              render={<Link href="/login">Log in</Link>}
+              variant="ghost"
+            />
 
-            <Button size={"lg"}>
-              <Link href={"/register"}>Register</Link>
-            </Button>
-          </div>
+            <Button render={<Link href="/register">Get started</Link>} />
+          </motion.div>
         </nav>
       </Container>
-    </header>
+    </motion.header>
   );
 };
