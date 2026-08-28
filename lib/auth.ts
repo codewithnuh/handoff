@@ -1,15 +1,36 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
+import { emailOTP } from "better-auth/plugins/email-otp";
 import { env } from "@/env";
 import { db } from "@/lib/prisma";
-import { sendEmail } from "@/lib/email";
+import {
+  otpEmailHtml,
+  resetPasswordEmailHtml,
+  sendEmail,
+  verificationEmailHtml,
+} from "@/lib/email";
 
 export const auth = betterAuth({
   appName: "Handoff",
   baseURL: env.BETTER_AUTH_URL,
   secret: env.BETTER_AUTH_SECRET,
   database: prismaAdapter(db, { provider: "postgresql" }),
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          await db.subscription.create({
+            data: {
+              userId: user.id,
+              plan: "FREE",
+              status: "ACTIVE",
+            },
+          });
+        },
+      },
+    }
+  },
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,
@@ -20,17 +41,21 @@ export const auth = betterAuth({
         to: user.email,
         subject: "Reset your password",
         text: `Click the link to reset your password: ${url}`,
+        html: resetPasswordEmailHtml(url),
       });
     },
   },
   emailVerification: {
-    sendOnSignUp: true,
+    // Sign-up uses the email-otp plugin below (6-digit codes) instead of links.
+    sendOnSignUp: false,
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({ user, url }) => {
+      // Fallback path (e.g. resendVerificationEmail link flow).
       await sendEmail({
         to: user.email,
         subject: "Verify your email address",
         text: `Click the link to verify your email: ${url}`,
+        html: verificationEmailHtml(url),
       });
     },
   },
@@ -56,7 +81,27 @@ export const auth = betterAuth({
       sameSite: "lax",
     },
   },
-  plugins: [nextCookies()],
+  plugins: [
+    nextCookies(),
+    emailOTP({
+      // 6-digit codes valid for 10 minutes, max 5 attempts, stored hashed.
+      otpLength: 6,
+      expiresIn: 600,
+      allowedAttempts: 5,
+      storeOTP: "hashed",
+      // Sends an OTP automatically right after sign-up so the user can
+      // verify immediately on /verify-email.
+      sendVerificationOnSignUp: true,
+      sendVerificationOTP: async ({ email, otp }) => {
+        await sendEmail({
+          to: email,
+          subject: "Your Handoff verification code",
+          text: `Your verification code is ${otp}. It expires in 10 minutes.`,
+          html: otpEmailHtml(otp, "verifying your email", 10),
+        });
+      },
+    }),
+  ],
 });
 
 export type Session = typeof auth.$Infer.Session;

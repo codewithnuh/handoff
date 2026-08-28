@@ -61,10 +61,11 @@ export const createTask = async (
   if (!access.ok) return access.error;
 
   try {
+    const status = validated.data.status ?? "TODO";
     const last = await db.task.findFirst({
       where: {
         projectId: validated.data.projectId,
-        status: "TODO",
+        status,
       },
       orderBy: { position: "desc" },
       select: { position: true },
@@ -75,7 +76,7 @@ export const createTask = async (
         projectId: validated.data.projectId,
         title: validated.data.title,
         description: validated.data.description ?? null,
-        status: "TODO",
+        status,
         position: (last?.position ?? -1) + 1,
       },
     });

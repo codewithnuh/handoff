@@ -16,6 +16,7 @@ vi.mock("@/lib/prisma", () => ({
     workspace: {
       count: vi.fn(),
       findFirst: vi.fn(),
+      findUnique: vi.fn(),
     },
     project: {
       count: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock("@/lib/prisma", () => ({
 
 const workspaceCount = vi.mocked(db.workspace.count);
 const findFirstWorkspace = vi.mocked(db.workspace.findFirst);
+const findWorkspaceUnique = vi.mocked(db.workspace.findUnique);
 const projectCount = vi.mocked(db.project.count);
 const findSubscription = vi.mocked(db.subscription.findUnique);
 
@@ -78,9 +80,7 @@ beforeEach(() => {
 describe("assertCanCreateWorkspace", () => {
   it("allows creation when under the FREE limit (0 workspaces, max 1)", async () => {
     workspaceCount.mockResolvedValue(0);
-    findFirstWorkspace.mockResolvedValue({
-      subscription: freeSubscription,
-    } as never);
+    findSubscription.mockResolvedValue(freeSubscription as never);
 
     const result = await assertCanCreateWorkspace("user-1");
     expect(result.ok).toBe(true);
@@ -88,9 +88,7 @@ describe("assertCanCreateWorkspace", () => {
 
   it("blocks creation when at the FREE limit (1 workspace, max 1)", async () => {
     workspaceCount.mockResolvedValue(1);
-    findFirstWorkspace.mockResolvedValue({
-      subscription: freeSubscription,
-    } as never);
+    findSubscription.mockResolvedValue(freeSubscription as never);
 
     const result = await assertCanCreateWorkspace("user-1");
     expect(result.ok).toBe(false);
@@ -103,9 +101,7 @@ describe("assertCanCreateWorkspace", () => {
 
   it("allows creation when under the PRO limit (2 workspaces, max 3)", async () => {
     workspaceCount.mockResolvedValue(2);
-    findFirstWorkspace.mockResolvedValue({
-      subscription: proSubscription,
-    } as never);
+    findSubscription.mockResolvedValue(proSubscription as never);
 
     const result = await assertCanCreateWorkspace("user-1");
     expect(result.ok).toBe(true);
@@ -113,9 +109,7 @@ describe("assertCanCreateWorkspace", () => {
 
   it("blocks creation when at the PRO limit (5 workspaces)", async () => {
     workspaceCount.mockResolvedValue(5);
-    findFirstWorkspace.mockResolvedValue({
-      subscription: proSubscription,
-    } as never);
+    findSubscription.mockResolvedValue(proSubscription as never);
 
     const result = await assertCanCreateWorkspace("user-1");
     expect(result.ok).toBe(false);
@@ -128,9 +122,7 @@ describe("assertCanCreateWorkspace", () => {
   it("drops to FREE limits after grace period expires", async () => {
     // User had PRO, canceled, grace period expired — effectively FREE (max 1)
     workspaceCount.mockResolvedValue(2);
-    findFirstWorkspace.mockResolvedValue({
-      subscription: canceledProGraceExpired,
-    } as never);
+    findSubscription.mockResolvedValue(canceledProGraceExpired as never);
 
     const result = await assertCanCreateWorkspace("user-1");
     expect(result.ok).toBe(false);
@@ -143,9 +135,7 @@ describe("assertCanCreateWorkspace", () => {
 
   it("still allows during grace period (PRO limits apply)", async () => {
     workspaceCount.mockResolvedValue(2);
-    findFirstWorkspace.mockResolvedValue({
-      subscription: canceledProInGrace,
-    } as never);
+    findSubscription.mockResolvedValue(canceledProInGrace as never);
 
     const result = await assertCanCreateWorkspace("user-1");
     expect(result.ok).toBe(true);
@@ -158,6 +148,7 @@ describe("assertCanCreateWorkspace", () => {
 
 describe("assertCanCreateProject", () => {
   it("allows creation when under the FREE project limit", async () => {
+    findWorkspaceUnique.mockResolvedValue({ ownerId: "user-1" } as never);
     findSubscription.mockResolvedValue(freeSubscription as never);
     projectCount.mockResolvedValue(2);
 
@@ -166,6 +157,7 @@ describe("assertCanCreateProject", () => {
   });
 
   it("blocks creation when at the FREE project limit (3 projects)", async () => {
+    findWorkspaceUnique.mockResolvedValue({ ownerId: "user-1" } as never);
     findSubscription.mockResolvedValue(freeSubscription as never);
     projectCount.mockResolvedValue(3);
 
@@ -178,6 +170,7 @@ describe("assertCanCreateProject", () => {
   });
 
   it("allows creation when under the PRO project limit (40 projects, max 100)", async () => {
+    findWorkspaceUnique.mockResolvedValue({ ownerId: "user-1" } as never);
     findSubscription.mockResolvedValue(proSubscription as never);
     projectCount.mockResolvedValue(40);
 
@@ -186,6 +179,7 @@ describe("assertCanCreateProject", () => {
   });
 
   it("blocks creation when at the PRO project limit (100 projects)", async () => {
+    findWorkspaceUnique.mockResolvedValue({ ownerId: "user-1" } as never);
     findSubscription.mockResolvedValue(proSubscription as never);
     projectCount.mockResolvedValue(100);
 
@@ -199,6 +193,7 @@ describe("assertCanCreateProject", () => {
 
   it("drops to FREE project limits after grace period", async () => {
     // Was PRO with 15 projects — after downgrade, FREE limit is 10
+    findWorkspaceUnique.mockResolvedValue({ ownerId: "user-1" } as never);
     findSubscription.mockResolvedValue(canceledProGraceExpired as never);
     projectCount.mockResolvedValue(15);
 

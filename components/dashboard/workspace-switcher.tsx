@@ -1,43 +1,50 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { Check, ChevronsUpDown, Building2 } from "lucide-react";
+import { useState, useTransition } from "react";
+import { Check, ChevronsUpDown, Building2, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/toast";
-import {
-  listWorkspaces,
-  switchWorkspace,
-} from "@/lib/actions/workspace";
+import { createWorkspace, switchWorkspace } from "@/lib/actions/workspace";
 import type { WorkspaceListItem } from "@/lib/actions/workspace";
 
 interface WorkspaceSwitcherProps {
+  /** Resolved on the server so there's no client-side loading flash. */
+  workspaces: WorkspaceListItem[];
   className?: string;
 }
 
-export function WorkspaceSwitcher({ className }: WorkspaceSwitcherProps) {
-  const [workspaces, setWorkspaces] = useState<WorkspaceListItem[]>([]);
-  const [loading, setLoading] = useState(true);
+export function WorkspaceSwitcher({
+  workspaces,
+  className,
+}: WorkspaceSwitcherProps) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
 
-  useEffect(() => {
-    listWorkspaces().then((result) => {
-      if (result.success) {
-        setWorkspaces(result.data.items);
-      }
-      setLoading(false);
-    });
-  }, []);
-
-  const activeWorkspace = workspaces.find((ws) => ws.isActive);
+  const activeWorkspace = workspaces.find((ws) => ws.isActive) ?? workspaces[0];
 
   const handleSwitch = (workspaceId: string) => {
     if (workspaceId === activeWorkspace?.id) return;
@@ -50,8 +57,8 @@ export function WorkspaceSwitcher({ className }: WorkspaceSwitcherProps) {
           title: "Workspace switched",
           description: result.message,
         });
-        // Reload the page to re-fetch all server components with new workspace context
-        window.location.reload();
+        // Re-render all server components under the new workspace context.
+        router.refresh();
       } else {
         toast.add({
           type: "error",
@@ -62,61 +69,201 @@ export function WorkspaceSwitcher({ className }: WorkspaceSwitcherProps) {
     });
   };
 
-  if (loading) {
-    return (
-      <div className={cn("flex items-center gap-2 rounded-md border px-3 py-2", className)}>
-        <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-        <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-      </div>
-    );
-  }
+  const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (isCreating) return;
 
-  if (workspaces.length === 0) return null;
+    setIsCreating(true);
+    try {
+      const result = await createWorkspace({ name: newName.trim() });
+      if (!result.success) {
+        toast.add({
+          type: "error",
+          title: "Couldn't create workspace",
+          description: result.message,
+        });
+        return;
+      }
+      toast.add({
+        type: "success",
+        title: "Workspace created",
+        description: `"${result.data.name}" is now your active workspace.`,
+      });
+      setCreateOpen(false);
+      setNewName("");
+      router.refresh();
+    } catch {
+      toast.add({
+        type: "error",
+        title: "Something went wrong",
+        description: "Please try again.",
+      });
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
-  // Single workspace — show a static label (no dropdown needed)
+  if (workspaces.length === 0 || !activeWorkspace) return null;
+
+  // Single workspace — nothing to switch between, but keep creation reachable.
   if (workspaces.length === 1) {
     return (
-      <div className={cn("flex items-center gap-2 rounded-md border px-3 py-2", className)}>
-        <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-        <span className="truncate text-sm font-medium">
-          {activeWorkspace?.name ?? workspaces[0].name}
-        </span>
+      <div className={cn("flex items-center gap-1", className)}>
+        <div className="border-input flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md border px-3">
+          <Building2 className="text-muted-foreground size-4 shrink-0" />
+          <span className="truncate text-sm font-medium">
+            {activeWorkspace.name}
+          </span>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Create workspace"
+          disabled={isPending}
+          onClick={() => setCreateOpen(true)}
+        >
+          <Plus />
+        </Button>
+        <CreateWorkspaceDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          newName={newName}
+          setNewName={setNewName}
+          isCreating={isCreating}
+          onSubmit={handleCreate}
+        />
       </div>
     );
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="outline" className={cn("w-full justify-between gap-2 text-left font-normal", className)} disabled={isPending} />}>
-        <span className="flex items-center gap-2 overflow-hidden">
-          <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <span className="truncate text-sm">
-            {activeWorkspace?.name ?? "Select workspace"}
-          </span>
-        </span>
-        <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-[--radix-dropdown-menu-trigger-width]">
-        <DropdownMenuLabel className="text-xs text-muted-foreground">
-          Workspaces
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {workspaces.map((ws) => (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="outline"
+              disabled={isPending}
+              className={cn(
+                "h-8 w-full justify-between gap-2 text-left font-normal",
+                className,
+              )}
+            >
+              <span className="flex items-center gap-2 overflow-hidden">
+                <Building2 className="text-muted-foreground size-4 shrink-0" />
+                <span className="truncate text-sm">{activeWorkspace.name}</span>
+              </span>
+              <ChevronsUpDown className="text-muted-foreground size-4 shrink-0" />
+            </Button>
+          }
+        />
+        <DropdownMenuContent align="start" className="w-56">
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="text-muted-foreground text-xs">
+              Workspaces
+            </DropdownMenuLabel>
+            {workspaces.map((ws) => (
+              <DropdownMenuItem
+                key={ws.id}
+                onClick={() => handleSwitch(ws.id)}
+                className="cursor-pointer"
+              >
+                <Check
+                  className={cn(
+                    "mr-2 size-4",
+                    ws.isActive ? "opacity-100" : "opacity-0",
+                  )}
+                />
+                <span className="truncate">{ws.name}</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
           <DropdownMenuItem
-            key={ws.id}
-            onSelect={() => handleSwitch(ws.id)}
+            onClick={() => setCreateOpen(true)}
             className="cursor-pointer"
           >
-            <Check
-              className={cn(
-                "mr-2 h-4 w-4",
-                ws.isActive ? "opacity-100" : "opacity-0",
-              )}
-            />
-            <span className="truncate">{ws.name}</span>
+            <Plus className="mr-2 size-4" />
+            New workspace
           </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <CreateWorkspaceDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        newName={newName}
+        setNewName={setNewName}
+        isCreating={isCreating}
+        onSubmit={handleCreate}
+      />
+    </>
   );
 }
+
+// ──────────────────────────────────────────────
+// Create workspace dialog
+// ──────────────────────────────────────────────
+
+type CreateWorkspaceDialogProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  newName: string;
+  setNewName: (name: string) => void;
+  isCreating: boolean;
+  onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+};
+
+function CreateWorkspaceDialog({
+  open,
+  onOpenChange,
+  newName,
+  setNewName,
+  isCreating,
+  onSubmit,
+}: CreateWorkspaceDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-w-sm flex-col gap-4">
+        <DialogHeader>
+          <DialogTitle>Create workspace</DialogTitle>
+          <DialogDescription>
+            A workspace holds its own clients, projects, and team.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={onSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="new-workspace-name">Name</Label>
+            <Input
+              id="new-workspace-name"
+              name="name"
+              required
+              maxLength={60}
+              autoComplete="off"
+              placeholder="e.g. Acme Studio"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              autoFocus
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={isCreating}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isCreating || !newName.trim()}>
+              {isCreating ? "Creating…" : "Create workspace"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+ 

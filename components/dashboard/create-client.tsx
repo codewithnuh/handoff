@@ -1,6 +1,4 @@
 "use client";
-
-import { useState } from "react";
 import {
   Combobox,
   ComboboxContent,
@@ -30,15 +28,17 @@ type ClientComboboxProps = {
   clients: ClientOption[];
   value: string;
   onChange: (clientId: string) => void;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
 export function ClientCombobox({
   clients,
   value,
   onChange,
+  isOpen,
+  onOpenChange,
 }: ClientComboboxProps) {
-  const [createClientOpen, setCreateClientOpen] = useState(false);
-
   const selectedClient = clients.find((client) => client.id === value) ?? null;
 
   return (
@@ -68,7 +68,7 @@ export function ClientCombobox({
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={() => setCreateClientOpen(true)}
+                  onClick={() => onOpenChange?.(true)}
                 >
                   <IconPlus className="mr-2 h-4 w-4" />
                   Create client
@@ -98,7 +98,7 @@ export function ClientCombobox({
                   type="button"
                   variant="ghost"
                   className="w-full justify-start"
-                  onClick={() => setCreateClientOpen(true)}
+                  onClick={() => onOpenChange?.(true)}
                 >
                   <IconPlus className="mr-2 h-4 w-4" />
                   Create new client
@@ -109,8 +109,8 @@ export function ClientCombobox({
         </ComboboxContent>
       </Combobox>
 
-      <Dialog open={createClientOpen} onOpenChange={setCreateClientOpen}>
-        <DialogContent>
+      <Dialog open={isOpen ?? false} onOpenChange={onOpenChange}>
+        <DialogContent className="z-[60]">
           <DialogHeader>
             <DialogTitle>Create Client</DialogTitle>
 
@@ -122,7 +122,7 @@ export function ClientCombobox({
           <CreateClientForm
             onCreated={(client) => {
               onChange(client.id);
-              setCreateClientOpen(false);
+              onOpenChange?.(false);
             }}
           />
         </DialogContent>

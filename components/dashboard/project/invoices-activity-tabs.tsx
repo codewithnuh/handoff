@@ -1,6 +1,14 @@
 import { Receipt, Activity as ActivityIcon } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import type { ProjectDetailData } from "@/lib/queries/project";
 import { InvoiceStatusBadge } from "./status-badges";
 import { activityLabel } from "@/lib/constants/activity";
@@ -15,7 +23,7 @@ export function InvoicesTab({
   if (invoices.length === 0) {
     return (
       <EmptyTab
-        icon={<Receipt className="size-5 text-muted-foreground" />}
+        icon={<Receipt className="text-muted-foreground size-5" />}
         title="No invoices yet"
         description="Invoices for this project will appear here."
       />
@@ -23,37 +31,37 @@ export function InvoicesTab({
   }
 
   return (
-    <div className="rounded-lg border border-border bg-card overflow-hidden shadow-xs">
-      <table className="w-full text-left text-xs">
-        <thead className="bg-muted/50 border-b border-border text-muted-foreground">
-          <tr>
-            <th className="p-3 font-medium">Invoice #</th>
-            <th className="p-3 font-medium">Description</th>
-            <th className="p-3 font-medium">Due Date</th>
-            <th className="p-3 font-medium">Amount</th>
-            <th className="p-3 font-medium">Status</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border">
+    <div className="bg-card shadow-xs overflow-hidden rounded-lg border">
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead className="p-3">Invoice #</TableHead>
+            <TableHead className="p-3">Description</TableHead>
+            <TableHead className="p-3">Due Date</TableHead>
+            <TableHead className="p-3">Amount</TableHead>
+            <TableHead className="p-3">Status</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {invoices.map((inv) => (
-            <tr key={inv.id} className="hover:bg-muted/25 transition-colors">
-              <td className="p-3 font-medium">{inv.invoiceNumber}</td>
-              <td className="p-3 text-muted-foreground">
+            <TableRow key={inv.id}>
+              <TableCell className="p-3 font-medium">{inv.invoiceNumber}</TableCell>
+              <TableCell className="text-muted-foreground p-3">
                 {inv.description || "—"}
-              </td>
-              <td className="p-3 text-muted-foreground">
+              </TableCell>
+              <TableCell className="text-muted-foreground p-3">
                 {formatDate(inv.dueDate)}
-              </td>
-              <td className="p-3 font-medium">
+              </TableCell>
+              <TableCell className="p-3 font-medium">
                 {formatCurrency(inv.amount, inv.currency)}
-              </td>
-              <td className="p-3">
+              </TableCell>
+              <TableCell className="p-3">
                 <InvoiceStatusBadge status={inv.status} />
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }

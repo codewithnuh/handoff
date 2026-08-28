@@ -89,7 +89,7 @@ export async function getWorkspaceUsage(): Promise<WorkspaceUsageData | null> {
   const userId = guard.value.user.id;
 
   const [effective, projectCount, workspaceCount] = await Promise.all([
-    getEffectivePlan(workspaceId),
+    getEffectivePlan(userId),
     db.project.count({ where: { workspaceId } }),
     db.workspace.count({ where: { ownerId: userId } }),
   ]);
@@ -118,7 +118,10 @@ export async function getWorkspaceUsage(): Promise<WorkspaceUsageData | null> {
     workspaces: {
       used: workspaceCount,
       max: maxWorkspaces,
-      percent: Math.min(Math.round((workspaceCount / maxWorkspaces) * 100), 100),
+      percent: Math.min(
+        Math.round((workspaceCount / maxWorkspaces) * 100),
+        100,
+      ),
     },
   };
 }
@@ -136,42 +139,39 @@ export async function getDashboardOverview(): Promise<DashboardOverviewData | nu
   }
   const scope = await projectScope(ctx);
 
-  const [
-    activeProjectCount,
-    pendingDeliverables,
-    openRequestCount,
-    invoices,
-  ] = await Promise.all([
-    db.project.count({
-      where: { ...scope, status: "IN_PROGRESS" },
-    }),
-    db.deliverable.groupBy({
-      by: ["status"],
-      where: {
-        project: scope,
-        status: { in: ["IN_REVIEW", "CHANGES_REQUESTED"] },
-      },
-      _count: true,
-    }),
-    db.request.count({
-      where: {
-        project: scope,
-        status: "OPEN",
-      },
-    }),
-    db.invoice.findMany({
-      where: {
-        project: scope,
-        status: { in: ["SENT", "OVERDUE"] },
-      },
-      select: { amount: true, status: true },
-    }),
-  ]);
+  const [activeProjectCount, pendingDeliverables, openRequestCount, invoices] =
+    await Promise.all([
+      db.project.count({
+        where: { ...scope, status: "IN_PROGRESS" },
+      }),
+      db.deliverable.groupBy({
+        by: ["status"],
+        where: {
+          project: scope,
+          status: { in: ["IN_REVIEW", "CHANGES_REQUESTED"] },
+        },
+        _count: true,
+      }),
+      db.request.count({
+        where: {
+          project: scope,
+          status: "OPEN",
+        },
+      }),
+      db.invoice.findMany({
+        where: {
+          project: scope,
+          status: { in: ["SENT", "OVERDUE"] },
+        },
+        select: { amount: true, status: true },
+      }),
+    ]);
 
   const deliverablesInReviewCount =
     pendingDeliverables.find((d) => d.status === "IN_REVIEW")?._count ?? 0;
   const deliverablesChangesRequestedCount =
-    pendingDeliverables.find((d) => d.status === "CHANGES_REQUESTED")?._count ?? 0;
+    pendingDeliverables.find((d) => d.status === "CHANGES_REQUESTED")?._count ??
+    0;
   const pendingDeliverableCount =
     deliverablesInReviewCount + deliverablesChangesRequestedCount;
 
@@ -282,7 +282,13 @@ export type ProjectDetailData = {
       fileId: string | null;
       notes: string | null;
       createdAt: Date;
-      file: { id: string; key: string; filename: string; mimeType: string | null; size: number | null } | null;
+      file: {
+        id: string;
+        key: string;
+        filename: string;
+        mimeType: string | null;
+        size: number | null;
+      } | null;
     }[];
   }[];
   requests: {
@@ -494,7 +500,11 @@ export async function getPortalClients(): Promise<PortalClientData[]> {
 
 export type PortalPageData = {
   portalClients: PortalClientData[];
-  projects: { id: string; name: string; client: { name: string; email: string } | null }[];
+  projects: {
+    id: string;
+    name: string;
+    client: { name: string; email: string } | null;
+  }[];
 };
 
 /**

@@ -71,7 +71,6 @@ export const getCurrentWorkspace = async (): Promise<
           id: user.activeWorkspaceId,
           OR: [{ ownerId: userId }, { members: { some: { userId } } }],
         },
-        include: { subscription: true },
       });
     }
 
@@ -81,7 +80,6 @@ export const getCurrentWorkspace = async (): Promise<
       workspace = await db.workspace.findFirst({
         where: { ownerId: userId },
         orderBy: { createdAt: "asc" },
-        include: { subscription: true },
       });
     }
 
@@ -89,7 +87,7 @@ export const getCurrentWorkspace = async (): Promise<
       const membership = await db.workspaceMember.findFirst({
         where: { userId },
         orderBy: { createdAt: "asc" },
-        include: { workspace: { include: { subscription: true } } },
+        include: { workspace: {  } },
       });
       workspace = membership?.workspace ?? null;
     }
@@ -198,15 +196,12 @@ export const createWorkspace = async (
     const limitCheck = await assertCanCreateWorkspace(userId);
     if (!limitCheck.ok) return limitCheck.error;
 
-    // 2. Create workspace + subscription in a transaction
+    // 2. Create workspace in a transaction
     const workspace = await db.$transaction(async (tx) => {
       const ws = await tx.workspace.create({
         data: {
           name: validated.data.name,
           ownerId: userId,
-          subscription: {
-            create: { plan: "FREE", status: "ACTIVE" },
-          },
         },
       });
 

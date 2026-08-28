@@ -2,13 +2,25 @@
 
 import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { CircleAlert } from "lucide-react";
+
 import { login } from "@/lib/actions/auth";
 import type { LoginResult } from "@/lib/actions/auth";
 import type { ActionResponseType } from "@/lib/types/action";
-import { Input } from "../ui/input";
-import { Label } from "../ui/label";
-import { Button } from "../ui/button";
-import Link from "next/link";
+
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { PasswordField } from "@/components/auth/password-field";
 
 type LoginState = ActionResponseType<LoginResult> | null;
 
@@ -29,77 +41,86 @@ export default function LoginForm() {
   const [state, formAction, isPending] = useActionState(loginAction, null);
   const router = useRouter();
 
-  // Route to the dashboard once the session exists
+  // Route based on verification status: unverified accounts must confirm
+  // their email before entering the app.
   useEffect(() => {
     if (state?.success && state.data) {
-      router.push("/dashboard");
+      const destination = state.data.user.emailVerified
+        ? "/dashboard"
+        : "/verify-email";
+      router.push(destination);
       router.refresh();
     }
   }, [state, router]);
 
   return (
-    <form
-      action={formAction}
-      className="flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-zinc-200 bg-background p-6 shadow-sm"
-    >
-      <div className="flex flex-col gap-1">
-        <Label htmlFor="email" className="text-sm font-medium text-zinc-700">
-          Email
-        </Label>
-        <Input
-          id="email"
-          name="email"
-          type="email"
-          required
-          autoComplete="email"
-          placeholder="you@example.com"
-          className="rounded-lg border border-zinc-300 px-3 py-2 text-black text-sm outline-none focus:border-zinc-500"
-        />
-      </div>
+    <Card className="w-full max-w-sm">
+      <CardHeader>
+        <CardTitle>Sign in</CardTitle>
+        <CardDescription>
+          Enter your credentials to access your Handoff account.
+        </CardDescription>
+      </CardHeader>
 
-      <div className="flex flex-col gap-1">
-        <Label htmlFor="password" className="text-sm font-medium text-zinc-700">
-          Password
-        </Label>
-        <Input
-          id="password"
-          name="password"
-          type="password"
-          required
-          autoComplete="current-password"
-          placeholder="••••••••"
-          className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
-        />
-      </div>
+      <CardContent>
+        <form action={formAction} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              placeholder="you@example.com"
+            />
+          </div>
 
-      {state?.success && (
-        <p role="status" className="text-sm font-medium text-green-600">
-          {state.message}
-        </p>
-      )}
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">Password</Label>
+              <Link
+                href="/reset-password"
+                tabIndex={-1}
+                className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </div>
+            <PasswordField
+              id="password"
+              autoComplete="current-password"
+            />
+          </div>
 
-      {state && !state.success && (
-        <div className="flex flex-col gap-1">
-          <p role="alert" className="text-sm font-medium text-red-600">
-            {state.message}
-          </p>
-          {state.error.fieldErrors &&
-            Object.entries(state.error.fieldErrors).map(([field, messages]) => (
-              <p key={field} className="text-xs text-red-500">
-                {field}: {messages.join(", ")}
-              </p>
-            ))}
-        </div>
-      )}
-      <Link
-        href={"/reset-password"}
-        className="text-xs underline text-foreground"
-      >
-        Forget Password
-      </Link>
-      <Button type="submit" disabled={isPending} className="">
-        {isPending ? "Signing in…" : "Sign in"}
-      </Button>
-    </form>
+          {state && !state.success && (
+            <Alert variant="destructive">
+              <CircleAlert />
+              <AlertTitle>{state.message}</AlertTitle>
+              {state.error.fieldErrors && (
+                <AlertDescription>
+                  {Object.entries(state.error.fieldErrors).map(
+                    ([field, messages]) => (
+                      <span key={field}>
+                        {field}: {messages.join(", ")}
+                      </span>
+                    ),
+                  )}
+                </AlertDescription>
+              )}
+            </Alert>
+          )}
+
+          <Button
+            type="submit"
+            size="lg"
+            disabled={isPending}
+            className="w-full"
+          >
+            {isPending ? "Signing in…" : "Sign in"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }

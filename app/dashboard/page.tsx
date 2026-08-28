@@ -89,10 +89,6 @@ export default async function Dashboard() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
-      <div className="flex items-center gap-2">
-        <SidebarTrigger className="md:hidden" />
-      </div>
-
       {/* Header — always rendered, no Suspense needed (already fetched above) */}
       <DashboardHeader
         userName={userName}

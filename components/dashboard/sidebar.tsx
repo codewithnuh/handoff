@@ -28,6 +28,7 @@ import {
 import Link from "next/link";
 import { Button } from "../ui/button";
 import { WorkspaceSwitcher } from "./workspace-switcher";
+import type { WorkspaceListItem } from "@/lib/actions/workspace";
 import { logout } from "@/lib/actions/auth";
 
 interface NavItem {
@@ -53,12 +54,15 @@ interface AppSidebarProps {
   logo?: React.ReactNode;
   /** Owner/admin — unlocks Team management & Billing */
   isAdmin?: boolean;
+  /** Resolved on the server (no client fetch flash) */
+  workspaces?: WorkspaceListItem[];
 }
 
 export function AppSidebar({
   items = defaultNavItems,
   logo,
   isAdmin = true,
+  workspaces = [],
 }: AppSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -96,7 +100,7 @@ export function AppSidebar({
 
       {/* Workspace Switcher — hidden when sidebar is collapsed */}
       <div className="px-2 pb-2 group-data-[collapsible=icon]:hidden">
-        <WorkspaceSwitcher />
+        <WorkspaceSwitcher workspaces={workspaces} />
       </div>
 
       <SidebarContent>

@@ -6,6 +6,10 @@ import type { TeamInvitation } from "@/app/generated/prisma/client";
 import { db } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { env } from "@/env";
+import {
+  teamInviteEmailHtml,
+  sendEmail,
+} from "@/lib/email";
 import { toActionError } from "@/lib/actions/helpers";
 import {
   requireWorkspace,
@@ -225,6 +229,23 @@ export const inviteTeammate = async (
         projectIds: validProjects.map((p) => p.id),
         expiresAt: new Date(Date.now() + INVITE_TTL_MS),
       },
+    });
+
+    // Deliver the invite by email. The link also stays copyable in the UI
+    // as a fallback, so a transport failure must not fail the invite.
+    await sendEmail({
+      to: email,
+      subject: `You've been invited to ${guard.value.workspace.name} on Handoff`,
+      text:
+        `${guard.value.user.name} invited you to collaborate in ` +
+        `"${guard.value.workspace.name}". Accept here: ${teamAcceptUrl(invitation.token)}`,
+      html: teamInviteEmailHtml(
+        guard.value.user.name,
+        guard.value.workspace.name,
+        teamAcceptUrl(invitation.token),
+      ),
+    }).catch((err) => {
+      console.error("Failed to send team invite email:", err);
     });
 
     revalidateDashboard();

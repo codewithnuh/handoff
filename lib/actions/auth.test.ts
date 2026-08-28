@@ -172,7 +172,9 @@ describe("register", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expectTypeOf(result.data).toEqualTypeOf<RegisterResult>();
-      expect(result.message).toBe("Account created successfully");
+      expect(result.message).toBe(
+        "Account created — we sent a verification code to your email",
+      );
       expect(result.data.user.email).toBe("john@example.com");
     }
     expect(signUpEmail).toHaveBeenCalledWith({
@@ -332,7 +334,7 @@ describe("requestPasswordReset", () => {
     expect(requestPasswordResetApi).toHaveBeenCalledWith({
       body: {
         email: "john@example.com",
-        redirectTo: "http://localhost:3000/reset-password",
+        redirectTo: "http://localhost:3000/reset-password?verify=true",
       },
       headers: expect.any(Headers),
     });

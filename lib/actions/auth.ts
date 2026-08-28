@@ -14,6 +14,7 @@ import {
   registerSchema,
   requestPasswordResetSchema,
   resetPasswordSchema,
+  verifyOtpSchema,
 } from "@/lib/validation/auth";
 import type {
   LoginInput,
@@ -32,6 +33,8 @@ export type LoginResult = { user: AuthUser };
 export type LogoutResult = { success: boolean };
 export type PasswordResetResult = { status: boolean };
 export type SessionResult = Session | null;
+export type SendOtpResult = { delivered: boolean };
+export type VerifyOtpResult = { verified: boolean };
 
 // ──────────────────────────────────────────────
 // Helpers
@@ -114,12 +117,7 @@ export const register = async (
         data: {
           name: `${name}'s Workspace`,
           ownerId: result.user.id,
-          subscription: {
-            create: {
-              plan: "FREE",
-              status: "ACTIVE",
-            },
-          },
+
         },
       });
 
@@ -134,7 +132,7 @@ export const register = async (
 
     return ActionResponse.success(
       { user: result.user, workspaceId: workspace.id },
-      "Account created successfully",
+      "Account created — we sent a verification code to your email",
     );
   } catch (error) {
     // 3. Rollback: Clean up orphaned auth user if DB setup fails
@@ -248,6 +246,80 @@ export const resetPassword = async (
       { status: result.status },
       "Password reset successfully",
     );
+  } catch (error) {
+    return toActionError(error);
+  }
+};
+
+/**
+ * Send (or resend) an email-verification OTP to the signed-in user.
+ * The email-otp plugin rate-limits sends to 3/minute per email.
+ */
+export const sendVerificationOtp = async (): Promise<
+  ActionResponseType<SendOtpResult>
+> => {
+  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) {
+      return ActionResponse.failure(
+        ERROR_CODES.UNAUTHORIZED,
+        "You must be signed in to verify your email",
+      );
+    }
+    if (session.user.emailVerified) {
+      return ActionResponse.failure(
+        ERROR_CODES.CONFLICT,
+        "Your email is already verified",
+      );
+    }
+
+    await auth.api.sendVerificationOTP({
+      body: { email: session.user.email, type: "email-verification" },
+      headers: await headers(),
+    });
+
+    return ActionResponse.success(
+      { delivered: true },
+      `We sent a 6-digit code to ${session.user.email}`,
+    );
+  } catch (error) {
+    return toActionError(error);
+  }
+};
+
+/** Verify the signed-in user's email address with a 6-digit code. */
+export const verifyEmailOtp = async (
+  otp: string,
+): Promise<ActionResponseType<VerifyOtpResult>> => {
+  const validated = verifyOtpSchema.safeParse({ otp });
+  if (!validated.success) {
+    return ActionResponse.failure(
+      ERROR_CODES.VALIDATION_ERROR,
+      validated.error.flatten().fieldErrors.otp?.[0] ?? "Invalid code",
+    );
+  }
+
+  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) {
+      return ActionResponse.failure(
+        ERROR_CODES.UNAUTHORIZED,
+        "You must be signed in to verify your email",
+      );
+    }
+    if (session.user.emailVerified) {
+      return ActionResponse.success(
+        { verified: true },
+        "Your email is already verified",
+      );
+    }
+
+    await auth.api.verifyEmailOTP({
+      body: { email: session.user.email, otp: validated.data.otp },
+      headers: await headers(),
+    });
+
+    return ActionResponse.success({ verified: true }, "Email verified");
   } catch (error) {
     return toActionError(error);
   }

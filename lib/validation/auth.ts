@@ -31,3 +31,10 @@ export const resetPasswordSchema = z.object({
   token: z.string().min(1, { message: "Reset token is required" }),
 });
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
+export const verifyOtpSchema = z.object({
+  otp: z
+    .string()
+    .regex(/^\d{6}$/, { message: "Enter the 6-digit code from your email" }),
+});
+export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;

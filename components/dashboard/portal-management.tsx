@@ -43,6 +43,16 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "@/components/ui/toast";
 import { revokeClientAccess, inviteClient } from "@/lib/actions/invitation";
 import { withTimeout } from "@/lib/utils/with-timeout";
@@ -497,37 +507,34 @@ export function PortalManagement({
       )}
 
       {/* Revoke Confirmation Dialog */}
-      {revokeTarget && (
-        <Dialog
-          open={!!revokeTarget}
-          onOpenChange={(open) => !open && setRevokeTarget(null)}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Revoke portal access</DialogTitle>
-              <DialogDescription>
-                Are you sure you want to revoke{" "}
-                {revokeTarget.name ?? revokeTarget.email}&apos;s access to{" "}
-                {revokeTarget.projects.length} project
-                {revokeTarget.projects.length !== 1 ? "s" : ""}? They will
-                immediately lose access to the client portal.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <DialogClose render={<Button variant="outline" />}>
-                Cancel
-              </DialogClose>
-              <Button
-                variant="destructive"
-                onClick={handleRevoke}
-                disabled={isRevoking}
-              >
-                {isRevoking ? "Revoking..." : "Revoke Access"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      <AlertDialog
+        open={!!revokeTarget}
+        onOpenChange={(open) => !open && setRevokeTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke portal access?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {revokeTarget?.name ?? revokeTarget?.email} will immediately lose
+              access to{" "}
+              {revokeTarget?.projects.length ?? 0} project
+              {revokeTarget?.projects.length !== 1 ? "s" : ""}. All of their
+              active portal sessions are terminated and their links stop
+              working.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={handleRevoke}
+              disabled={isRevoking}
+            >
+              {isRevoking ? "Revoking..." : "Revoke Access"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

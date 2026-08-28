@@ -9,19 +9,15 @@ export const metadata: Metadata = {
 
 export default function RegisterPage() {
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-6 bg-zinc-50 px-4 py-16">
-      <div className="flex flex-col items-center gap-1 text-center">
-        <h1 className="text-2xl font-semibold text-zinc-900">Create account</h1>
-        <p className="text-sm text-zinc-500">
-          Register a new Handoff account to test sign-up.
-        </p>
-      </div>
-
+    <main className="bg-background flex flex-1 flex-col items-center justify-center gap-6 px-4 py-16">
       <RegisterForm />
 
-      <p className="text-sm text-zinc-500">
+      <p className="text-muted-foreground text-sm">
         Already have an account?{" "}
-        <Link href="/login" className="font-medium text-zinc-900 underline">
+        <Link
+          href="/login"
+          className="text-foreground font-medium underline-offset-4 hover:underline"
+        >
           Sign in
         </Link>
       </p>

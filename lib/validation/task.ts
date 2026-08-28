@@ -5,10 +5,14 @@ import {
   titleSchema,
 } from "@/lib/validation/shared";
 
+const taskStatusEnum = z.enum(["TODO", "IN_PROGRESS", "DONE"]);
+
 export const createTaskSchema = z.object({
   projectId: idSchema,
   title: titleSchema,
   description: optionalNullableString(2000, "Description"),
+  // Column the task is added to (defaults to To Do)
+  status: taskStatusEnum.optional(),
 });
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 
@@ -21,8 +25,6 @@ export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
 
 export const taskIdSchema = z.object({ id: idSchema });
 export type TaskIdInput = z.infer<typeof taskIdSchema>;
-
-const taskStatusEnum = z.enum(["TODO", "IN_PROGRESS", "DONE"]);
 
 /** Batched reorder/move from the drag-and-drop board. */
 export const reorderTasksSchema = z.object({

@@ -9,19 +9,15 @@ export const metadata: Metadata = {
 
 export default function LoginPage() {
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-6 bg-background px-4 py-16">
-      <div className="flex flex-col items-center gap-1 text-center">
-        <h1 className="text-2xl font-semibold text-zinc-900">Sign in</h1>
-        <p className="text-sm text-zinc-500">
-          Enter your credentials to log in to Handoff.
-        </p>
-      </div>
-
+    <main className="bg-background flex flex-1 flex-col items-center justify-center gap-6 px-4 py-16">
       <LoginForm />
 
-      <p className="text-sm text-zinc-500">
+      <p className="text-muted-foreground text-sm">
         Don&apos;t have an account?{" "}
-        <Link href="/register" className="font-medium text-zinc-900 underline">
+        <Link
+          href="/register"
+          className="text-foreground font-medium underline-offset-4 hover:underline"
+        >
           Create one
         </Link>
       </p>

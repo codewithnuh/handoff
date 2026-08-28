@@ -7,6 +7,7 @@ import {
   Download,
   Trash2,
   Circle,
+  MoreHorizontal,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -143,15 +144,7 @@ export function DeliverableCard({
                 <DropdownMenuTrigger
                   render={<Button variant="ghost" size="icon-sm" />}
                 >
-                  <svg
-                    className="h-4 w-4"
-                    viewBox="0 0 16 16"
-                    fill="currentColor"
-                  >
-                    <circle cx="8" cy="3" r="1.5" />
-                    <circle cx="8" cy="8" r="1.5" />
-                    <circle cx="8" cy="13" r="1.5" />
-                  </svg>
+                  <MoreHorizontal className="h-4 w-4" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   {/* Quality gate: only leads/admins push work to the client */}

@@ -25,8 +25,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
-  DialogClose,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -35,6 +33,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { DeleteConfirmDialog } from "@/components/dashboard/project/delete-confirm-dialog";
 import { toast } from "@/components/ui/toast";
 import {
   createClient,
@@ -253,35 +252,14 @@ export function ClientList({ clients }: ClientListProps) {
         />
       )}
 
-      {deleteTarget && (
-        <Dialog
-          open={!!deleteTarget}
-          onOpenChange={(open) => !open && setDeleteTarget(null)}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Delete client</DialogTitle>
-              <DialogDescription>
-                Are you sure you want to delete &quot;{deleteTarget.name}&quot;?
-                This will also remove them from all projects. This action cannot
-                be undone.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <DialogClose render={<Button variant="outline" />}>
-                Cancel
-              </DialogClose>
-              <Button
-                variant="destructive"
-                onClick={handleDelete}
-                disabled={isDeleting}
-              >
-                {isDeleting ? "Deleting..." : "Delete"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      <DeleteConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="Delete client"
+        description={`Are you sure you want to delete "${deleteTarget?.name}"? This will also remove them from all projects. This action cannot be undone.`}
+        isDeleting={isDeleting}
+      />
     </div>
   );
 }

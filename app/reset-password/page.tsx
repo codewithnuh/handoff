@@ -1,24 +1,27 @@
 import type { Metadata } from "next";
-import ResetPasswordForm from "@/components/auth/reset-password-form";
+import Link from "next/link";
+
+import ResetPasswordFlow from "@/components/auth/reset-password-flow";
 
 export const metadata: Metadata = {
-  title: "Sign in",
-  description: "Sign in to your Handoff account",
+  title: "Reset password",
+  description: "Reset your Handoff account password",
 };
 
-export default function ResetPassword() {
+export default function ResetPasswordPage() {
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-6 bg-background px-4 py-16">
-      <div className="flex flex-col items-center gap-1 text-center">
-        <h1 className="text-2xl font-semibold text-zinc-900">
-          Request Password Reset
-        </h1>
-        <p className="text-sm text-zinc-500">
-          Enter your email to receive password reset instruction.
-        </p>
-      </div>
+    <main className="bg-background flex flex-1 flex-col items-center justify-center gap-6 px-4 py-16">
+      <ResetPasswordFlow />
 
-      <ResetPasswordForm />
+      <p className="text-muted-foreground text-sm">
+        Remembered it?{" "}
+        <Link
+          href="/login"
+          className="text-foreground font-medium underline-offset-4 hover:underline"
+        >
+          Back to sign in
+        </Link>
+      </p>
     </main>
   );
 }

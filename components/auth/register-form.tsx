@@ -2,14 +2,24 @@
 
 import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { CircleAlert } from "lucide-react";
 
 import { register } from "@/lib/actions/auth";
 import type { RegisterResult } from "@/lib/actions/auth";
 import type { ActionResponseType } from "@/lib/types/action";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordField } from "@/components/auth/password-field";
 
 type RegisterState = ActionResponseType<RegisterResult> | null;
 
@@ -31,83 +41,84 @@ export default function RegisterForm() {
   const [state, formAction, isPending] = useActionState(registerAction, null);
   const router = useRouter();
 
-  // Route to the dashboard once the account + session exist
+  // Route to email verification once the account + session exist
   useEffect(() => {
     if (state?.success && state.data) {
-      router.push("/dashboard");
+      router.push("/verify-email");
       router.refresh();
     }
   }, [state, router]);
 
   return (
-    <form
-      action={formAction}
-      className="flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"
-    >
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="name">Name</Label>
+    <Card className="w-full max-w-sm">
+      <CardHeader>
+        <CardTitle>Create account</CardTitle>
+        <CardDescription>
+          Start managing clients and projects in minutes.
+        </CardDescription>
+      </CardHeader>
 
-        <Input
-          id="name"
-          name="name"
-          type="text"
-          required
-          autoComplete="name"
-          placeholder="Jane Doe"
-        />
-      </div>
+      <CardContent>
+        <form action={formAction} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="name">Name</Label>
+            <Input
+              id="name"
+              name="name"
+              type="text"
+              required
+              autoComplete="name"
+              placeholder="Jane Doe"
+            />
+          </div>
 
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="email">Email</Label>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              placeholder="you@example.com"
+            />
+          </div>
 
-        <Input
-          id="email"
-          name="email"
-          type="email"
-          required
-          autoComplete="email"
-          placeholder="you@example.com"
-        />
-      </div>
+          <PasswordField
+            id="password"
+            label="Password"
+            autoComplete="new-password"
+            placeholder="At least 8 characters"
+          />
 
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="password">Password</Label>
+          {state && !state.success && (
+            <Alert variant="destructive">
+              <CircleAlert />
+              <AlertTitle>{state.message}</AlertTitle>
+              {state.error.fieldErrors && (
+                <AlertDescription>
+                  {Object.entries(state.error.fieldErrors).map(
+                    ([field, messages]) => (
+                      <span key={field}>
+                        {field}: {messages.join(", ")}
+                      </span>
+                    ),
+                  )}
+                </AlertDescription>
+              )}
+            </Alert>
+          )}
 
-        <Input
-          id="password"
-          name="password"
-          type="password"
-          required
-          minLength={8}
-          autoComplete="new-password"
-          placeholder="At least 8 characters"
-        />
-      </div>
-
-      {state?.success && (
-        <p role="status" className="text-sm font-medium text-green-600">
-          {state.message}
-        </p>
-      )}
-
-      {state && !state.success && (
-        <div className="flex flex-col gap-1">
-          <p role="alert" className="text-sm font-medium text-red-600">
-            {state.message}
-          </p>
-
-          {state.error.fieldErrors &&
-            Object.entries(state.error.fieldErrors).map(([field, messages]) => (
-              <p key={field} className="text-xs text-red-500">
-                {field}: {messages.join(", ")}
-              </p>
-            ))}
-        </div>
-      )}
-
-      <Button type="submit" disabled={isPending}>
-        {isPending ? "Creating account…" : "Create account"}
-      </Button>
-    </form>
+          <Button
+            type="submit"
+            size="lg"
+            disabled={isPending}
+            className="w-full"
+          >
+            {isPending ? "Creating account…" : "Create account"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }

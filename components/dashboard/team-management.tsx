@@ -50,6 +50,7 @@ import {
   SelectGroup,
   SelectItem,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/components/ui/toast";
 import type {
   TeamMemberListResult,
@@ -523,23 +524,22 @@ function InvitesSection({
               {projects.length > 0 && (
                 <div className="space-y-1.5">
                   <Label>Project access</Label>
-                  <div className="max-h-40 overflow-y-auto rounded-md border border-border divide-y divide-border">
+                  <div className="border-border divide-border max-h-40 divide-y overflow-y-auto rounded-md border">
                     {projects.map((p) => (
                       <label
                         key={p.id}
-                        className="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer hover:bg-muted/50"
+                        className="hover:bg-muted/50 flex cursor-pointer items-center gap-2.5 px-3 py-2 text-xs"
                       >
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={selectedProjects.includes(p.id)}
-                          onChange={() => toggleProject(p.id)}
-                          className="accent-primary"
+                          onCheckedChange={() => toggleProject(p.id)}
+                          aria-label={`Grant access to ${p.name}`}
                         />
                         {p.name}
                       </label>
                     ))}
                   </div>
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-muted-foreground text-[10px]">
                     Leave unchecked to invite them with no project access yet.
                   </p>
                 </div>

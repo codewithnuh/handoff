@@ -73,19 +73,26 @@ async function ProjectsUsageSection() {
 }
 
 // ──────────────────────────────────────────────
+// Projects Section (server-rendered, streams inside Suspense)
+// ──────────────────────────────────────────────
+
+async function ProjectsSection() {
+  const { projects, clients } = await getProjectListData();
+  return <ProjectList projects={projects} clients={clients} />;
+}
+
+// ──────────────────────────────────────────────
 // Page (Server Component)
 // ──────────────────────────────────────────────
 
-export default async function ProjectsPage() {
-  const { projects, clients } = await getProjectListData();
-
+export default function ProjectsPage() {
   return (
-    <div className="space-y-6 max-w-7xl p-4 md:p-6">
+    <div className="max-w-7xl space-y-6 p-4 md:p-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-5">
+      <div className="border-b flex flex-col justify-between gap-4 pb-5 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Projects</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1 text-sm">
             Manage your workspace projects, deliverable status, and client
             access.
           </p>
@@ -99,7 +106,7 @@ export default async function ProjectsPage() {
 
       {/* Client-rendered list with search & filters */}
       <Suspense fallback={<ProjectsPageSkeleton />}>
-        <ProjectList projects={projects} clients={clients} />
+        <ProjectsSection />
       </Suspense>
     </div>
   );

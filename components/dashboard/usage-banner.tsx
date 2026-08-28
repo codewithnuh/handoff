@@ -27,13 +27,15 @@ export function UsageBanner({ data }: UsageBannerProps) {
   const workspaceWarning = workspaces.percent >= 80;
 
   return (
-    <div className="flex flex-col sm:flex-row gap-3">
+    <div className="flex flex-col p-4 sm:flex-row gap-3">
       {/* Projects Usage Card */}
       <Card
         className={cn(
           "shadow-xs flex-1",
           projectCritical && "border-destructive/50 bg-destructive/5",
-          projectWarning && !projectCritical && "border-yellow-500/50 bg-yellow-500/5",
+          projectWarning &&
+            !projectCritical &&
+            "border-yellow-500/50 bg-yellow-500/5",
         )}
       >
         <CardContent className="p-4">
@@ -85,7 +87,9 @@ export function UsageBanner({ data }: UsageBannerProps) {
                 className={cn(
                   "text-lg font-bold tabular-nums",
                   projectCritical && "text-destructive",
-                  projectWarning && !projectCritical && "text-yellow-600 dark:text-yellow-400",
+                  projectWarning &&
+                    !projectCritical &&
+                    "text-yellow-600 dark:text-yellow-400",
                 )}
               >
                 {projects.used}
@@ -118,7 +122,9 @@ export function UsageBanner({ data }: UsageBannerProps) {
         className={cn(
           "shadow-xs flex-1",
           workspaceCritical && "border-destructive/50 bg-destructive/5",
-          workspaceWarning && !workspaceCritical && "border-yellow-500/50 bg-yellow-500/5",
+          workspaceWarning &&
+            !workspaceCritical &&
+            "border-yellow-500/50 bg-yellow-500/5",
         )}
       >
         <CardContent className="p-4">
@@ -170,7 +176,9 @@ export function UsageBanner({ data }: UsageBannerProps) {
                 className={cn(
                   "text-lg font-bold tabular-nums",
                   workspaceCritical && "text-destructive",
-                  workspaceWarning && !workspaceCritical && "text-yellow-600 dark:text-yellow-400",
+                  workspaceWarning &&
+                    !workspaceCritical &&
+                    "text-yellow-600 dark:text-yellow-400",
                 )}
               >
                 {workspaces.used}
@@ -216,7 +224,9 @@ export function UsageBanner({ data }: UsageBannerProps) {
             <Link href="/dashboard/settings">
               <Button
                 size="sm"
-                variant={projectCritical || workspaceCritical ? "default" : "outline"}
+                variant={
+                  projectCritical || workspaceCritical ? "default" : "outline"
+                }
                 className="gap-1.5"
               >
                 Upgrade

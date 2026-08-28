@@ -6,6 +6,7 @@ import { Search, FolderKanban, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ProjectListItem } from "@/lib/queries/project";
 import {
@@ -183,22 +184,16 @@ export function ProjectList({ projects, clients }: ProjectListProps) {
                       {project.description || "No description provided."}
                     </p>
 
-                    <div className="mt-4 pt-3 border-t border-border space-y-3">
+                    <div className="border-border mt-4 space-y-3 border-t pt-3">
                       {/* Progress Bar */}
-                      <div>
-                        <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                      <Progress value={project.progress}>
+                        <div className="text-muted-foreground mb-1 flex justify-between text-xs">
                           <span>Progress</span>
-                          <span className="font-medium text-foreground">
+                          <span className="text-foreground font-medium">
                             {project.progress}%
                           </span>
                         </div>
-                        <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
-                          <div
-                            className="bg-primary h-1.5 rounded-full transition-all duration-300"
-                            style={{ width: `${project.progress}%` }}
-                          />
-                        </div>
-                      </div>
+                      </Progress>
 
                       {/* Metadata Row */}
                       <div className="flex items-center justify-between text-xs text-muted-foreground">

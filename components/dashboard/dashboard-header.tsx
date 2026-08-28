@@ -21,6 +21,7 @@ import { toast } from "@/components/ui/toast";
 import { createProject } from "@/lib/actions/project";
 import { createClient } from "@/lib/actions/client";
 import { ActionTimeoutError, withTimeout } from "@/lib/utils/with-timeout";
+import { cn } from "@/lib/utils";
 import { ClientCombobox, type ClientOption } from "./create-client";
 
 const ACTION_TIMEOUT_MS = 15_000;
@@ -38,6 +39,7 @@ export function DashboardHeader({
 }: DashboardHeaderProps) {
   const [projectOpen, setProjectOpen] = useState(false);
   const [clientOpen, setClientOpen] = useState(false);
+  const [clientCreationOpen, setClientCreationOpen] = useState(false);
   const projectNameRef = useRef<HTMLInputElement | null>(null);
   const clientNameRef = useRef<HTMLInputElement | null>(null);
 
@@ -121,6 +123,7 @@ export function DashboardHeader({
 
         projectForm.reset();
         setProjectOpen(false);
+        setClientCreationOpen(false);
       } catch (error) {
         if (error instanceof ActionTimeoutError) {
           toast.add({
@@ -197,7 +200,7 @@ export function DashboardHeader({
   });
 
   return (
-    <div className="flex border-b-2 pb-5 gap-5 sm:items-end justify-between flex-col sm:flex-row">
+    <div className=" flex border-b-2 pb-5 gap-5 sm:items-end justify-between flex-col sm:flex-row">
       <div>
         <p className="text-muted-foreground">Good morning, {userName}</p>
         <h2 className="text-secondary-foreground font-bold text-2xl">
@@ -319,7 +322,11 @@ export function DashboardHeader({
         </Dialog>
 
         {/* Create Project Modal */}
-        <Dialog disablePointerDismissal open={projectOpen} onOpenChange={setProjectOpen}>
+        <Dialog
+          disablePointerDismissal
+          open={projectOpen}
+          onOpenChange={setProjectOpen}
+        >
           <DialogTrigger
             render={
               <Button size="sm" className="h-8 gap-1 px-2.5 text-xs/relaxed" />
@@ -328,9 +335,13 @@ export function DashboardHeader({
             <IconPlus className="mr-2 h-4 w-4" />
             <span>Create Project</span>
           </DialogTrigger>
+
           <DialogContent
             initialFocus={projectNameRef}
-            className="flex flex-col gap-4"
+            className={cn(
+              "flex flex-col gap-4 transition duration-100",
+              clientCreationOpen && "opacity-0 blur-sm"
+            )}
           >
             <DialogHeader>
               <DialogTitle>Create New Project</DialogTitle>
@@ -401,6 +412,8 @@ export function DashboardHeader({
                       clients={clients}
                       value={field.state.value}
                       onChange={field.handleChange}
+                      isOpen={clientCreationOpen}
+                      onOpenChange={setClientCreationOpen}
                     />
 
                     {field.state.meta.errors.length > 0 && (

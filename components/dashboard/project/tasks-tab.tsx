@@ -85,7 +85,7 @@ export function TasksTab({
     const title = newTitles[status].trim();
     if (!title || !canManage) return;
     try {
-      const result = await createTask({ projectId, title });
+      const result = await createTask({ projectId, title, status });
       if (!result.success) {
         toast.add({
           type: "error",
@@ -94,10 +94,10 @@ export function TasksTab({
         });
         return;
       }
-      // New tasks always land at the bottom of To Do
+      // New tasks land at the bottom of the column they were added to
       setColumns((prev) => ({
         ...prev,
-        TODO: [...prev.TODO, result.data],
+        [status]: [...prev[status], result.data],
       }));
       setNewTitles((prev) => ({ ...prev, [status]: "" }));
     } catch {
@@ -133,26 +133,45 @@ export function TasksTab({
 
   function persistMove(task: Task, status: Status, position: number) {
     const before = columns;
-    setColumns((cols) => {
-      const next: Columns = {
-        TODO: cols.TODO.filter((t) => t.id !== task.id),
-        IN_PROGRESS: cols.IN_PROGRESS.filter((t) => t.id !== task.id),
-        DONE: cols.DONE.filter((t) => t.id !== task.id),
-      };
-      const moved = { ...task, status };
-      next[status] = [...next[status]];
-      const idx = Math.min(position, next[status].length);
-      next[status].splice(idx, 0, moved);
-      // reindex the destination column
-      next[status] = next[status].map((t, i) => ({ ...t, position: i }));
-      return next;
-    });
+    const sourceStatus = task.status;
+
+    // Optimistically move the card and renormalize both columns
+    const next: Columns = {
+      TODO: columns.TODO.filter((t) => t.id !== task.id),
+      IN_PROGRESS: columns.IN_PROGRESS.filter((t) => t.id !== task.id),
+      DONE: columns.DONE.filter((t) => t.id !== task.id),
+    };
+    next[status] = [...next[status]];
+    const idx = Math.min(position, next[status].length);
+    next[status].splice(idx, 0, { ...task, status });
+    next[status] = next[status].map((t, i) => ({ ...t, position: i }));
+    if (next[sourceStatus]) {
+      next[sourceStatus] = next[sourceStatus].map((t, i) => ({
+        ...t,
+        position: i,
+      }));
+    }
+    setColumns(next);
 
     void (async () => {
-      const result = await reorderTasks({
-        projectId,
-        items: [{ id: task.id, status, position }],
-      });
+      // Persist the full ordering of every affected column so positions
+      // stay dense (no drifting duplicates over time).
+      const updates = [
+        ...(sourceStatus !== status
+          ? next[sourceStatus].map((t, i) => ({
+              id: t.id,
+              status: sourceStatus,
+              position: i,
+            }))
+          : []),
+        ...next[status].map((t, i) => ({
+          id: t.id,
+          status,
+          position: i,
+        })),
+      ];
+
+      const result = await reorderTasks({ projectId, items: updates });
       if (!result.success) {
         setColumns(before);
         toast.add({
@@ -160,14 +179,6 @@ export function TasksTab({
           title: "Couldn't save the board",
           description: result.message,
         });
-      } else {
-        // Reconcile positions of the destination column so future drags are stable
-        setColumns((cols) => ({
-          ...cols,
-          [status]: cols[status].map((t, i) =>
-            t.id === task.id ? t : { ...t, position: i },
-          ),
-        }));
       }
     })();
   }
