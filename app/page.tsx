@@ -1,7 +1,7 @@
 import { Container } from "@/components/globals/container";
 import { Navbar } from "@/components/globals/nav";
 import { FinalCTA } from "@/components/landing-page/cta";
-import { Demo } from "@/components/landing-page/demo";
+import { WorkflowDemo } from "@/components/landing-page/workflow-demo";
 import { FeaturesSection } from "@/components/landing-page/features";
 import { Footer } from "@/components/landing-page/footer";
 import { Hero } from "@/components/landing-page/hero";
@@ -14,7 +14,7 @@ export default function Home() {
       <Navbar />
       <Container leftBorder rightBorder>
         <Hero />
-        <Demo />
+        <WorkflowDemo />
         <ProblemSection />
         <FeaturesSection />
         <Pricing />
