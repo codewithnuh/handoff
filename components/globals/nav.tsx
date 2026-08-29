@@ -63,7 +63,7 @@ export const Navbar = () => {
               />
 
               <span className="font-heading text-xl font-semibold leading-none tracking-[-0.025em]">
-                handoff
+                Handoff
               </span>
             </Link>
           </motion.div>

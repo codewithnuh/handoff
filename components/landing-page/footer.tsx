@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Container } from "../globals/container";
 import { IconHandOff } from "@tabler/icons-react";
+import Image from "next/image";
 
 export function Footer() {
   return (
@@ -11,9 +12,22 @@ export function Footer() {
           <div>
             <Link
               href="/"
-              className="font-heading flex text-lg font-semibold tracking-tight text-foreground"
+              className="flex items-center gap-0.5 text-foreground transition-opacity hover:opacity-80"
+              aria-label="Handoff home"
             >
-              <IconHandOff /> <span>HandOff </span>
+              <Image
+                src="/logo.png"
+                width={32}
+                height={32}
+                alt=""
+                aria-hidden="true"
+                className="size-8 object-contain"
+                priority
+              />
+
+              <span className="font-heading text-xl font-semibold leading-none tracking-[-0.025em]">
+                Handoff
+              </span>
             </Link>
 
             <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">

@@ -8,6 +8,8 @@ import {
 import { type ReactNode } from "react";
 import { requireWorkspace } from "@/lib/actions/guards";
 import { listWorkspaces } from "@/lib/actions/workspace";
+import Link from "next/link";
+import Image from "next/image";
 
 // Session-scoped: every dashboard page reads the auth session.
 export const dynamic = "force-dynamic";
@@ -32,6 +34,27 @@ export default async function Layout({
   return (
     <SidebarProvider>
       <AppSidebar
+        logo={
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-0.5 text-foreground transition-opacity hover:opacity-80"
+            aria-label="Handoff home"
+          >
+            <Image
+              src="/logo.png"
+              width={32}
+              height={32}
+              alt=""
+              aria-hidden="true"
+              className="size-8 object-contain"
+              priority
+            />
+
+            <span className="font-heading text-xl text-white font-semibold leading-none tracking-[-0.025em]">
+              Handoff
+            </span>
+          </Link>
+        }
         isAdmin={guard.value.isOwner || guard.value.isAdmin}
         workspaces={workspaces.success ? workspaces.data.items : []}
       />

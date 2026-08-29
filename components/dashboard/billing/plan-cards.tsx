@@ -68,7 +68,7 @@ export function PlanCards({ usage }: { usage: WorkspaceUsageData }) {
   };
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid gap-4  md:grid-cols-2">
       {PLANS.map((plan) => {
         const isCurrent = usage.plan === plan.key;
         const isDowngradedToThis =
@@ -77,11 +77,13 @@ export function PlanCards({ usage }: { usage: WorkspaceUsageData }) {
           <Card
             key={plan.key}
             className={
-              isCurrent ? "shadow-xs border-primary/40 relative" : "shadow-xs"
+              isCurrent
+                ? "shadow-xs  border-primary/40 relative pt-10"
+                : "shadow-xs pt-10"
             }
           >
             {isCurrent && (
-              <Badge className="absolute -top-2 right-4">
+              <Badge className="absolute top-1 mb-5 right-4">
                 {usage.isDowngraded ? "Downgraded" : "Current plan"}
               </Badge>
             )}
@@ -112,7 +114,12 @@ export function PlanCards({ usage }: { usage: WorkspaceUsageData }) {
 
               {isCurrent ? (
                 plan.key === "PRO" ? null : usage.isDowngraded ? (
-                  <Button size="sm" variant="outline" className="w-full" onClick={handleUpgrade}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={handleUpgrade}
+                  >
                     Restore Pro
                   </Button>
                 ) : null
@@ -121,7 +128,12 @@ export function PlanCards({ usage }: { usage: WorkspaceUsageData }) {
                   Upgrade to Pro
                 </Button>
               ) : (
-                <Button size="sm" variant="outline" className="w-full" onClick={handleDowngrade}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleDowngrade}
+                >
                   Downgrade to Free
                 </Button>
               )}
