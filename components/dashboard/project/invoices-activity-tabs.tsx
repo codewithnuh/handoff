@@ -46,6 +46,8 @@ export function InvoicesTab({
   permissions,
   projectId,
   approvedDeliverables,
+  projectClient,
+  userProfile,
 }: {
   invoices: ProjectDetailData["invoices"];
   permissions: ViewerPermissions;
@@ -55,6 +57,16 @@ export function InvoicesTab({
     title: string;
     description: string | null;
   }[];
+  projectClient: {
+    id: string;
+    name: string;
+    email: string;
+    company: string | null;
+  } | null;
+  userProfile: {
+    name: string;
+    email: string;
+  };
 }) {
   const [selectedInvoice, setSelectedInvoice] =
     useState<InvoiceWithLineItems | null>(null);
@@ -73,6 +85,8 @@ export function InvoicesTab({
             <CreateInvoiceDialog
               projectId={projectId}
               approvedDeliverables={approvedDeliverables}
+              projectClient={projectClient}
+              userProfile={userProfile}
             />
           </div>
         )}
@@ -92,6 +106,8 @@ export function InvoicesTab({
           <CreateInvoiceDialog
             projectId={projectId}
             approvedDeliverables={approvedDeliverables}
+            projectClient={projectClient}
+            userProfile={userProfile}
           />
         </div>
       )}

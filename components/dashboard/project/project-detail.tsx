@@ -286,6 +286,8 @@ export function ProjectDetail({ data, permissions, initialTasks, currentUserId }
             permissions={permissions}
             projectId={project.id}
             approvedDeliverables={data.approvedDeliverables}
+            projectClient={project.client}
+            userProfile={data.userProfile}
           />
         </TabsContent>
         <TabsContent value="activity" className="mt-4">

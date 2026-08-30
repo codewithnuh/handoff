@@ -371,6 +371,10 @@ export type ProjectDetailData = {
     meta: unknown;
     createdAt: Date;
   }[];
+  userProfile: {
+    name: string;
+    email: string;
+  };
 };
 
 export type ViewerPermissions = {
@@ -506,6 +510,10 @@ export async function getProjectDetailForViewer(
       })),
       approvedDeliverables,
       activities,
+      userProfile: {
+        name: access.value.user.name,
+        email: access.value.user.email,
+      },
     },
     permissions: {
       role: access.value.role,

@@ -1,17 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/prisma";
-import { issueClientSession } from "@/lib/portal";
+import {
+  issueClientSession,
+  getClientPortalSession,
+  buildClientSessionCookieHeader,
+} from "@/lib/portal";
 
 /**
  * GET /api/portal/accept?token=...
  *
  * Accepts a client invitation token:
- * 1. Validates the token exists, is unexpired, and hasn't been accepted
- * 2. Creates (or no-ops) a ProjectAccess row for email+project
- * 3. Issues a ClientSession and sets a signed httpOnly cookie
- * 4. Redirects to the project portal page
+ * 1. Validates the token exists, is unexpired, and hasn't been consumed
+ * 2. If the user already has an active session, redirect to the project
+ *    (the entry URL works as a convenience redirect)
+ * 3. If no active session and token is unconsumed, create ProjectAccess,
+ *    mark invitation as accepted, issue a session, and redirect
+ * 4. If no active session and token is already consumed, show session-expired
+ *    page (they need a new link)
  *
- * Expired / already-used / invalid tokens show a clear error page.
+ * Magic links are single-use for authentication. A consumed token cannot
+ * establish a new session. The active session is what grants access.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -45,38 +53,74 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // 3. Create ProjectAccess + mark invitation as accepted (idempotent)
-  const alreadyAccepted = invitation.acceptedAt !== null;
+  // 3. Check if the user already has an active client portal session
+  const existingSession = await getClientPortalSession();
 
-  if (!alreadyAccepted) {
-    await db.$transaction(async (tx) => {
-      await tx.projectAccess.upsert({
-        where: {
-          projectId_email: {
-            projectId: invitation.projectId,
-            email: invitation.email,
-          },
-        },
-        create: {
+  if (existingSession) {
+    // Active session exists — verify this session's email matches the invitation
+    if (existingSession.email.toLowerCase() === invitation.email.toLowerCase()) {
+      // Same client — redirect to the project (entry URL works as convenience)
+      const projectUrl = `${new URL(request.url).origin}/portal/projects/${invitation.projectId}`;
+      return NextResponse.redirect(projectUrl);
+    }
+    // Different email — don't hijack the existing session, show error
+    return errorResponse(
+      "This invitation is for a different email address. Please sign out first and try again.",
+      403,
+    );
+  }
+
+  // 4. No active session — check if this token was already consumed
+  if (invitation.acceptedAt !== null) {
+    // Token already consumed — cannot establish a new session.
+    // Per improvements.md: consumed magic link cannot create a new session.
+    // Direct them to request a new link.
+    return NextResponse.redirect(
+      `${new URL(request.url).origin}/portal/expired`,
+    );
+  }
+
+  // 5. Token is unconsumed and valid — create access + issue session
+  await db.$transaction(async (tx) => {
+    await tx.projectAccess.upsert({
+      where: {
+        projectId_email: {
           projectId: invitation.projectId,
           email: invitation.email,
         },
-        update: {},
-      });
-
-      await tx.clientInvitation.update({
-        where: { id: invitation.id },
-        data: { acceptedAt: new Date() },
-      });
+      },
+      create: {
+        projectId: invitation.projectId,
+        email: invitation.email,
+      },
+      update: {},
     });
-  }
 
-  // 4. Issue a fresh ClientSession + set the signed cookie
-  await issueClientSession(invitation.email);
+    await tx.clientInvitation.update({
+      where: { id: invitation.id },
+      data: { acceptedAt: new Date() },
+    });
+  });
 
-  // 5. Redirect to the project portal page
+  // Issue a fresh ClientSession
+  const session = await db.clientSession.create({
+    data: {
+      email: invitation.email,
+      token: crypto.randomUUID(),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    },
+  });
+
+  // Build the redirect response and set the cookie directly on it.
+  // This avoids a known Next.js issue where cookies().set() in route
+  // handlers doesn't reliably merge with NextResponse.redirect().
   const projectUrl = `${new URL(request.url).origin}/portal/projects/${invitation.projectId}`;
-  return NextResponse.redirect(projectUrl);
+  const response = NextResponse.redirect(projectUrl);
+  response.headers.append(
+    "Set-Cookie",
+    buildClientSessionCookieHeader(session.id),
+  );
+  return response;
 }
 
 // ──────────────────────────────────────────────

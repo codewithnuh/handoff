@@ -13,6 +13,7 @@ import {
   IconUsers,
   IconCreditCard,
   IconSettings,
+  IconLink,
 } from "@tabler/icons-react";
 
 import {
@@ -37,16 +38,21 @@ interface NavItem {
   icon: Icon;
   /** Only shown to owners/admins */
   adminOnly?: boolean;
+  /** Only shown to owners */
+  ownerOnly?: boolean;
+  /** Only shown when user has project management permissions */
+  projectManageOnly?: boolean;
 }
 
 const defaultNavItems: NavItem[] = [
   { title: "Dashboard", url: "/dashboard", icon: IconDashboard },
   { title: "Projects", url: "/dashboard/projects", icon: IconFolder },
-  { title: "Clients", url: "/dashboard/clients", icon: IconUser },
-  { title: "Portal", url: "/dashboard/portal", icon: IconShield },
-  { title: "Team", url: "/dashboard/team", icon: IconUsers },
-  { title: "Billing", url: "/dashboard/billing", icon: IconCreditCard, adminOnly: true },
-  { title: "Settings", url: "/dashboard/settings", icon: IconSettings },
+  { title: "Clients", url: "/dashboard/clients", icon: IconUser, adminOnly: true },
+  { title: "Portal", url: "/dashboard/portal", icon: IconShield, adminOnly: true },
+  { title: "Team", url: "/dashboard/team", icon: IconUsers, adminOnly: true },
+  { title: "Links", url: "/dashboard/links", icon: IconLink, adminOnly: true },
+  { title: "Billing", url: "/dashboard/billing", icon: IconCreditCard, ownerOnly: true },
+  { title: "Settings", url: "/dashboard/settings", icon: IconSettings, adminOnly: true },
 ];
 
 interface AppSidebarProps {
@@ -54,6 +60,8 @@ interface AppSidebarProps {
   logo?: React.ReactNode;
   /** Owner/admin — unlocks Team management & Billing */
   isAdmin?: boolean;
+  /** Owner only — unlocks Billing */
+  isOwner?: boolean;
   /** Resolved on the server (no client fetch flash) */
   workspaces?: WorkspaceListItem[];
 }
@@ -62,13 +70,18 @@ export function AppSidebar({
   items = defaultNavItems,
   logo,
   isAdmin = true,
+  isOwner = false,
   workspaces = [],
 }: AppSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const visibleItems = items.filter((item) => !item.adminOnly || isAdmin);
+  const visibleItems = items.filter((item) => {
+    if (item.ownerOnly && !isOwner) return false;
+    if (item.adminOnly && !isAdmin) return false;
+    return true;
+  });
 
   const isActive = (url: string) =>
     url === "/dashboard" ? pathname === url : pathname.startsWith(url);

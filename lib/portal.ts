@@ -65,7 +65,22 @@ export function unsignClientCookie(signed: string): string | null {
 // Cookie helpers
 // ──────────────────────────────────────────────
 
-/** Sets the signed client-session cookie. Safe in route handlers & actions. */
+/** Builds the Set-Cookie header value for the client session cookie. */
+export function buildClientSessionCookieHeader(sessionId: string): string {
+  const parts = [
+    `${CLIENT_COOKIE_NAME}=${sign(sessionId)}`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    `Max-Age=${CLIENT_SESSION_MAX_AGE}`,
+  ];
+  if (env.NODE_ENV === "production") {
+    parts.push("Secure");
+  }
+  return parts.join("; ");
+}
+
+/** Sets the signed client-session cookie. Safe in Server Components & Server Actions. */
 export async function setClientSessionCookie(sessionId: string): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.set(CLIENT_COOKIE_NAME, sign(sessionId), {
@@ -118,8 +133,16 @@ export async function getClientPortalSession(): Promise<ClientPortalSession | nu
 /**
  * Creates a new ClientSession row for the given email and sets the
  * signed cookie. Used by the invitation accept endpoint.
+ *
+ * Before creating a new session, any existing sessions for this email
+ * are cleaned up to prevent session accumulation.
  */
 export async function issueClientSession(email: string): Promise<void> {
+  // Clean up any existing sessions for this email to prevent accumulation
+  await db.clientSession.deleteMany({
+    where: { email },
+  });
+
   const session = await db.clientSession.create({
     data: {
       email,
@@ -128,6 +151,26 @@ export async function issueClientSession(email: string): Promise<void> {
     },
   });
   await setClientSessionCookie(session.id);
+}
+
+/**
+ * Revokes all client sessions for the given email.
+ * Used when a client's project access is removed.
+ */
+export async function revokeClientSessions(email: string): Promise<void> {
+  await db.clientSession.deleteMany({
+    where: { email },
+  });
+}
+
+/**
+ * Revokes a specific client session by ID.
+ * Used for logout.
+ */
+export async function revokeClientSession(sessionId: string): Promise<void> {
+  await db.clientSession.delete({
+    where: { id: sessionId },
+  }).catch(() => {});
 }
 
 // ──────────────────────────────────────────────

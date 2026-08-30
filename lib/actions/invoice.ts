@@ -52,14 +52,16 @@ async function recalculateInvoice(invoiceId: string) {
 
   const invoice = await db.invoice.findUnique({
     where: { id: invoiceId },
-    select: { taxRate: true },
+    select: { taxRate: true, discount: true },
   });
 
   if (!invoice) return;
 
   const subtotal = lineItems.reduce((sum, item) => sum + Number(item.amount), 0);
-  const taxAmount = subtotal * (Number(invoice.taxRate) / 100);
-  const total = subtotal + taxAmount;
+  const discount = Number(invoice.discount);
+  const taxableAmount = Math.max(0, subtotal - discount);
+  const taxAmount = taxableAmount * (Number(invoice.taxRate) / 100);
+  const total = taxableAmount + taxAmount;
 
   await db.invoice.update({
     where: { id: invoiceId },
@@ -119,16 +121,50 @@ export const createInvoice = async (
   try {
     const invoiceNumber = await generateInvoiceNumber(validated.data.projectId);
 
+    // Build sender/client address JSON if provided
+    const senderAddress = validated.data.senderAddress
+      ? validated.data.senderAddress
+      : undefined;
+    const clientAddress = validated.data.clientAddress
+      ? validated.data.clientAddress
+      : undefined;
+
     const invoice = await db.invoice.create({
       data: {
         projectId: validated.data.projectId,
         invoiceNumber,
         description: validated.data.description ?? null,
+        currency: validated.data.currency ?? "USD",
         taxRate: validated.data.taxRate ?? 0,
+        discount: validated.data.discount ?? 0,
         dueDate: validated.data.dueDate ?? null,
         paymentNotes: validated.data.paymentNotes ?? null,
+        senderName: validated.data.senderName ?? null,
+        senderEmail: validated.data.senderEmail ?? null,
+        senderAddress: senderAddress ?? undefined,
+        senderTaxId: validated.data.senderTaxId ?? null,
+        clientName: validated.data.clientName ?? null,
+        clientEmail: validated.data.clientEmail ?? null,
+        clientAddress: clientAddress ?? undefined,
+        clientTaxId: validated.data.clientTaxId ?? null,
       },
     });
+
+    // Create inline line items if provided
+    if (validated.data.lineItems && validated.data.lineItems.length > 0) {
+      await db.invoiceLineItem.createMany({
+        data: validated.data.lineItems.map((item) => ({
+          invoiceId: invoice.id,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: new Prisma.Decimal(item.unitPrice.toFixed(2)),
+          amount: new Prisma.Decimal((item.quantity * item.unitPrice).toFixed(2)),
+        })),
+      });
+
+      // Recalculate totals from line items
+      await recalculateInvoice(invoice.id);
+    }
 
     await recordActivity({
       projectId: validated.data.projectId,
@@ -199,13 +235,18 @@ export const updateInvoice = async (
       patch.taxRate = validated.data.taxRate;
     }
 
+    const discountChanged = validated.data.discount !== undefined;
+    if (discountChanged) {
+      patch.discount = validated.data.discount;
+    }
+
     const invoice = await db.invoice.update({
       where: { id: validated.data.id },
       data: patch,
     });
 
-    // Recalculate if tax rate changed
-    if (taxRateChanged) {
+    // Recalculate if tax rate or discount changed
+    if (taxRateChanged || discountChanged) {
       await recalculateInvoice(validated.data.id);
     }
 
