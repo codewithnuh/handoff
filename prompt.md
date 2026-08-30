@@ -1,425 +1,774 @@
-## Integrate the <Beams /> component from React Bits
+# Task: Build a Realistic Interactive SaaS Workflow Demo for the Landing Page
 
-You are helping integrate an open-source React component into an existing application.
+You are working inside my existing SaaS codebase.
 
-### Component: Beams
-### Variant: TypeScript + Tailwind
-### Dependencies: three @react-three/fiber @react-three/drei
+Your job is to **analyze my existing dashboard/UI implementation first**, then create a polished, realistic **workflow/product-demo animation** for the landing page that looks like a real user session being recorded.
+
+This must NOT be a generic mock dashboard.
+
+The demo should visually reuse and accurately reflect my **actual dashboard design system, colors, spacing, typography, sidebar, cards, buttons, icons, and UI patterns**.
 
 ---
 
-### Usage Example
-```jsx
-import Beams from './Beams';
+## 1. FIRST: Analyze the Existing Application
 
-<div style={{ width: '100%', height: '600px', position: 'relative' }}>
-  <Beams
-    beamWidth={2}
-    beamHeight={15}
-    beamNumber={12}
-    lightColor="#ffffff"
-    speed={2}
-    noiseIntensity={1.75}
-    scale={0.2}
-    rotation={0}
-  />
+Before writing the demo, inspect the codebase carefully.
+
+Find and understand:
+
+* The main dashboard page
+* Dashboard layout
+* Sidebar
+* Header/top navigation
+* Dashboard cards
+* Tables/lists
+* Buttons
+* Forms
+* Modals/dialogs
+* Dropdowns
+* Inputs
+* Icons
+* Typography
+* Color tokens
+* Tailwind configuration
+* CSS variables
+* Theme/dark-mode implementation
+* Existing reusable UI components
+* Existing shadcn/ui components
+* Existing animations
+* Existing Motion/Framer Motion usage
+* Existing spacing and border-radius conventions
+
+Do NOT recreate UI styles from memory.
+
+Reuse existing components wherever practical.
+
+If the dashboard already has components such as:
+
+* `Sidebar`
+* `DashboardHeader`
+* `ProjectCard`
+* `TaskList`
+* `Dialog`
+* `Button`
+* `Input`
+* `Avatar`
+* `Badge`
+
+then use those components or compose them rather than creating visually inconsistent replacements.
+
+The goal is that someone looking at the landing-page demo should immediately recognize:
+
+> "This is the actual product."
+
+---
+
+# 2. Goal
+
+Create a **self-running SaaS workflow demonstration** for the landing page.
+
+It should look similar to a high-quality product walkthrough / session replay.
+
+It should feel like:
+
+> A real person is using the actual SaaS application.
+
+The demo should NOT look like:
+
+* a static screenshot
+* a GIF
+* a video
+* a generic fake dashboard
+* a cursor moving randomly over a static UI
+
+Instead, it should be:
+
+> Real React/HTML UI + real components + animated state changes + animated cursor + realistic workflow.
+
+All visible text should remain real DOM text whenever possible.
+
+The user should be able to select/copy text inside the demo.
+
+Do NOT use an MP4, GIF, canvas recording, or screenshot as the main implementation.
+
+---
+
+# 3. Demo Size
+
+The workflow demo should occupy approximately:
+
+* 50–70% of the visible landing-page viewport width
+* Preferably around 60%
+* Responsive on mobile
+* Large enough that users can clearly see the actual product UI
+
+Do not make it unnecessarily huge.
+
+It should look like a premium product showcase.
+
+Example:
+
+```text
+        Landing Page
+
+   headline
+   supporting copy
+
+        ┌─────────────────────────────────────┐
+        │                                     │
+        │         ACTUAL PRODUCT UI           │
+        │                                     │
+        │         Workflow animation          │
+        │                                     │
+        └─────────────────────────────────────┘
+```
+
+The dashboard can be:
+
+* full-width inside the demo
+* or approximately half/full product viewport depending on what looks best
+
+Choose the composition based on the actual dashboard.
+
+---
+
+# 4. Use the REAL Dashboard Visual Language
+
+This is extremely important.
+
+Do not invent colors.
+
+Use the existing application's:
+
+* background colors
+* sidebar background
+* primary color
+* secondary color
+* muted colors
+* border colors
+* text colors
+* destructive colors
+* success colors
+* accent colors
+* button styles
+* shadows
+* radius
+* typography
+
+If the application uses CSS variables such as:
+
+```css
+--background
+--foreground
+--primary
+--secondary
+--muted
+--border
+--accent
+```
+
+reuse them.
+
+If the dashboard is dark mode, preserve the actual dark dashboard colors.
+
+If it is light mode, preserve the actual light colors.
+
+Do not create an unrelated "pretty SaaS dashboard."
+
+The landing-page demo should look like the actual application.
+
+---
+
+# 5. Create an ACTUAL Workflow
+
+Do not just animate the cursor.
+
+Create a believable workflow using the real dashboard UI.
+
+For example, if the SaaS is project/task/team based:
+
+```text
+1. Dashboard loads
+
+2. Cursor appears
+
+3. Cursor moves toward "New Project"
+
+4. Cursor pauses briefly
+
+5. Button receives hover state
+
+6. Cursor clicks
+
+7. Actual modal/dialog opens
+
+8. Cursor moves to the project-name input
+
+9. Input receives focus
+
+10. Text is typed character-by-character
+
+11. Cursor moves to "Create"
+
+12. Button receives hover/pressed state
+
+13. Cursor clicks
+
+14. Modal closes
+
+15. New project appears in the dashboard
+
+16. Dashboard count/stat updates
+
+17. Sidebar/project list updates
+
+18. Recent activity updates
+
+19. Workflow pauses
+
+20. Demo resets smoothly
+
+21. Workflow starts again
+```
+
+The exact workflow should be adapted to what my SaaS actually does.
+
+---
+
+# 6. IMPORTANT: Make the UI React State Driven
+
+The animation should be based on actual React state.
+
+For example:
+
+```tsx
+type DemoStep =
+  | "dashboard"
+  | "hover-create"
+  | "open-modal"
+  | "focus-input"
+  | "typing"
+  | "hover-submit"
+  | "submit"
+  | "complete";
+```
+
+Use state to control the UI.
+
+For example:
+
+```tsx
+const [step, setStep] = useState<DemoStep>("dashboard");
+```
+
+The UI should actually change when the workflow progresses.
+
+Do NOT create a static dashboard and move a cursor over it.
+
+---
+
+# 7. Cursor
+
+Create a polished animated cursor.
+
+The cursor should:
+
+* move naturally
+* have realistic easing
+* pause before important interactions
+* visually indicate clicking
+* optionally have a subtle name/label
+* scale slightly on click
+* move to actual UI elements
+
+Example:
+
+```tsx
+<motion.div
+  animate={{
+    x: cursorX,
+    y: cursorY,
+  }}
+  transition={{
+    duration: 0.7,
+    ease: [0.22, 1, 0.36, 1],
+  }}
+>
+  <Cursor />
+</motion.div>
+```
+
+Do not make the cursor movement robotic.
+
+Use pauses and realistic timing.
+
+---
+
+# 8. Use Motion
+
+Use the project's existing animation library if one exists.
+
+If the project already uses Motion, use:
+
+```tsx
+import {
+  motion,
+  AnimatePresence,
+  useAnimate,
+} from "motion/react";
+```
+
+If it uses another animation system, follow the existing project architecture.
+
+Do not introduce another animation library unnecessarily.
+
+Animations should feel:
+
+* smooth
+* subtle
+* premium
+* deliberate
+
+Avoid excessive bouncing.
+
+Prefer:
+
+```text
+easeOut
+easeInOut
+spring with low bounce
+```
+
+over exaggerated animations.
+
+---
+
+# 9. Typing Animation
+
+If the workflow contains an input, make the text appear character-by-character.
+
+For example:
+
+```text
+W
+We
+Web
+Webs
+Websi
+Websit
+Website
+Website r
+Website re
+...
+```
+
+The input must be an actual HTML input.
+
+Do not render fake text over an input.
+
+Example:
+
+```tsx
+<input
+  value={projectName}
+  readOnly
+  className="..."
+/>
+```
+
+Then update the value during the workflow.
+
+---
+
+# 10. Real UI State Changes
+
+When the workflow completes an action, the dashboard must visibly respond.
+
+For example:
+
+Before:
+
+```text
+Projects     12
+```
+
+After:
+
+```text
+Projects     13
+```
+
+Before:
+
+```text
+Mobile App
+Marketing
+```
+
+After:
+
+```text
+Website Redesign
+Mobile App
+Marketing
+```
+
+Before:
+
+```text
+Recent activity
+```
+
+After:
+
+```text
+Alex created Website Redesign
+```
+
+These should be actual React state changes.
+
+Use:
+
+```tsx
+<AnimatePresence>
+```
+
+for elements entering/leaving.
+
+---
+
+# 11. Reuse Existing Components
+
+Prioritize existing components.
+
+For example:
+
+```tsx
+<Sidebar />
+<Button />
+<Input />
+<Dialog />
+<Card />
+<Badge />
+```
+
+If directly reusing the actual dashboard component is practical, do it.
+
+If the full dashboard is too complex for the landing-page demo, create a lightweight demo-specific composition using the **same components and styles**.
+
+Do not duplicate huge amounts of dashboard code unnecessarily.
+
+---
+
+# 12. The Demo Should Look Like a Recorded Workflow
+
+The visual composition should communicate:
+
+> "Watch how easy this product is to use."
+
+The workflow should have a clear beginning, middle, and end.
+
+Example timing:
+
+```text
+0.0s    Dashboard visible
+1.0s    Cursor appears
+1.3s    Cursor moves to action
+2.0s    Hover
+2.2s    Click
+2.5s    Modal opens
+3.0s    Input focus
+3.2s    Typing starts
+4.8s    Typing ends
+5.2s    Cursor moves to submit
+5.8s    Click
+6.2s    Modal closes
+6.5s    New item appears
+7.2s    Success state
+8.5s    Pause
+9.5s    Reset
+```
+
+Adjust these timings based on the actual workflow.
+
+Do not make it too fast.
+
+Users need to understand what is happening.
+
+---
+
+# 13. Reset / Replay
+
+The workflow should automatically replay.
+
+After completing:
+
+```text
+Complete
+   ↓
+Pause
+   ↓
+Reset state
+   ↓
+Play again
+```
+
+The reset should be smooth.
+
+Do not abruptly reload the page.
+
+Reset React state instead.
+
+---
+
+# 14. Landing Page Integration
+
+Find the existing landing page.
+
+Place the workflow demo in the most appropriate section.
+
+Preferably:
+
+```text
+Hero
+  ↓
+Product/workflow demo
+  ↓
+Features
+  ↓
+Other sections
+```
+
+or integrate it directly into the hero if that matches the existing design.
+
+Do not destroy the existing landing-page layout.
+
+Preserve:
+
+* existing typography
+* spacing
+* responsive behavior
+* theme
+* sections
+* copy
+* navigation
+* buttons
+
+Only add the demo where appropriate.
+
+---
+
+# 15. Visual Presentation
+
+Wrap the dashboard in a premium product-demo container.
+
+Potential structure:
+
+```tsx
+<div className="relative overflow-hidden rounded-2xl border shadow-xl">
+  <DashboardWorkflow />
 </div>
 ```
 
-### Props
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| beamWidth | number | 2 | Width of each beam. |
-| beamHeight | number | 15 | Height of each beam. |
-| beamNumber | number | 12 | Number of beams to display. |
-| lightColor | string | '#ffffff' | Color of the directional light. |
-| speed | number | 2 | Speed of the animation. |
-| noiseIntensity | number | 1.75 | Intensity of the noise effect overlay. |
-| scale | number | 0.2 | Scale of the noise pattern. |
-| rotation | number | 0 | Rotation of the entire beams system in degrees. |
+Use the actual application's border/shadow tokens.
 
-### Full Component Source
+Potential additions:
+
+* subtle browser chrome
+* subtle gradient glow
+* tiny top bar
+* subtle backdrop
+* soft shadow
+* very light perspective
+* subtle cursor label
+
+But do NOT over-design it.
+
+The actual dashboard should remain the visual focus.
+
+---
+
+# 16. Don't Fake Colors
+
+This is a strict requirement.
+
+Do NOT write things like:
+
 ```tsx
-import { forwardRef, useImperativeHandle, useEffect, useRef, useMemo, type FC, type ReactNode } from 'react';
-
-import * as THREE from 'three';
-
-import { Canvas, useFrame } from '@react-three/fiber';
-import { PerspectiveCamera } from '@react-three/drei';
-import { degToRad } from 'three/src/math/MathUtils.js';
-
-type UniformValue = THREE.IUniform<unknown> | unknown;
-
-interface ExtendMaterialConfig {
-  header: string;
-  vertexHeader?: string;
-  fragmentHeader?: string;
-  material?: THREE.MeshPhysicalMaterialParameters & { fog?: boolean };
-  uniforms?: Record<string, UniformValue>;
-  vertex?: Record<string, string>;
-  fragment?: Record<string, string>;
-}
-
-type ShaderWithDefines = THREE.ShaderLibShader & {
-  defines?: Record<string, string | number | boolean>;
-};
-
-function extendMaterial<T extends THREE.Material = THREE.Material>(
-  BaseMaterial: new (params?: THREE.MaterialParameters) => T,
-  cfg: ExtendMaterialConfig
-): THREE.ShaderMaterial {
-  const physical = THREE.ShaderLib.physical as ShaderWithDefines;
-  const { vertexShader: baseVert, fragmentShader: baseFrag, uniforms: baseUniforms } = physical;
-  const baseDefines = physical.defines ?? {};
-
-  const uniforms: Record<string, THREE.IUniform> = THREE.UniformsUtils.clone(baseUniforms);
-
-  const defaults = new BaseMaterial(cfg.material || {}) as T & {
-    color?: THREE.Color;
-    roughness?: number;
-    metalness?: number;
-    envMap?: THREE.Texture;
-    envMapIntensity?: number;
-  };
-
-  if (defaults.color) uniforms.diffuse.value = defaults.color;
-  if ('roughness' in defaults) uniforms.roughness.value = defaults.roughness;
-  if ('metalness' in defaults) uniforms.metalness.value = defaults.metalness;
-  if ('envMap' in defaults) uniforms.envMap.value = defaults.envMap;
-  if ('envMapIntensity' in defaults) uniforms.envMapIntensity.value = defaults.envMapIntensity;
-
-  Object.entries(cfg.uniforms ?? {}).forEach(([key, u]) => {
-    uniforms[key] =
-      u !== null && typeof u === 'object' && 'value' in u
-        ? (u as THREE.IUniform<unknown>)
-        : ({ value: u } as THREE.IUniform<unknown>);
-  });
-
-  let vert = `${cfg.header}\n${cfg.vertexHeader ?? ''}\n${baseVert}`;
-  let frag = `${cfg.header}\n${cfg.fragmentHeader ?? ''}\n${baseFrag}`;
-
-  for (const [inc, code] of Object.entries(cfg.vertex ?? {})) {
-    vert = vert.replace(inc, `${inc}\n${code}`);
-  }
-  for (const [inc, code] of Object.entries(cfg.fragment ?? {})) {
-    frag = frag.replace(inc, `${inc}\n${code}`);
-  }
-
-  const mat = new THREE.ShaderMaterial({
-    defines: { ...baseDefines },
-    uniforms,
-    vertexShader: vert,
-    fragmentShader: frag,
-    lights: true,
-    fog: !!cfg.material?.fog
-  });
-
-  return mat;
-}
-
-const CanvasWrapper: FC<{ children: ReactNode }> = ({ children }) => (
-  <Canvas dpr={[1, 2]} frameloop="always" className="w-full h-full relative">
-    {children}
-  </Canvas>
-);
-
-const hexToNormalizedRGB = (hex: string): [number, number, number] => {
-  const clean = hex.replace('#', '');
-  const r = parseInt(clean.substring(0, 2), 16);
-  const g = parseInt(clean.substring(2, 4), 16);
-  const b = parseInt(clean.substring(4, 6), 16);
-  return [r / 255, g / 255, b / 255];
-};
-
-const noise = `
-float random (in vec2 st) {
-    return fract(sin(dot(st.xy,
-                         vec2(12.9898,78.233)))*
-        43758.5453123);
-}
-float noise (in vec2 st) {
-    vec2 i = floor(st);
-    vec2 f = fract(st);
-    float a = random(i);
-    float b = random(i + vec2(1.0, 0.0));
-    float c = random(i + vec2(0.0, 1.0));
-    float d = random(i + vec2(1.0, 1.0));
-    vec2 u = f * f * (3.0 - 2.0 * f);
-    return mix(a, b, u.x) +
-           (c - a)* u.y * (1.0 - u.x) +
-           (d - b) * u.x * u.y;
-}
-vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
-vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314 * r;}
-vec3 fade(vec3 t) {return t*t*t*(t*(t*6.0-15.0)+10.0);}
-float cnoise(vec3 P){
-  vec3 Pi0 = floor(P);
-  vec3 Pi1 = Pi0 + vec3(1.0);
-  Pi0 = mod(Pi0, 289.0);
-  Pi1 = mod(Pi1, 289.0);
-  vec3 Pf0 = fract(P);
-  vec3 Pf1 = Pf0 - vec3(1.0);
-  vec4 ix = vec4(Pi0.x, Pi1.x, Pi0.x, Pi1.x);
-  vec4 iy = vec4(Pi0.yy, Pi1.yy);
-  vec4 iz0 = Pi0.zzzz;
-  vec4 iz1 = Pi1.zzzz;
-  vec4 ixy = permute(permute(ix) + iy);
-  vec4 ixy0 = permute(ixy + iz0);
-  vec4 ixy1 = permute(ixy + iz1);
-  vec4 gx0 = ixy0 / 7.0;
-  vec4 gy0 = fract(floor(gx0) / 7.0) - 0.5;
-  gx0 = fract(gx0);
-  vec4 gz0 = vec4(0.5) - abs(gx0) - abs(gy0);
-  vec4 sz0 = step(gz0, vec4(0.0));
-  gx0 -= sz0 * (step(0.0, gx0) - 0.5);
-  gy0 -= sz0 * (step(0.0, gy0) - 0.5);
-  vec4 gx1 = ixy1 / 7.0;
-  vec4 gy1 = fract(floor(gx1) / 7.0) - 0.5;
-  gx1 = fract(gx1);
-  vec4 gz1 = vec4(0.5) - abs(gx1) - abs(gy1);
-  vec4 sz1 = step(gz1, vec4(0.0));
-  gx1 -= sz1 * (step(0.0, gx1) - 0.5);
-  gy1 -= sz1 * (step(0.0, gy1) - 0.5);
-  vec3 g000 = vec3(gx0.x,gy0.x,gz0.x);
-  vec3 g100 = vec3(gx0.y,gy0.y,gz0.y);
-  vec3 g010 = vec3(gx0.z,gy0.z,gz0.z);
-  vec3 g110 = vec3(gx0.w,gy0.w,gz0.w);
-  vec3 g001 = vec3(gx1.x,gy1.x,gz1.x);
-  vec3 g101 = vec3(gx1.y,gy1.y,gz1.y);
-  vec3 g011 = vec3(gx1.z,gy1.z,gz1.z);
-  vec3 g111 = vec3(gx1.w,gy1.w,gz1.w);
-  vec4 norm0 = taylorInvSqrt(vec4(dot(g000,g000),dot(g010,g010),dot(g100,g100),dot(g110,g110)));
-  g000 *= norm0.x; g010 *= norm0.y; g100 *= norm0.z; g110 *= norm0.w;
-  vec4 norm1 = taylorInvSqrt(vec4(dot(g001,g001),dot(g011,g011),dot(g101,g101),dot(g111,g111)));
-  g001 *= norm1.x; g011 *= norm1.y; g101 *= norm1.z; g111 *= norm1.w;
-  float n000 = dot(g000, Pf0);
-  float n100 = dot(g100, vec3(Pf1.x,Pf0.yz));
-  float n010 = dot(g010, vec3(Pf0.x,Pf1.y,Pf0.z));
-  float n110 = dot(g110, vec3(Pf1.xy,Pf0.z));
-  float n001 = dot(g001, vec3(Pf0.xy,Pf1.z));
-  float n101 = dot(g101, vec3(Pf1.x,Pf0.y,Pf1.z));
-  float n011 = dot(g011, vec3(Pf0.x,Pf1.yz));
-  float n111 = dot(g111, Pf1);
-  vec3 fade_xyz = fade(Pf0);
-  vec4 n_z = mix(vec4(n000,n100,n010,n110),vec4(n001,n101,n011,n111),fade_xyz.z);
-  vec2 n_yz = mix(n_z.xy,n_z.zw,fade_xyz.y);
-  float n_xyz = mix(n_yz.x,n_yz.y,fade_xyz.x);
-  return 2.2 * n_xyz;
-}
-`;
-
-interface BeamsProps {
-  beamWidth?: number;
-  beamHeight?: number;
-  beamNumber?: number;
-  lightColor?: string;
-  speed?: number;
-  noiseIntensity?: number;
-  scale?: number;
-  rotation?: number;
-}
-
-const Beams: FC<BeamsProps> = ({
-  beamWidth = 2,
-  beamHeight = 15,
-  beamNumber = 12,
-  lightColor = '#ffffff',
-  speed = 2,
-  noiseIntensity = 1.75,
-  scale = 0.2,
-  rotation = 0
-}) => {
-  const meshRef = useRef<THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>>(null!);
-
-  const beamMaterial = useMemo(
-    () =>
-      extendMaterial(THREE.MeshStandardMaterial, {
-        header: `
-  varying vec3 vEye;
-  varying float vNoise;
-  varying vec2 vUv;
-  varying vec3 vPosition;
-  uniform float time;
-  uniform float uSpeed;
-  uniform float uNoiseIntensity;
-  uniform float uScale;
-  ${noise}`,
-        vertexHeader: `
-  float getPos(vec3 pos) {
-    vec3 noisePos =
-      vec3(pos.x * 0., pos.y - uv.y, pos.z + time * uSpeed * 3.) * uScale;
-    return cnoise(noisePos);
-  }
-  vec3 getCurrentPos(vec3 pos) {
-    vec3 newpos = pos;
-    newpos.z += getPos(pos);
-    return newpos;
-  }
-  vec3 getNormal(vec3 pos) {
-    vec3 curpos = getCurrentPos(pos);
-    vec3 nextposX = getCurrentPos(pos + vec3(0.01, 0.0, 0.0));
-    vec3 nextposZ = getCurrentPos(pos + vec3(0.0, -0.01, 0.0));
-    vec3 tangentX = normalize(nextposX - curpos);
-    vec3 tangentZ = normalize(nextposZ - curpos);
-    return normalize(cross(tangentZ, tangentX));
-  }`,
-        fragmentHeader: '',
-        vertex: {
-          '#include <begin_vertex>': `transformed.z += getPos(transformed.xyz);`,
-          '#include <beginnormal_vertex>': `objectNormal = getNormal(position.xyz);`
-        },
-        fragment: {
-          '#include <dithering_fragment>': `
-    float randomNoise = noise(gl_FragCoord.xy);
-    gl_FragColor.rgb -= randomNoise / 15. * uNoiseIntensity;`
-        },
-        material: { fog: true },
-        uniforms: {
-          diffuse: new THREE.Color(...hexToNormalizedRGB('#000000')),
-          time: { shared: true, mixed: true, linked: true, value: 0 },
-          roughness: 0.3,
-          metalness: 0.3,
-          uSpeed: { shared: true, mixed: true, linked: true, value: speed },
-          envMapIntensity: 10,
-          uNoiseIntensity: noiseIntensity,
-          uScale: scale
-        }
-      }),
-    [speed, noiseIntensity, scale]
-  );
-
-  return (
-    <CanvasWrapper>
-      <group rotation={[0, 0, degToRad(rotation)]}>
-        <PlaneNoise ref={meshRef} material={beamMaterial} count={beamNumber} width={beamWidth} height={beamHeight} />
-        <DirLight color={lightColor} position={[0, 3, 10]} />
-      </group>
-      <ambientLight intensity={1} />
-      <color attach="background" args={['#000000']} />
-      <PerspectiveCamera makeDefault position={[0, 0, 20]} fov={30} />
-    </CanvasWrapper>
-  );
-};
-
-function createStackedPlanesBufferGeometry(
-  n: number,
-  width: number,
-  height: number,
-  spacing: number,
-  heightSegments: number
-): THREE.BufferGeometry {
-  const geometry = new THREE.BufferGeometry();
-  const numVertices = n * (heightSegments + 1) * 2;
-  const numFaces = n * heightSegments * 2;
-  const positions = new Float32Array(numVertices * 3);
-  const indices = new Uint32Array(numFaces * 3);
-  const uvs = new Float32Array(numVertices * 2);
-
-  let vertexOffset = 0;
-  let indexOffset = 0;
-  let uvOffset = 0;
-  const totalWidth = n * width + (n - 1) * spacing;
-  const xOffsetBase = -totalWidth / 2;
-
-  for (let i = 0; i < n; i++) {
-    const xOffset = xOffsetBase + i * (width + spacing);
-    const uvXOffset = Math.random() * 300;
-    const uvYOffset = Math.random() * 300;
-
-    for (let j = 0; j <= heightSegments; j++) {
-      const y = height * (j / heightSegments - 0.5);
-      const v0 = [xOffset, y, 0];
-      const v1 = [xOffset + width, y, 0];
-      positions.set([...v0, ...v1], vertexOffset * 3);
-
-      const uvY = j / heightSegments;
-      uvs.set([uvXOffset, uvY + uvYOffset, uvXOffset + 1, uvY + uvYOffset], uvOffset);
-
-      if (j < heightSegments) {
-        const a = vertexOffset,
-          b = vertexOffset + 1,
-          c = vertexOffset + 2,
-          d = vertexOffset + 3;
-        indices.set([a, b, c, c, b, d], indexOffset);
-        indexOffset += 6;
-      }
-      vertexOffset += 2;
-      uvOffset += 4;
-    }
-  }
-
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-  geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-  geometry.computeVertexNormals();
-  return geometry;
-}
-
-const MergedPlanes = forwardRef<
-  THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>,
-  {
-    material: THREE.ShaderMaterial;
-    width: number;
-    count: number;
-    height: number;
-  }
->(({ material, width, count, height }, ref) => {
-  const mesh = useRef<THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>>(null!);
-  useImperativeHandle(ref, () => mesh.current);
-  const geometry = useMemo(
-    () => createStackedPlanesBufferGeometry(count, width, height, 0, 100),
-    [count, width, height]
-  );
-  useFrame((_, delta) => {
-    mesh.current.material.uniforms.time.value += 0.1 * delta;
-  });
-  return <mesh ref={mesh} geometry={geometry} material={material} />;
-});
-MergedPlanes.displayName = 'MergedPlanes';
-
-const PlaneNoise = forwardRef<
-  THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>,
-  {
-    material: THREE.ShaderMaterial;
-    width: number;
-    count: number;
-    height: number;
-  }
->((props, ref) => (
-  <MergedPlanes ref={ref} material={props.material} width={props.width} count={props.count} height={props.height} />
-));
-PlaneNoise.displayName = 'PlaneNoise';
-
-const DirLight: FC<{ position: [number, number, number]; color: string }> = ({ position, color }) => {
-  const dir = useRef<THREE.DirectionalLight>(null!);
-  useEffect(() => {
-    if (!dir.current) return;
-    const cam = dir.current.shadow.camera as THREE.Camera & {
-      top: number;
-      bottom: number;
-      left: number;
-      right: number;
-      far: number;
-    };
-    cam.top = 24;
-    cam.bottom = -24;
-    cam.left = -24;
-    cam.right = 24;
-    cam.far = 64;
-    dir.current.shadow.bias = -0.004;
-  }, []);
-  return <directionalLight ref={dir} color={color} intensity={1} position={position} />;
-};
-
-export default Beams;
-
+bg-blue-500
+bg-purple-500
+text-gray-900
 ```
 
-### Integration Instructions
-1. Install any listed dependencies.
-2. Copy the component source into the appropriate directory in the project.
-3. Import and render the component using the usage example above as a starting point.
-4. Adjust props as needed for the specific use case — refer to the props table for all available options.
+unless those exact colors are already used by the application.
 
-### More from React Bits
-The full library index, including everything reactbits.dev offers, is at https://reactbits.dev/llms.txt — fetch it if this component is not the right fit or the project needs more pieces.
+Instead use:
+
+```tsx
+bg-background
+text-foreground
+bg-primary
+text-primary-foreground
+border-border
+bg-muted
+text-muted-foreground
+```
+
+or the project's existing design tokens.
+
+If the dashboard has custom colors, reuse those exact classes/tokens.
+
+---
+
+# 17. Responsive Behavior
+
+The demo must work on:
+
+* desktop
+* tablet
+* mobile
+
+On smaller screens:
+
+* simplify the sidebar if necessary
+* reduce padding
+* hide non-essential dashboard areas
+* preserve the main workflow
+* keep cursor coordinates responsive
+
+Do not allow horizontal overflow.
+
+The workflow should remain understandable on mobile.
+
+---
+
+# 18. Performance
+
+Do not create an animation that causes unnecessary React re-renders.
+
+Prefer:
+
+* Motion transforms
+* CSS transforms
+* opacity
+* AnimatePresence
+* local state only where necessary
+
+Avoid:
+
+* expensive intervals
+* hundreds of state updates
+* unnecessary global state
+* DOM querying on every frame
+
+The landing page should remain fast.
+
+---
+
+# 19. Accessibility
+
+Even though this is a demo, maintain good accessibility.
+
+Use:
+
+* semantic HTML
+* real buttons
+* real inputs
+* labels
+* accessible text
+
+The animated cursor should be:
+
+```tsx
+aria-hidden="true"
+```
+
+because it is decorative.
+
+The workflow should not interfere with the rest of the page.
+
+---
+
+# 20. Do Not Make the Demo Interactive Unless Useful
+
+The primary purpose is an **automated product walkthrough**.
+
+It should autoplay.
+
+If adding a manual replay control improves the experience, add a subtle:
+
+```text
+Replay
+```
+
+button.
+
+But don't make the user manually operate the demo just to see it.
+
+---
+
+# 21. Important Implementation Rule
+
+Do NOT immediately start coding.
+
+First:
+
+1. Inspect the repository.
+2. Identify the dashboard architecture.
+3. Identify reusable components.
+4. Identify the design tokens.
+5. Identify the most visually interesting workflow.
+6. Decide which dashboard UI can be reused.
+7. Then implement the demo.
+
+Before finishing, verify that the demo visually belongs to the existing application.
+
+---
+
+# 22. Final Quality Standard
+
+The final result should look like something found on a polished modern SaaS landing page.
+
+It should give the impression of:
+
+> "This is a real recording of someone using the product."
+
+But underneath it should actually be:
+
+```text
+React
++
+Real DOM
++
+Existing dashboard components
++
+Existing design system
++
+Motion animations
++
+React state
++
+Animated cursor
++
+Automated workflow
+```
+
+NOT:
+
+```text
+MP4
+GIF
+Screenshot
+Canvas recording
+Static mockup
+```
+
+The viewer should be able to select text inside the demo.
+
+The dashboard should use the **actual visual language of my SaaS**.
+
+The workflow should be believable, smooth, and complete.
+
+Most importantly:
+
+**Analyze my existing dashboard and build the demo around what the product actually does. Do not invent a generic SaaS dashboard.**

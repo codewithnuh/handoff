@@ -6,12 +6,7 @@ import {
   User,
 } from "lucide-react";
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { activityLabel } from "@/lib/constants/activity";
 import type { RecentActivityItem } from "@/lib/queries/project";
@@ -53,9 +48,7 @@ export function RecentActivity({ items }: { items: RecentActivityItem[] }) {
               <div className="flex items-start gap-3 min-w-0">
                 <div
                   className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full ${
-                    item.isClientAction
-                      ? "bg-primary/10"
-                      : "bg-muted"
+                    item.isClientAction ? "bg-primary/10" : "bg-muted"
                   }`}
                 >
                   {item.isClientAction ? (

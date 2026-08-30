@@ -401,9 +401,10 @@ model Deliverable {
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 
-  project  Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  versions DeliverableVersion[]
-  comments Comment[]
+  project    Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versions   DeliverableVersion[]
+  comments   Comment[]
+  lineItems  InvoiceLineItem[]
 
   @@index([projectId])
   @@index([status])
@@ -504,20 +505,47 @@ model Invoice {
   projectId     String
   invoiceNumber String
   description   String?
-  amount        Decimal       @db.Decimal(12, 2)
+  subtotal      Decimal       @db.Decimal(12, 2) @default(0)
+  taxRate       Decimal       @db.Decimal(5, 2) @default(0)
+  taxAmount     Decimal       @db.Decimal(12, 2) @default(0)
+  amount        Decimal       @db.Decimal(12, 2) @default(0)
   currency      String        @default("USD")
   dueDate       DateTime?
+  paidAt        DateTime?
+  paymentNotes  String?
   status        InvoiceStatus @default(DRAFT)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  lineItems InvoiceLineItem[]
 
   @@unique([projectId, invoiceNumber])
   @@index([projectId])
   @@index([status])
   @@index([status, dueDate])
   @@map("invoices")
+}
+
+// ──────────────────────────────────────────────
+// Invoice Line Items
+// ──────────────────────────────────────────────
+
+model InvoiceLineItem {
+  id            String  @id @default(cuid())
+  invoiceId     String
+  description   String
+  quantity      Int     @default(1)
+  unitPrice     Decimal @db.Decimal(12, 2)
+  amount        Decimal @db.Decimal(12, 2)
+  deliverableId String?
+
+  invoice    Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  deliverable Deliverable? @relation(fields: [deliverableId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([deliverableId])
+  @@map("invoice_line_items")
 }
 
 // ──────────────────────────────────────────────

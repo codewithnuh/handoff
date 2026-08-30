@@ -11,10 +11,12 @@ export function DeliverablesTab({
   deliverables,
   projectId,
   permissions,
+  currentUserId,
 }: {
   deliverables: ProjectDetailData["deliverables"];
   projectId: string;
   permissions: ViewerPermissions;
+  currentUserId: string;
 }) {
   if (deliverables.length === 0) {
     return (
@@ -46,6 +48,7 @@ export function DeliverablesTab({
             key={item.id}
             item={item}
             permissions={permissions}
+            currentUserId={currentUserId}
           />
         ))}
       </div>

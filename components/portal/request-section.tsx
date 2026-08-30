@@ -38,7 +38,10 @@ interface RequestSectionProps {
   viewerEmail?: string;
 }
 
-const REQUEST_STATUS: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
+const REQUEST_STATUS: Record<
+  string,
+  { label: string; variant: "default" | "secondary" | "outline" }
+> = {
   OPEN: { label: "Open", variant: "secondary" },
   IN_PROGRESS: { label: "In Progress", variant: "default" },
   COMPLETED: { label: "Completed", variant: "outline" },
@@ -52,10 +55,14 @@ function formatDate(date: Date): string {
   });
 }
 
-export function RequestSection({ projectId, requests, viewerEmail }: RequestSectionProps) {
+export function RequestSection({
+  projectId,
+  requests,
+  viewerEmail,
+}: RequestSectionProps) {
   return (
     <section className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start flex-col  justify-center">
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <MessageSquare className="size-5 text-muted-foreground" />
           Requests
@@ -63,9 +70,10 @@ export function RequestSection({ projectId, requests, viewerEmail }: RequestSect
             ({requests.length})
           </span>
         </h2>
+
         <RequestForm projectId={projectId} />
       </div>
-
+      <div className="border-dotted border-neutral-500 border-t" />
       {requests.length === 0 ? (
         <div className="rounded-lg border border-dashed border-muted-foreground/25 bg-muted/25 p-12 text-center">
           <div className="mx-auto flex size-10 items-center justify-center rounded-full bg-muted">
@@ -77,7 +85,7 @@ export function RequestSection({ projectId, requests, viewerEmail }: RequestSect
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 ">
           {requests.map((req) => {
             const rStatus = REQUEST_STATUS[req.status] ?? REQUEST_STATUS.OPEN;
 
@@ -88,7 +96,10 @@ export function RequestSection({ projectId, requests, viewerEmail }: RequestSect
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-sm">{req.title}</span>
-                        <Badge variant={rStatus.variant} className="text-[10px]">
+                        <Badge
+                          variant={rStatus.variant}
+                          className="text-[10px]"
+                        >
                           {rStatus.label}
                         </Badge>
                       </div>

@@ -20,6 +20,7 @@ import {
 import { DeliverableActions } from "@/components/portal/deliverable-actions";
 import { CommentSection } from "@/components/portal/comment-section";
 import { RequestSection } from "@/components/portal/request-section";
+import { PortalInvoiceSection } from "@/components/portal/invoice-detail";
 
 // ──────────────────────────────────────────────
 // Status Config
@@ -27,7 +28,10 @@ import { RequestSection } from "@/components/portal/request-section";
 
 const PROJECT_STATUS: Record<
   string,
-  { label: string; variant: "default" | "secondary" | "outline" | "destructive" }
+  {
+    label: string;
+    variant: "default" | "secondary" | "outline" | "destructive";
+  }
 > = {
   PLANNING: { label: "Planning", variant: "secondary" },
   IN_PROGRESS: { label: "In Progress", variant: "default" },
@@ -35,7 +39,10 @@ const PROJECT_STATUS: Record<
   CANCELLED: { label: "Cancelled", variant: "destructive" },
 };
 
-const DELIVERABLE_STATUS: Record<string, { label: string; icon: typeof Circle }> = {
+const DELIVERABLE_STATUS: Record<
+  string,
+  { label: string; icon: typeof Circle }
+> = {
   DRAFT: { label: "Draft", icon: Circle },
   IN_REVIEW: { label: "In Review", icon: CircleDashed },
   CHANGES_REQUESTED: { label: "Changes Requested", icon: Circle },
@@ -111,14 +118,18 @@ export default async function PortalProjectPage({
   const data = await getPortalProjectDetail(projectId, session.email);
   if (!data) notFound();
 
-  const { project, deliverables, requests, activities } = data;
-  const statusConfig = PROJECT_STATUS[project.status] ?? PROJECT_STATUS.PLANNING;
+  const { project, deliverables, requests, invoices, activities } = data;
+  const statusConfig =
+    PROJECT_STATUS[project.status] ?? PROJECT_STATUS.PLANNING;
 
   return (
     <div className="mx-auto max-w-5xl px-4 sm:px-6 py-8 space-y-8">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Link href="/portal" className="hover:text-foreground transition-colors">
+        <Link
+          href="/portal"
+          className="hover:text-foreground transition-colors"
+        >
           My Projects
         </Link>
         <ChevronRight className="h-3 w-3" />
@@ -186,9 +197,7 @@ export default async function PortalProjectPage({
               <span className="text-muted-foreground block mb-1">
                 Deliverables
               </span>
-              <span className="font-medium">
-                {deliverables.length} total
-              </span>
+              <span className="font-medium">{deliverables.length} total</span>
             </div>
           </div>
         </CardContent>
@@ -214,7 +223,8 @@ export default async function PortalProjectPage({
           <div className="space-y-3">
             {deliverables.map((deliverable) => {
               const dStatus =
-                DELIVERABLE_STATUS[deliverable.status] ?? DELIVERABLE_STATUS.DRAFT;
+                DELIVERABLE_STATUS[deliverable.status] ??
+                DELIVERABLE_STATUS.DRAFT;
               const DIcon = dStatus.icon;
 
               return (
@@ -224,7 +234,10 @@ export default async function PortalProjectPage({
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <h3 className="font-semibold">{deliverable.title}</h3>
-                          <Badge variant="secondary" className="text-[10px] gap-1">
+                          <Badge
+                            variant="secondary"
+                            className="text-[10px] gap-1"
+                          >
                             <DIcon className="size-3" />
                             {dStatus.label}
                           </Badge>
@@ -267,8 +280,15 @@ export default async function PortalProjectPage({
                                 </div>
                               </div>
                               {ver.file && (
-                                <a href={`/api/files/${ver.file.id}/download`} download>
-                                  <Button variant="ghost" size="icon-sm" className="shrink-0">
+                                <a
+                                  href={`/api/files/${ver.file.id}/download`}
+                                  download
+                                >
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    className="shrink-0"
+                                  >
                                     <Download className="h-3.5 w-3.5" />
                                   </Button>
                                 </a>
@@ -314,6 +334,9 @@ export default async function PortalProjectPage({
         viewerEmail={session.email}
       />
 
+      {/* Invoices */}
+      <PortalInvoiceSection invoices={invoices} />
+
       {/* Activity */}
       <section className="space-y-4">
         <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -335,8 +358,8 @@ export default async function PortalProjectPage({
             <CardContent className="p-5">
               <div className="relative pl-6 space-y-6 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-border">
                 {activities.map((act) => (
-                  <div key={act.id} className="relative text-xs space-y-1">
-                    <div className="absolute -left-6 top-0.5 h-2.5 w-2.5 rounded-full bg-primary ring-4 ring-background" />
+                  <div key={act.id} className="relative text-xs space-y-1 ">
+                    <div className="absolute -left-5 top-0.5 h-2.5 w-2.5 rounded-full bg-primary ring-4 ring-background" />
                     <div className="flex items-center gap-2">
                       <span className="font-semibold">
                         {act.actorName ?? "System"}

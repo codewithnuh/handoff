@@ -18,6 +18,7 @@ const serverSchema = z.object({
       message: "Must be an email address or 'Name <email>' format",
     })
     .optional(),
+  UPLOADTHING_SECRET: z.string().min(1, "UPLOADTHING_SECRET is required"),
 });
 
 const clientSchema = z.object({
@@ -36,6 +37,7 @@ const processEnv = {
   SMTP_USER: process.env.SMTP_USER,
   SMTP_PASSWORD: process.env.SMTP_PASSWORD,
   EMAIL_FROM: process.env.EMAIL_FROM,
+  UPLOADTHING_SECRET: process.env.UPLOADTHING_SECRET,
 };
 
 // Validate

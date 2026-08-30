@@ -5,6 +5,7 @@ import type {
   DeliverableVersion,
 } from "@/app/generated/prisma/client";
 import { db } from "@/lib/prisma";
+import { revalidatePath } from "next/cache";
 import { recordActivity } from "@/lib/actions/activity";
 import { revalidateDashboard } from "@/lib/actions/revalidate";
 import { toActionError } from "@/lib/actions/helpers";
@@ -161,7 +162,6 @@ export const createDeliverable = async (
   }
 };
 
-
 export const updateDeliverable = async (
   data: UpdateDeliverableInput,
 ): Promise<ActionResponseType<DeliverableResult>> => {
@@ -196,15 +196,16 @@ export const updateDeliverable = async (
       );
     }
 
-    const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
+    const readOnlyError = await assertWorkspaceWritable(
+      access.value.workspaceId,
+    );
     if (readOnlyError) return readOnlyError;
 
     // ── Quality gate ──
     // Contributors work on drafts; once a deliverable is submitted it is
     // client-facing, so only a lead (or admin/owner) can touch it or push
     // it back into review. Approvals/change-requests belong to the client.
-    const touchesContent =
-      title !== undefined || description !== undefined;
+    const touchesContent = title !== undefined || description !== undefined;
     if (
       (touchesContent && existing.status !== "DRAFT") ||
       (status === "IN_REVIEW" && existing.status !== "IN_REVIEW")
@@ -263,7 +264,8 @@ export const updateDeliverable = async (
       data,
     });
 
-    const statusChanged = data.status !== undefined && data.status !== existing.status;
+    const statusChanged =
+      data.status !== undefined && data.status !== existing.status;
 
     if (statusChanged) {
       const activityType = (() => {
@@ -292,6 +294,7 @@ export const updateDeliverable = async (
     }
 
     revalidateDashboard();
+    revalidatePath(`/portal/projects/${deliverable.projectId}`, "page");
     return ActionResponse.success(
       deliverable,
       "Deliverable updated successfully",
@@ -299,11 +302,11 @@ export const updateDeliverable = async (
   } catch (error) {
     return toActionError(error, {
       fallback: "Failed to update the deliverable.",
-      notFound: "This deliverable was just modified by someone else. Refresh and try again.",
+      notFound:
+        "This deliverable was just modified by someone else. Refresh and try again.",
     });
   }
 };
-
 
 export const deleteDeliverable = async (
   data: DeliverableIdInput,
@@ -339,7 +342,9 @@ export const deleteDeliverable = async (
       );
     }
 
-    const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
+    const readOnlyError = await assertWorkspaceWritable(
+      access.value.workspaceId,
+    );
     if (readOnlyError) return readOnlyError;
 
     await db.deliverable.delete({ where: { id: validated.data.id } });
@@ -389,17 +394,16 @@ export const addDeliverableVersion = async (
     }
     // Contributors may upload versions to drafts; submitted work is
     // client-facing and lead-only.
-    if (
-      deliverable.status !== "DRAFT" &&
-      !access.value.canSubmitForReview
-    ) {
+    if (deliverable.status !== "DRAFT" && !access.value.canSubmitForReview) {
       return ActionResponse.failure(
         ERROR_CODES.FORBIDDEN,
         "Only a project lead can add versions once a deliverable is submitted.",
       );
     }
 
-    const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
+    const readOnlyError = await assertWorkspaceWritable(
+      access.value.workspaceId,
+    );
     if (readOnlyError) return readOnlyError;
 
     const lastVersion = await db.deliverableVersion.findFirst({
@@ -441,4 +445,3 @@ export const addDeliverableVersion = async (
     });
   }
 };
-

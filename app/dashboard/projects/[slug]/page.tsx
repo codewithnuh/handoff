@@ -111,7 +111,7 @@ export default async function SingleProjectPage({
     notFound();
   }
 
-  const [{ data, permissions }, tasks] = await Promise.all([
+  const [{ data, permissions, currentUserId }, tasks] = await Promise.all([
     Promise.resolve(result),
     getProjectTasks(slug).then((t) => t ?? []),
   ]);
@@ -128,6 +128,7 @@ export default async function SingleProjectPage({
           data={data}
           permissions={permissions}
           initialTasks={tasks}
+          currentUserId={currentUserId}
         />
       </Suspense>
     </div>

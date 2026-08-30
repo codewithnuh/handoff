@@ -10,8 +10,7 @@ import { getClientPortalSession } from "@/lib/portal";
  *   1. Valid client session
  *   2. File belongs to a deliverable on a project the client has access to
  *
- * In production, this would proxy to S3/R2 using the File.key.
- * For MVP, returns the file metadata as JSON.
+ * Redirects to the uploadthing CDN URL for actual file serving.
  */
 export async function GET(
   _request: NextRequest,
@@ -72,19 +71,10 @@ export async function GET(
     );
   }
 
-  // 4. Serve the file
-  // In production, this would:
-  //   - Generate a signed URL for S3/R2
-  //   - Or stream the file from storage
-  // For MVP, return file metadata so the frontend knows what to display
-  return NextResponse.json({
-    id: file.id,
-    filename: file.filename,
-    mimeType: file.mimeType,
-    size: file.size,
-    key: file.key,
-    // In production: redirect to signed URL or stream file
-    // For now, the client can see the metadata
-    message: "File download would be served from storage in production",
-  });
+  // 4. Redirect to uploadthing CDN URL
+  // The key format from uploadthing is typically like:
+  // `${appId}/${fileKey}` — the URL is served directly by uploadthing
+  const fileUrl = `https://utfs.io/f/${file.key}`;
+
+  return NextResponse.redirect(fileUrl);
 }

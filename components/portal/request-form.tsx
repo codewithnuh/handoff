@@ -75,7 +75,10 @@ export function RequestForm({ projectId }: RequestFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-md border border-border p-4 space-y-3">
+    <form
+      onSubmit={handleSubmit}
+      className="w-full mt-2  rounded-md border border-border p-4 space-y-3"
+    >
       <div className="flex items-center justify-between">
         <h4 className="text-xs font-medium">New Request</h4>
         <Button

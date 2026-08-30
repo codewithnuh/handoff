@@ -1,4 +1,7 @@
-import { Receipt, Activity as ActivityIcon } from "lucide-react";
+"use client";
+
+import { useState } from "react";
+import { Receipt, Activity as ActivityIcon, Eye } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -9,59 +12,159 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import type { ProjectDetailData } from "@/lib/queries/project";
+import type { ViewerPermissions } from "./types";
 import { InvoiceStatusBadge } from "./status-badges";
 import { activityLabel } from "@/lib/constants/activity";
 import { formatDate, formatDateTime, formatCurrency } from "./format";
 import { EmptyTab } from "./empty-tab";
+import { CreateInvoiceDialog } from "./create-invoice-dialog";
+import { InvoiceDetailDialog } from "./invoice-detail-dialog";
+import { InvoiceActions } from "./invoice-actions";
+
+type InvoiceItem = ProjectDetailData["invoices"][number];
+
+type InvoiceWithLineItems = InvoiceItem & {
+  subtotal?: string;
+  taxRate?: string;
+  taxAmount?: string;
+  paidAt?: Date | null;
+  paymentNotes?: string | null;
+  lineItems?: {
+    id: string;
+    description: string;
+    quantity: number;
+    unitPrice: string;
+    amount: string;
+    deliverableId: string | null;
+  }[];
+};
 
 export function InvoicesTab({
   invoices,
+  permissions,
+  projectId,
+  approvedDeliverables,
 }: {
   invoices: ProjectDetailData["invoices"];
+  permissions: ViewerPermissions;
+  projectId: string;
+  approvedDeliverables: {
+    id: string;
+    title: string;
+    description: string | null;
+  }[];
 }) {
+  const [selectedInvoice, setSelectedInvoice] =
+    useState<InvoiceWithLineItems | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  const handleViewInvoice = (invoice: InvoiceWithLineItems) => {
+    setSelectedInvoice(invoice);
+    setDetailOpen(true);
+  };
+
   if (invoices.length === 0) {
     return (
-      <EmptyTab
-        icon={<Receipt className="text-muted-foreground size-5" />}
-        title="No invoices yet"
-        description="Invoices for this project will appear here."
-      />
+      <div className="space-y-4">
+        {permissions.canManageDeliverables && (
+          <div className="flex justify-end">
+            <CreateInvoiceDialog
+              projectId={projectId}
+              approvedDeliverables={approvedDeliverables}
+            />
+          </div>
+        )}
+        <EmptyTab
+          icon={<Receipt className="text-muted-foreground size-5" />}
+          title="No invoices yet"
+          description="Create your first invoice for this project."
+        />
+      </div>
     );
   }
 
   return (
-    <div className="bg-card shadow-xs overflow-hidden rounded-lg border">
-      <Table>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead className="p-3">Invoice #</TableHead>
-            <TableHead className="p-3">Description</TableHead>
-            <TableHead className="p-3">Due Date</TableHead>
-            <TableHead className="p-3">Amount</TableHead>
-            <TableHead className="p-3">Status</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {invoices.map((inv) => (
-            <TableRow key={inv.id}>
-              <TableCell className="p-3 font-medium">{inv.invoiceNumber}</TableCell>
-              <TableCell className="text-muted-foreground p-3">
-                {inv.description || "—"}
-              </TableCell>
-              <TableCell className="text-muted-foreground p-3">
-                {formatDate(inv.dueDate)}
-              </TableCell>
-              <TableCell className="p-3 font-medium">
-                {formatCurrency(inv.amount, inv.currency)}
-              </TableCell>
-              <TableCell className="p-3">
-                <InvoiceStatusBadge status={inv.status} />
-              </TableCell>
+    <div className="space-y-4">
+      {permissions.canManageDeliverables && (
+        <div className="flex justify-end">
+          <CreateInvoiceDialog
+            projectId={projectId}
+            approvedDeliverables={approvedDeliverables}
+          />
+        </div>
+      )}
+
+      <div className="bg-card shadow-xs overflow-hidden rounded-lg border">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="p-3">Invoice #</TableHead>
+              <TableHead className="p-3">Description</TableHead>
+              <TableHead className="p-3">Due Date</TableHead>
+              <TableHead className="p-3">Amount</TableHead>
+              <TableHead className="p-3">Status</TableHead>
+              <TableHead className="p-3 text-right">Actions</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {invoices.map((inv) => (
+              <TableRow key={inv.id}>
+                <TableCell className="p-3 font-medium">
+                  {inv.invoiceNumber}
+                </TableCell>
+                <TableCell className="text-muted-foreground p-3">
+                  {inv.description || "—"}
+                </TableCell>
+                <TableCell className="text-muted-foreground p-3">
+                  {formatDate(inv.dueDate)}
+                </TableCell>
+                <TableCell className="p-3 font-medium">
+                  {formatCurrency(inv.amount, inv.currency)}
+                </TableCell>
+                <TableCell className="p-3">
+                  <InvoiceStatusBadge status={inv.status} />
+                </TableCell>
+                <TableCell className="p-3">
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => handleViewInvoice(inv)}
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                    </Button>
+                    {permissions.canManageDeliverables && (
+                      <InvoiceActions
+                        invoiceId={inv.id}
+                        status={inv.status}
+                      />
+                    )}
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Invoice Detail Dialog */}
+      {selectedInvoice && (
+        <InvoiceDetailDialog
+          invoice={{
+            ...selectedInvoice,
+            subtotal: selectedInvoice.subtotal ?? "0",
+            taxRate: selectedInvoice.taxRate ?? "0",
+            taxAmount: selectedInvoice.taxAmount ?? "0",
+            paidAt: selectedInvoice.paidAt ?? null,
+            paymentNotes: selectedInvoice.paymentNotes ?? null,
+            lineItems: selectedInvoice.lineItems ?? [],
+          }}
+          open={detailOpen}
+          onOpenChange={setDetailOpen}
+        />
+      )}
     </div>
   );
 }
@@ -93,7 +196,7 @@ export function ActivityTab({
                   {act.actorName ?? "System"}
                 </span>
                 <span className="text-muted-foreground">
-                  • {formatDateTime(act.createdAt)}
+                  · {formatDateTime(act.createdAt)}
                 </span>
               </div>
               <p className="text-muted-foreground">{activityLabel(act.type)}</p>

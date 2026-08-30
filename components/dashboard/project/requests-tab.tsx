@@ -20,13 +20,16 @@ import { updateRequestStatus } from "@/lib/actions/request";
 import { RequestStatusBadge } from "./status-badges";
 import { formatDate } from "./format";
 import { EmptyTab } from "./empty-tab";
+import { DashboardCommentSection } from "./comment-section";
 
 export function RequestsTab({
   requests,
   permissions,
+  currentUserId,
 }: {
   requests: ProjectDetailData["requests"];
   permissions: ViewerPermissions;
+  currentUserId: string;
 }) {
   const router = useRouter();
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -79,42 +82,60 @@ export function RequestsTab({
     <div className="grid grid-cols-1 gap-3">
       {requests.map((req) => (
         <Card key={req.id} className="shadow-xs">
-          <CardContent className="p-4 flex items-center justify-between gap-3">
-            <div className="space-y-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-sm">{req.title}</span>
-                <RequestStatusBadge status={req.status} />
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="space-y-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-sm">{req.title}</span>
+                  <RequestStatusBadge status={req.status} />
+                </div>
+                {req.description && (
+                  <p className="text-xs text-muted-foreground">
+                    {req.description}
+                  </p>
+                )}
               </div>
-              {req.description && (
-                <p className="text-xs text-muted-foreground">
-                  {req.description}
-                </p>
-              )}
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="text-right text-xs text-muted-foreground">
+                  <span>Submitted {formatDate(req.createdAt)}</span>
+                </div>
+                {permissions.canUpdateRequests ? (
+                  <Select
+                    value={req.status}
+                    onValueChange={(val) => {
+                      if (val) handleStatusChange(req.id, val);
+                    }}
+                    disabled={updatingId === req.id}
+                  >
+                    <SelectTrigger className="w-[130px] h-8 text-xs">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="OPEN">Open</SelectItem>
+                        <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                        <SelectItem value="COMPLETED">Completed</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                ) : null}
+              </div>
             </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <div className="text-right text-xs text-muted-foreground">
-                <span>Submitted {formatDate(req.createdAt)}</span>
+
+            {/* Comments */}
+            <div className="border-t border-border pt-3">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                <MessageSquare className="h-3.5 w-3.5" />
+                <span className="font-medium">
+                  Comments ({req.comments.length})
+                </span>
               </div>
-              {permissions.canUpdateRequests ? (
-                <Select
-                  value={req.status}
-                  onValueChange={(val) => {
-                    if (val) handleStatusChange(req.id, val);
-                  }}
-                  disabled={updatingId === req.id}
-                >
-                  <SelectTrigger className="w-[130px] h-8 text-xs">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="OPEN">Open</SelectItem>
-                      <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-                      <SelectItem value="COMPLETED">Completed</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              ) : null}
+              <DashboardCommentSection
+                targetType="request"
+                targetId={req.id}
+                comments={req.comments}
+                currentUserId={currentUserId}
+              />
             </div>
           </CardContent>
         </Card>

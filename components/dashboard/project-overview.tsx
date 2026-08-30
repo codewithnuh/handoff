@@ -76,39 +76,97 @@ export async function ProjectOverview() {
     },
   ];
 
+  const revenueStats = [
+    {
+      id: "paid-revenue",
+      title: "Paid revenue",
+      value: `$${data.paidRevenue.toLocaleString()}`,
+      description: "Total confirmed payments",
+      icon: DollarSign,
+      color: "text-green-600",
+    },
+    {
+      id: "pending-revenue",
+      title: "Pending revenue",
+      value: `$${data.pendingRevenue.toLocaleString()}`,
+      description: "Sent invoices awaiting payment",
+      icon: Clock,
+      color: "text-blue-600",
+    },
+    {
+      id: "overdue-revenue",
+      title: "Overdue revenue",
+      value: `$${data.overdueRevenue.toLocaleString()}`,
+      description: "Past due invoices",
+      icon: DollarSign,
+      color: "text-red-600",
+    },
+  ];
+
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {stats.map((stat) => {
-        const Icon = stat.icon;
+    <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {stats.map((stat) => {
+          const Icon = stat.icon;
 
-        return (
-          <Card className="shadow-md" key={stat.id}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {stat.title}
-              </CardTitle>
+          return (
+            <Card className="shadow-md" key={stat.id}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {stat.title}
+                </CardTitle>
 
-              <Icon className="size-4 text-muted-foreground" />
-            </CardHeader>
+                <Icon className="size-4 text-muted-foreground" />
+              </CardHeader>
 
-            <CardContent>
-              <div className="text-2xl font-bold tracking-tight">
-                {stat.value}
-              </div>
+              <CardContent>
+                <div className="text-2xl font-bold tracking-tight">
+                  {stat.value}
+                </div>
 
-              <p className="mt-1 text-xs text-muted-foreground">
-                {stat.description}
-              </p>
-
-              {stat.subtext && (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {stat.subtext}
+                  {stat.description}
                 </p>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
+
+                {stat.subtext && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {stat.subtext}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Revenue Overview */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        {revenueStats.map((stat) => {
+          const Icon = stat.icon;
+
+          return (
+            <Card className="shadow-md" key={stat.id}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {stat.title}
+                </CardTitle>
+
+                <Icon className={`size-4 ${stat.color}`} />
+              </CardHeader>
+
+              <CardContent>
+                <div className="text-2xl font-bold tracking-tight">
+                  {stat.value}
+                </div>
+
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {stat.description}
+                </p>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }

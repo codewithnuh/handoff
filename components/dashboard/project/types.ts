@@ -8,6 +8,7 @@ export type ProjectDetailProps = {
   data: import("@/lib/queries/project").ProjectDetailData;
   permissions: ViewerPermissions;
   initialTasks: Task[];
+  currentUserId: string;
 };
 
 export type { ViewerPermissions };

@@ -40,7 +40,7 @@ import { DeleteConfirmDialog } from "./delete-confirm-dialog";
 import { EditProjectDialog } from "./edit-project-dialog";
 import { updateProjectStatus, deleteProject } from "@/lib/actions/project";
 
-export function ProjectDetail({ data, permissions, initialTasks }: ProjectDetailProps) {
+export function ProjectDetail({ data, permissions, initialTasks, currentUserId }: ProjectDetailProps) {
   const { project, deliverables, requests, invoices, activities } = data;
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
@@ -274,13 +274,19 @@ export function ProjectDetail({ data, permissions, initialTasks }: ProjectDetail
             deliverables={deliverables}
             projectId={project.id}
             permissions={permissions}
+            currentUserId={currentUserId}
           />
         </TabsContent>
         <TabsContent value="requests" className="mt-4">
-          <RequestsTab requests={requests} permissions={permissions} />
+          <RequestsTab requests={requests} permissions={permissions} currentUserId={currentUserId} />
         </TabsContent>
         <TabsContent value="invoices" className="mt-4">
-          <InvoicesTab invoices={invoices} />
+          <InvoicesTab
+            invoices={invoices}
+            permissions={permissions}
+            projectId={project.id}
+            approvedDeliverables={data.approvedDeliverables}
+          />
         </TabsContent>
         <TabsContent value="activity" className="mt-4">
           <ActivityTab activities={activities} />

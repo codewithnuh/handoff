@@ -61,6 +61,9 @@ export type DashboardOverviewData = {
   outstandingAmount: number;
   overdueInvoiceCount: number;
   overdueAmount: number;
+  paidRevenue: number;
+  pendingRevenue: number;
+  overdueRevenue: number;
 };
 
 // ──────────────────────────────────────────────
@@ -139,7 +142,7 @@ export async function getDashboardOverview(): Promise<DashboardOverviewData | nu
   }
   const scope = await projectScope(ctx);
 
-  const [activeProjectCount, pendingDeliverables, openRequestCount, invoices] =
+  const [activeProjectCount, pendingDeliverables, openRequestCount, invoices, paidInvoices] =
     await Promise.all([
       db.project.count({
         where: { ...scope, status: "IN_PROGRESS" },
@@ -165,6 +168,13 @@ export async function getDashboardOverview(): Promise<DashboardOverviewData | nu
         },
         select: { amount: true, status: true },
       }),
+      db.invoice.findMany({
+        where: {
+          project: scope,
+          status: "PAID",
+        },
+        select: { amount: true },
+      }),
     ]);
 
   const deliverablesInReviewCount =
@@ -184,6 +194,13 @@ export async function getDashboardOverview(): Promise<DashboardOverviewData | nu
     (sum, i) => sum + Number(i.amount),
     0,
   );
+  const paidRevenue = paidInvoices.reduce(
+    (sum, i) => sum + Number(i.amount),
+    0,
+  );
+  const pendingRevenue = invoices
+    .filter((i) => i.status === "SENT")
+    .reduce((sum, i) => sum + Number(i.amount), 0);
 
   return {
     activeProjectCount,
@@ -195,6 +212,9 @@ export async function getDashboardOverview(): Promise<DashboardOverviewData | nu
     outstandingAmount,
     overdueInvoiceCount: overdueInvoices.length,
     overdueAmount,
+    paidRevenue,
+    pendingRevenue,
+    overdueRevenue: overdueAmount,
   };
 }
 
@@ -290,6 +310,14 @@ export type ProjectDetailData = {
         size: number | null;
       } | null;
     }[];
+    comments: {
+      id: string;
+      content: string;
+      authorUserId: string | null;
+      authorEmail: string | null;
+      authorName: string | null;
+      createdAt: Date;
+    }[];
   }[];
   requests: {
     id: string;
@@ -298,16 +326,42 @@ export type ProjectDetailData = {
     status: string;
     createdAt: Date;
     updatedAt: Date;
+    comments: {
+      id: string;
+      content: string;
+      authorUserId: string | null;
+      authorEmail: string | null;
+      authorName: string | null;
+      createdAt: Date;
+    }[];
   }[];
   invoices: {
     id: string;
     invoiceNumber: string;
     description: string | null;
+    subtotal: string;
+    taxRate: string;
+    taxAmount: string;
     amount: string;
     currency: string;
     dueDate: Date | null;
+    paidAt: Date | null;
+    paymentNotes: string | null;
     status: string;
     createdAt: Date;
+    lineItems: {
+      id: string;
+      description: string;
+      quantity: number;
+      unitPrice: string;
+      amount: string;
+      deliverableId: string | null;
+    }[];
+  }[];
+  approvedDeliverables: {
+    id: string;
+    title: string;
+    description: string | null;
   }[];
   activities: {
     id: string;
@@ -336,7 +390,7 @@ export type ViewerPermissions = {
  */
 export async function getProjectDetailForViewer(
   projectId: string,
-): Promise<{ data: ProjectDetailData; permissions: ViewerPermissions } | null> {
+): Promise<{ data: ProjectDetailData; permissions: ViewerPermissions; currentUserId: string } | null> {
   const access = await resolveProjectAccess(projectId).catch(() => null);
   if (!access || !access.ok) return null;
 
@@ -370,15 +424,51 @@ export async function getProjectDetailForViewer(
             },
           },
         },
+        comments: {
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            content: true,
+            authorUserId: true,
+            authorEmail: true,
+            authorName: true,
+            createdAt: true,
+          },
+        },
       },
     }),
     db.request.findMany({
       where: { projectId },
       orderBy: { createdAt: "desc" },
+      include: {
+        comments: {
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            content: true,
+            authorUserId: true,
+            authorEmail: true,
+            authorName: true,
+            createdAt: true,
+          },
+        },
+      },
     }),
     db.invoice.findMany({
       where: { projectId },
       orderBy: { createdAt: "desc" },
+      include: {
+        lineItems: {
+          select: {
+            id: true,
+            description: true,
+            quantity: true,
+            unitPrice: true,
+            amount: true,
+            deliverableId: true,
+          },
+        },
+      },
     }),
     db.activity.findMany({
       where: { projectId },
@@ -387,6 +477,16 @@ export async function getProjectDetailForViewer(
     }),
   ]);
 
+  // Get approved deliverables not yet linked to any invoice line item
+  const approvedDeliverables = await db.deliverable.findMany({
+    where: {
+      projectId,
+      status: "APPROVED",
+      lineItems: { none: {} },
+    },
+    select: { id: true, title: true, description: true },
+  });
+
   return {
     data: {
       project,
@@ -394,8 +494,17 @@ export async function getProjectDetailForViewer(
       requests,
       invoices: invoices.map((inv) => ({
         ...inv,
+        subtotal: String(inv.subtotal),
+        taxRate: String(inv.taxRate),
+        taxAmount: String(inv.taxAmount),
         amount: String(inv.amount),
+        lineItems: inv.lineItems.map((li) => ({
+          ...li,
+          unitPrice: String(li.unitPrice),
+          amount: String(li.amount),
+        })),
       })),
+      approvedDeliverables,
       activities,
     },
     permissions: {
@@ -407,6 +516,7 @@ export async function getProjectDetailForViewer(
       canUpdateRequests: access.value.canUpdateRequests,
       isObserver: access.value.isObserver,
     },
+    currentUserId: access.value.user.id,
   };
 }
 
@@ -639,6 +749,27 @@ export type PortalProjectDetail = {
       createdAt: Date;
     }[];
   }[];
+  invoices: {
+    id: string;
+    invoiceNumber: string;
+    description: string | null;
+    subtotal: string;
+    taxRate: string;
+    taxAmount: string;
+    amount: string;
+    currency: string;
+    dueDate: Date | null;
+    paidAt: Date | null;
+    paymentNotes: string | null;
+    status: string;
+    createdAt: Date;
+    lineItems: {
+      description: string;
+      quantity: number;
+      unitPrice: string;
+      amount: string;
+    }[];
+  }[];
   activities: {
     id: string;
     type: string;
@@ -681,7 +812,7 @@ export async function getPortalProjectDetail(
 
   if (!project) return null;
 
-  const [deliverables, requests, activities] = await Promise.all([
+  const [deliverables, requests, invoices, activities] = await Promise.all([
     db.deliverable.findMany({
       where: {
         projectId,
@@ -738,6 +869,23 @@ export async function getPortalProjectDetail(
         },
       },
     }),
+    db.invoice.findMany({
+      where: {
+        projectId,
+        status: { in: ["SENT", "PAID", "OVERDUE"] },
+      },
+      orderBy: { createdAt: "desc" },
+      include: {
+        lineItems: {
+          select: {
+            description: true,
+            quantity: true,
+            unitPrice: true,
+            amount: true,
+          },
+        },
+      },
+    }),
     db.activity.findMany({
       where: { projectId },
       orderBy: { createdAt: "desc" },
@@ -745,7 +893,24 @@ export async function getPortalProjectDetail(
     }),
   ]);
 
-  return { project, deliverables, requests, activities };
+  return {
+    project,
+    deliverables,
+    requests,
+    invoices: invoices.map((inv) => ({
+      ...inv,
+      subtotal: String(inv.subtotal),
+      taxRate: String(inv.taxRate),
+      taxAmount: String(inv.taxAmount),
+      amount: String(inv.amount),
+      lineItems: inv.lineItems.map((li) => ({
+        ...li,
+        unitPrice: String(li.unitPrice),
+        amount: String(li.amount),
+      })),
+    })),
+    activities,
+  };
 }
 
 // ──────────────────────────────────────────────
