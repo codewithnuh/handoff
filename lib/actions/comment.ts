@@ -10,23 +10,8 @@ import { ERROR_CODES } from "@/lib/constants/errors";
 import { assertWorkspaceWritable } from "@/lib/services/plan-limits";
 import type { ActionResponseType } from "@/lib/types/action";
 import { ActionResponse } from "@/lib/utils/action-response";
-import { z } from "zod";
-
-// ──────────────────────────────────────────────
-// Validation
-// ──────────────────────────────────────────────
-
-const addCommentSchema = z.object({
-  targetType: z.enum(["deliverable", "request"]),
-  targetId: z.string().min(1),
-  content: z
-    .string()
-    .trim()
-    .min(1, "Comment cannot be empty")
-    .max(5000, "Comment must be at most 5000 characters"),
-});
-
-type AddCommentInput = z.infer<typeof addCommentSchema>;
+import { addCommentSchema } from "@/lib/validation/comment";
+import type { AddCommentInput } from "@/lib/validation/comment";
 
 // ──────────────────────────────────────────────
 // Result types

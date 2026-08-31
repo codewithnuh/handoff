@@ -9,6 +9,7 @@ import {
   requireClientInWorkspace,
   requireWorkspace,
   requireWorkspaceAdmin,
+  requireWorkspacePermission,
   resolveProjectAccess,
   getVisibleProjectIds,
 } from "@/lib/actions/guards";
@@ -118,9 +119,8 @@ export const createProject = async (
     );
   }
 
-  // Creating projects is an owner/admin capability — members work on
-  // projects assigned to them
-  const guard = await requireWorkspaceAdmin();
+  // Creating projects requires CREATE_PROJECTS permission (admins always pass)
+  const guard = await requireWorkspacePermission("CREATE_PROJECTS");
   if (!guard.ok) return guard.error;
 
   const clientInWorkspace = await requireClientInWorkspace(

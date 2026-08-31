@@ -57,6 +57,7 @@ export default async function Layout({
         }
         isAdmin={guard.value.isOwner || guard.value.isAdmin}
         isOwner={guard.value.isOwner}
+        permissions={guard.value.permissions}
         workspaces={workspaces.success ? workspaces.data.items : []}
       />
 

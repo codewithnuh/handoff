@@ -33,6 +33,10 @@ export type WorkspaceListItem = {
   name: string;
   isOwner: boolean;
   isActive: boolean;
+  /** The user's role in this workspace */
+  role: "OWNER" | "ADMIN" | "MEMBER";
+  /** Owner's display name — useful for disambiguating identically-named workspaces */
+  ownerName: string | null;
 };
 export type WorkspaceListResult = { items: WorkspaceListItem[] };
 export type DeleteWorkspaceResult = { deleted: boolean };
@@ -132,7 +136,7 @@ export const listWorkspaces = async (): Promise<
       db.workspace.findMany({
         where: { ownerId: userId },
         orderBy: { createdAt: "asc" },
-        select: { id: true, name: true },
+        select: { id: true, name: true, owner: { select: { name: true } } },
       }),
       db.workspaceMember.findMany({
         where: { userId },
@@ -140,7 +144,9 @@ export const listWorkspaces = async (): Promise<
         select: {
           workspaceId: true,
           role: true,
-          workspace: { select: { id: true, name: true, ownerId: true } },
+          workspace: {
+            select: { id: true, name: true, ownerId: true, owner: { select: { name: true } } },
+          },
         },
       }),
     ]);
@@ -151,6 +157,8 @@ export const listWorkspaces = async (): Promise<
         name: ws.name,
         isOwner: true,
         isActive: ws.id === user?.activeWorkspaceId,
+        role: "OWNER" as const,
+        ownerName: ws.owner.name,
       })),
       ...memberships
         .filter((m) => m.workspace.ownerId !== userId)
@@ -159,6 +167,8 @@ export const listWorkspaces = async (): Promise<
           name: m.workspace.name,
           isOwner: false,
           isActive: m.workspaceId === user?.activeWorkspaceId,
+          role: (m.role === "ADMIN" ? "ADMIN" : "MEMBER") as "ADMIN" | "MEMBER",
+          ownerName: m.workspace.owner.name,
         })),
     ];
 

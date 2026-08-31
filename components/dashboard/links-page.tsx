@@ -54,7 +54,10 @@ import {
 
 const STATUS_CONFIG: Record<
   LinkStatus,
-  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
+  {
+    label: string;
+    variant: "default" | "secondary" | "destructive" | "outline";
+  }
 > = {
   ACTIVE: { label: "Active", variant: "default" },
   EXPIRED: { label: "Expired", variant: "secondary" },
@@ -124,14 +127,17 @@ export function LinksPage({ teamLinks, clientLinks }: LinksPageProps) {
     });
   }, [allLinks, filter, statusFilter, searchQuery]);
 
-  const stats = useMemo(() => ({
-    total: allLinks.length,
-    active: allLinks.filter((l) => l.status === "ACTIVE").length,
-    accepted: allLinks.filter((l) => l.status === "ACCEPTED").length,
-    expired: allLinks.filter((l) => l.status === "EXPIRED").length,
-    team: teamLinks.length,
-    client: clientLinks.length,
-  }), [allLinks, teamLinks, clientLinks]);
+  const stats = useMemo(
+    () => ({
+      total: allLinks.length,
+      active: allLinks.filter((l) => l.status === "ACTIVE").length,
+      accepted: allLinks.filter((l) => l.status === "ACCEPTED").length,
+      expired: allLinks.filter((l) => l.status === "EXPIRED").length,
+      team: teamLinks.length,
+      client: clientLinks.length,
+    }),
+    [allLinks, teamLinks, clientLinks],
+  );
 
   // ── Copy ──
   const copyLink = async (url: string, id: string) => {
@@ -170,7 +176,10 @@ export function LinksPage({ teamLinks, clientLinks }: LinksPageProps) {
     setIsRevoking(true);
     try {
       const ids = Array.from(selectedIds);
-      const result = await bulkRevokeLinks({ ids, type: filter === "team" ? "team" : "client" });
+      const result = await bulkRevokeLinks({
+        ids,
+        type: filter === "team" ? "team" : "client",
+      });
       if (result.success) {
         toast.add({ type: "success", title: result.message });
         setSelectedIds(new Set());
@@ -212,7 +221,7 @@ export function LinksPage({ teamLinks, clientLinks }: LinksPageProps) {
     }).format(new Date(d));
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 p-4 md:p-6">
       {/* ── Header ── */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Links</h1>
@@ -243,17 +252,20 @@ export function LinksPage({ teamLinks, clientLinks }: LinksPageProps) {
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center border border-border rounded-md">
           {(["all", "team", "client"] as const).map((f) => (
-            <button
+            <Button
               key={f}
-              onClick={() => { setFilter(f); setSelectedIds(new Set()); }}
+              onClick={() => {
+                setFilter(f);
+                setSelectedIds(new Set());
+              }}
               className={`px-3 py-1.5 text-xs font-medium capitalize transition-colors ${
                 filter === f
                   ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground"
+                  : "text-gray-200 hover:text-foreground"
               }`}
             >
               {f}
-            </button>
+            </Button>
           ))}
         </div>
 
@@ -304,78 +316,91 @@ export function LinksPage({ teamLinks, clientLinks }: LinksPageProps) {
               <p className="text-sm">No links found</p>
             </div>
           ) : (
-            <div className="divide-y divide-border">
-              {/* Header row */}
-              <div className="grid grid-cols-[32px_1fr_120px_100px_100px_80px] gap-3 items-center px-4 py-2 text-xs font-medium text-muted-foreground bg-muted/30">
-                <Checkbox
-                  checked={selectedIds.size === filteredLinks.length && filteredLinks.length > 0}
-                  onCheckedChange={toggleSelectAll}
-                />
-                <span>Email &middot; Context</span>
-                <span>Type</span>
-                <span>Status</span>
-                <span>Expires</span>
-                <span className="text-right">Actions</span>
-              </div>
+            <div className="w-full overflow-x-auto">
+              <div className="min-w-[700px] divide-y divide-border">
+                {/* Header row */}
+                <div className="grid grid-cols-[32px_1fr_120px_100px_100px_80px] gap-3 items-center px-4 py-2 text-xs font-medium text-muted-foreground bg-muted/30">
+                  <Checkbox
+                    checked={
+                      selectedIds.size === filteredLinks.length &&
+                      filteredLinks.length > 0
+                    }
+                    onCheckedChange={toggleSelectAll}
+                  />
 
-              {/* Data rows */}
-              {filteredLinks.map((link) => {
-                const tc = TYPE_CONFIG[link.type];
-                const sc = STATUS_CONFIG[link.status];
-                return (
-                  <div
-                    key={link.id}
-                    className="grid grid-cols-[32px_1fr_120px_100px_100px_80px] gap-3 items-center px-4 py-3 hover:bg-muted/20 transition-colors"
-                  >
-                    <Checkbox
-                      checked={selectedIds.has(link.id)}
-                      onCheckedChange={() => toggleSelect(link.id)}
-                    />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {link.email}
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {link.contextName}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <tc.icon className={`h-3.5 w-3.5 ${tc.color}`} />
-                      <span className="text-xs">{tc.label}</span>
-                    </div>
-                    <Badge variant={sc.variant} className="w-fit text-xs">
-                      {sc.label}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      {formatDate(link.expiresAt)}
-                    </span>
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => copyLink(link.acceptUrl, link.id)}
-                        title="Copy invite link"
-                      >
-                        {copiedId === link.id ? (
-                          <Check className="h-3.5 w-3.5 text-green-500" />
-                        ) : (
-                          <Copy className="h-3.5 w-3.5" />
-                        )}
-                      </Button>
-                      {link.status === "ACTIVE" && (
+                  <span>Email &middot; Context</span>
+                  <span>Type</span>
+                  <span>Status</span>
+                  <span>Expires</span>
+                  <span className="text-right">Actions</span>
+                </div>
+
+                {/* Data rows */}
+                {filteredLinks.map((link) => {
+                  const tc = TYPE_CONFIG[link.type];
+                  const sc = STATUS_CONFIG[link.status];
+
+                  return (
+                    <div
+                      key={link.id}
+                      className="grid grid-cols-[32px_1fr_120px_100px_100px_80px] gap-3 items-center px-4 py-3 hover:bg-muted/20 transition-colors"
+                    >
+                      <Checkbox
+                        checked={selectedIds.has(link.id)}
+                        onCheckedChange={() => toggleSelect(link.id)}
+                      />
+
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {link.email}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {link.contextName}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <tc.icon className={`h-3.5 w-3.5 ${tc.color}`} />
+                        <span className="text-xs">{tc.label}</span>
+                      </div>
+
+                      <Badge variant={sc.variant} className="w-fit text-xs">
+                        {sc.label}
+                      </Badge>
+
+                      <span className="text-xs text-muted-foreground">
+                        {formatDate(link.expiresAt)}
+                      </span>
+
+                      <div className="flex items-center justify-end gap-1">
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          onClick={() => setRevokeConfirmId(link.id)}
-                          title="Revoke link"
+                          onClick={() => copyLink(link.acceptUrl, link.id)}
+                          title="Copy invite link"
                         >
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          {copiedId === link.id ? (
+                            <Check className="h-3.5 w-3.5 text-green-500" />
+                          ) : (
+                            <Copy className="h-3.5 w-3.5" />
+                          )}
                         </Button>
-                      )}
+
+                        {link.status === "ACTIVE" && (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => setRevokeConfirmId(link.id)}
+                            title="Revoke link"
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           )}
         </CardContent>

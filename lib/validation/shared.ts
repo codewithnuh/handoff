@@ -68,7 +68,7 @@ export const companySchema = optionalNullableString(200, "Company");
 // validator stays automatically in sync with the schema.
 // ──────────────────────────────────────────────
 
-const enumTuple = <T extends string>(obj: Record<string, T>) =>
+export const enumTuple = <T extends string>(obj: Record<string, T>) =>
   Object.values(obj) as [T, ...T[]];
 
 export const projectStatusSchema = z.enum(enumTuple(ProjectStatus));

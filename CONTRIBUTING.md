@@ -55,6 +55,40 @@ pnpm dev
 - Write tests for new actions in `lib/actions/*.test.ts` (Vitest) using the
   existing mock patterns.
 
+## Architecture
+
+### Error handling
+
+All server actions use a single `toActionError()` from `lib/actions/helpers.ts`
+which handles (in order): Better Auth `APIError` (mapped by HTTP status),
+Prisma known errors (P2002→CONFLICT, P2025→NOT_FOUND, etc.), and unknown
+errors (logged, returned as INTERNAL_ERROR). Never create local error mappers.
+
+### Validation
+
+Schemas live in `lib/validation/*.ts` (one per domain). Enum values are
+derived from Prisma via `enumTuple()` from `lib/validation/shared.ts` so they
+stay in sync automatically. Never hardcode enum arrays in Zod schemas.
+
+### Shared constants
+
+Time constants (e.g. invitation TTL) live in `lib/constants/`. Import from
+there — never inline magic numbers like `7 * 24 * 60 * 60 * 1000`.
+
+### UI components
+
+Shared stateful components live in domain subdirectories under
+`components/dashboard/` (e.g. `team/members-section.tsx`). Keep the
+index.tsx as the public API and split large files (>400 lines) into focused
+sub-components. Extract shared constants (badge maps, permission labels)
+to a `constants.ts` in the same directory.
+
+### Tests
+
+Vitest with mocked `@/lib/auth`, `@/lib/prisma`, `next/headers`, and
+`next/cache`. For `better-auth/api` errors, import `APIError` directly
+from `better-auth/api` (no mocking needed — the real class works in tests).
+
 ## Branches & releases
 
 - `master` is the default and should always build green.

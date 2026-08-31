@@ -55,6 +55,7 @@ vi.mock("@/lib/prisma", () => ({
     user: { findUnique: vi.fn(), update: vi.fn() },
     workspace: { findFirst: vi.fn() },
     subscription: { findUnique: vi.fn() },
+    invoice: { findMany: vi.fn() },
   },
 }));
 
@@ -106,7 +107,7 @@ function signForTest(value: string): string {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   mockCookies.mockResolvedValue(mockCookieStore as never);
 });
 
@@ -190,12 +191,10 @@ describe("Full invitation flow: invite → accept → portal access", () => {
       },
     });
 
-    // Assert: cookie was set
-    expect(mockCookieStore.set).toHaveBeenCalledWith(
-      "cp_session",
-      expect.any(String),
-      expect.objectContaining({ httpOnly: true, sameSite: "lax" }),
-    );
+    // Assert: cookie was set via response headers (not cookies().set())
+    const setCookie = response.headers.get("Set-Cookie");
+    expect(setCookie).toBeTruthy();
+    expect(setCookie).toContain("cp_session");
   });
 
   it("step 2: client can resolve session after accepting", async () => {
@@ -349,7 +348,7 @@ describe("Invitation token edge cases", () => {
     expect(body).toContain("Missing invitation token");
   });
 
-  it("already-accepted token is idempotent — re-issues session", async () => {
+  it("already-accepted token redirects to expired page", async () => {
     vi.mocked(db.clientInvitation.findUnique).mockResolvedValue({
       id: "inv-1",
       projectId: PROJECT_ID,
@@ -358,28 +357,21 @@ describe("Invitation token edge cases", () => {
       acceptedAt: new Date(), // already accepted
     } as never);
 
-    vi.mocked(db.clientSession.create).mockResolvedValue({
-      id: "session-new",
-      email: CLIENT_A_EMAIL,
-      token: "new-token",
-      expiresAt: new Date("2099-12-31"),
-      createdAt: new Date(),
-    } as never);
-
     const { GET } = await import("@/app/api/portal/accept/route");
     const url = new URL(
       "http://localhost:3000/api/portal/accept?token=already-accepted",
     );
     const response = await GET(new NextRequest(url.toString()));
 
-    // Should redirect (not error)
+    // Consumed token redirects to the expired page (307)
     expect(response.status).toBe(307);
+    expect(response.headers.get("Location")).toContain("/portal/expired");
 
     // Should NOT call $transaction (skips ProjectAccess creation)
     expect(db.$transaction).not.toHaveBeenCalled();
 
-    // But SHOULD still issue a new session
-    expect(db.clientSession.create).toHaveBeenCalled();
+    // Should NOT create a new session (consumed tokens are single-use)
+    expect(db.clientSession.create).not.toHaveBeenCalled();
   });
 });
 
@@ -599,6 +591,7 @@ describe("Portal queries: data is scoped to client access", () => {
 
     vi.mocked(db.request.findMany).mockResolvedValue([]);
     vi.mocked(db.activity.findMany).mockResolvedValue([]);
+    vi.mocked(db.invoice.findMany).mockResolvedValue([]);
 
     const { getPortalProjectDetail } = await import(
       "@/lib/queries/project"

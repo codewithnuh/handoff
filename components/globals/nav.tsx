@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { motion, useScroll, useTransform } from "motion/react";
+import { IconBrandGithub } from "@tabler/icons-react";
 
 import { Container } from "./container";
 import { Button } from "../ui/button";
@@ -82,6 +83,16 @@ export const Navbar = () => {
                 {link.label}
               </Link>
             ))}
+
+            <Link
+              href="https://github.com/codewithnuh/handoff"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              aria-label="View source on GitHub"
+            >
+              <IconBrandGithub className="size-5" />
+            </Link>
           </motion.div>
 
           {/* Actions */}

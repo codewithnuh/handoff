@@ -16,7 +16,7 @@ export const Container = ({
   return (
     <div
       className={cn(
-        "max-w-6xl mx-auto px-10 relative",
+        "max-w-6xl mx-auto px-4 md:px-10 relative",
 
         // Left perforated border
         leftBorder && [

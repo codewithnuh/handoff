@@ -3,18 +3,13 @@
 import type { File } from "@/app/generated/prisma/client";
 import { db } from "@/lib/prisma";
 import { toActionError } from "@/lib/actions/helpers";
+import { ERROR_CODES } from "@/lib/constants/errors";
 import type { ActionResponseType } from "@/lib/types/action";
 import { ActionResponse } from "@/lib/utils/action-response";
-import { ERROR_CODES } from "@/lib/constants/errors";
+import { createFileSchema } from "@/lib/validation/file";
+import type { CreateFileInput } from "@/lib/validation/file";
 
 export type FileResult = File;
-
-export type CreateFileInput = {
-  key: string;
-  filename: string;
-  mimeType?: string | null;
-  size?: number | null;
-};
 
 /**
  * Creates a File record in the database after an uploadthing upload.
@@ -23,13 +18,22 @@ export type CreateFileInput = {
 export const createFile = async (
   data: CreateFileInput,
 ): Promise<ActionResponseType<FileResult>> => {
+  const validated = createFileSchema.safeParse(data);
+  if (!validated.success) {
+    return ActionResponse.failure(
+      ERROR_CODES.VALIDATION_ERROR,
+      "Invalid input",
+      validated.error.flatten().fieldErrors,
+    );
+  }
+
   try {
     const file = await db.file.create({
       data: {
-        key: data.key,
-        filename: data.filename,
-        mimeType: data.mimeType ?? null,
-        size: data.size ?? null,
+        key: validated.data.key,
+        filename: validated.data.filename,
+        mimeType: validated.data.mimeType ?? null,
+        size: validated.data.size ?? null,
       },
     });
 

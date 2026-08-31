@@ -2,10 +2,17 @@ import { LinksPage } from "@/components/dashboard/links-page";
 import { listAllLinks } from "@/lib/actions/links";
 import { Suspense } from "react";
 import { LinksPageSkeleton } from "@/components/dashboard/links-page";
+import { requireWorkspacePermission } from "@/lib/actions/guards";
+import { redirect } from "next/navigation";
 
 export const metadata = { title: "Links · Handoff" };
 
 export default async function LinksRoute() {
+  const guard = await requireWorkspacePermission("MANAGE_MEMBERS");
+  if (!guard.ok) {
+    redirect(guard.error.error.code === "UNAUTHORIZED" ? "/login" : "/dashboard");
+  }
+
   const result = await listAllLinks();
 
   if (!result.success) {

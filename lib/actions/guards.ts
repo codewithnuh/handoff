@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import type { Workspace } from "@/app/generated/prisma/client";
+import type { Workspace, WorkspacePermission } from "@/app/generated/prisma/client";
 import { db } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import type { AuthUser } from "@/lib/auth";
@@ -50,6 +50,10 @@ export type WorkspaceContext = {
   isOwner: boolean;
   /** True for the owner OR a workspace admin — full control over all projects */
   isAdmin: boolean;
+  /** The user's workspace role (for non-owners: ADMIN or MEMBER) */
+  memberRole: "ADMIN" | "MEMBER" | null;
+  /** Granular permissions assigned to this member (empty for owners who have implicit full access) */
+  permissions: WorkspacePermission[];
 };
 
 /**
@@ -133,17 +137,22 @@ export const requireWorkspace = async (): Promise<
   const isOwner = workspace.ownerId === userId;
 
   let isAdmin = isOwner;
-  if (!isAdmin) {
+  let memberRole: "ADMIN" | "MEMBER" | null = null;
+  let permissions: WorkspacePermission[] = [];
+
+  if (!isOwner) {
     const membership = await db.workspaceMember.findUnique({
       where: { workspaceId_userId: { workspaceId: workspace.id, userId } },
-      select: { role: true },
+      select: { role: true, permissions: true },
     });
     isAdmin = membership?.role === "ADMIN";
+    memberRole = membership?.role ?? null;
+    permissions = membership?.permissions ?? [];
   }
 
   return {
     ok: true,
-    value: { user: authResult.value, workspace, isOwner, isAdmin },
+    value: { user: authResult.value, workspace, isOwner, isAdmin, memberRole, permissions },
   };
 };
 
@@ -163,6 +172,26 @@ export const requireWorkspaceAdmin = async (): Promise<
     };
   }
   return guard;
+};
+
+/**
+ * Requires a specific workspace permission (or owner/admin status).
+ * Owners and admins always pass; non-admins must have the permission in their list.
+ */
+export const requireWorkspacePermission = async (
+  permission: WorkspacePermission,
+): Promise<Guarded<WorkspaceContext>> => {
+  const guard = await requireWorkspace();
+  if (!guard.ok) return guard;
+  if (guard.value.isAdmin) return guard;
+  if (guard.value.permissions.includes(permission)) return guard;
+  return {
+    ok: false,
+    error: ActionResponse.failure(
+      ERROR_CODES.FORBIDDEN,
+      "You don't have permission to perform this action.",
+    ),
+  };
 };
 
 // ──────────────────────────────────────────────

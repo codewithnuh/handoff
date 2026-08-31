@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { requireWorkspace } from "@/lib/actions/guards";
+import { requireWorkspacePermission } from "@/lib/actions/guards";
 import { getWorkspaceUsage } from "@/lib/queries/project";
 import { PlanCards } from "@/components/dashboard/billing/plan-cards";
 
@@ -34,19 +34,9 @@ function UsageBar({
 }
 
 export default async function BillingPage() {
-  const guard = await requireWorkspace();
-  if (!guard.ok) redirect("/login");
-
-  // Billing is an owner/admin surface
-  if (!guard.value.isOwner && !guard.value.isAdmin) {
-    return (
-      <div className="p-4 md:p-6 max-w-5xl">
-        <h1 className="text-2xl font-bold tracking-tight">Billing</h1>
-        <p className="text-sm text-muted-foreground mt-2">
-          Only the workspace owner or an admin can manage billing.
-        </p>
-      </div>
-    );
+  const guard = await requireWorkspacePermission("MANAGE_BILLING");
+  if (!guard.ok) {
+    redirect(guard.error.error.code === "UNAUTHORIZED" ? "/login" : "/dashboard");
   }
 
   const usage = await getWorkspaceUsage();

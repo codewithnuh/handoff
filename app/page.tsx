@@ -7,6 +7,8 @@ import { Footer } from "@/components/landing-page/footer";
 import { Hero } from "@/components/landing-page/hero";
 import { Pricing } from "@/components/landing-page/pricing";
 import { ProblemSection } from "@/components/landing-page/problems";
+import { HowItWorks } from "@/components/landing-page/how-it-works";
+import { Comparison } from "@/components/landing-page/comparison";
 
 export default function Home() {
   return (
@@ -16,7 +18,9 @@ export default function Home() {
         <Hero />
         <WorkflowDemo />
         <ProblemSection />
+        <HowItWorks />
         <FeaturesSection />
+        <Comparison />
         <Pricing />
         <FinalCTA />
       </Container>

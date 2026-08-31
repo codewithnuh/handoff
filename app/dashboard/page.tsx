@@ -5,6 +5,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { getCurrentWorkspace } from "@/lib/actions/workspace";
 import { listClients } from "@/lib/actions/client";
 import { getSession } from "@/lib/actions/auth";
+import { requireWorkspace } from "@/lib/actions/guards";
 import {
   ProjectOverview,
   ProjectOverviewSkeleton,
@@ -60,6 +61,8 @@ async function ActivitySection() {
 // ──────────────────────────────────────────────
 
 export default async function Dashboard() {
+  const guard = await requireWorkspace();
+
   const [workspaceResult, sessionResult, clientsResult] = await Promise.all([
     getCurrentWorkspace(),
     getSession(),
@@ -79,6 +82,15 @@ export default async function Dashboard() {
         user.user.email.split("@")[0].slice(1)
       : "there");
 
+  const canCreateProject =
+    guard.ok &&
+    (guard.value.isAdmin ||
+      guard.value.permissions.includes("CREATE_PROJECTS"));
+  const canManageClients =
+    guard.ok &&
+    (guard.value.isAdmin ||
+      guard.value.permissions.includes("MANAGE_CLIENTS"));
+
   const clients = clientsResult.success
     ? clientsResult.data.items.map((client) => ({
         id: client.id,
@@ -94,6 +106,8 @@ export default async function Dashboard() {
         userName={userName}
         workspaceName={workspaceName}
         clients={clients}
+        canCreateProject={canCreateProject}
+        canManageClients={canManageClients}
       />
 
       {/* Usage & Read-Only banners — server-rendered, parallel with overview */}

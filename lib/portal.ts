@@ -18,13 +18,14 @@ import { cookies } from "next/headers";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/prisma";
 import { env } from "@/env";
+import { INVITE_TTL_SECONDS } from "@/lib/constants/invitations";
 
 // ──────────────────────────────────────────────
 // Constants
 // ──────────────────────────────────────────────
 
 export const CLIENT_COOKIE_NAME = "cp_session";
-export const CLIENT_SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
+export const CLIENT_SESSION_MAX_AGE = INVITE_TTL_SECONDS;
 const SIGNATURE_SEPARATOR = ".";
 
 // ──────────────────────────────────────────────

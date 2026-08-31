@@ -7,7 +7,7 @@ import { toActionError } from "@/lib/actions/helpers";
 import {
   getVisibleProjectIds,
   requireWorkspace,
-  requireWorkspaceAdmin,
+  requireWorkspacePermission,
 } from "@/lib/actions/guards";
 import { assertWorkspaceWritable } from "@/lib/services/plan-limits";
 import { ERROR_CODES } from "@/lib/constants/errors";
@@ -42,14 +42,14 @@ export const listClients = async (): Promise<
   const guard = await requireWorkspace();
   if (!guard.ok) return guard.error;
 
-  // Members only see clients tied to their assigned projects
-  const visibleIds = await getVisibleProjectIds(
-    guard.value.workspace.id,
-    guard.value.user.id,
-    guard.value.isAdmin,
-  );
-
   try {
+    // Members only see clients tied to their assigned projects
+    const visibleIds = await getVisibleProjectIds(
+      guard.value.workspace.id,
+      guard.value.user.id,
+      guard.value.isAdmin,
+    );
+
     const items = await db.client.findMany({
       where: {
         workspaceId: guard.value.workspace.id,
@@ -118,8 +118,8 @@ export const createClient = async (
     );
   }
 
-  // The client directory is workspace-wide — owner/admin manage it
-  const guard = await requireWorkspaceAdmin();
+  // The client directory is workspace-wide — owner/admin or users with MANAGE_CLIENTS permission
+  const guard = await requireWorkspacePermission("MANAGE_CLIENTS");
   if (!guard.ok) return guard.error;
 
   const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
@@ -156,7 +156,7 @@ export const updateClient = async (
     );
   }
 
-  const guard = await requireWorkspaceAdmin();
+  const guard = await requireWorkspacePermission("MANAGE_CLIENTS");
   if (!guard.ok) return guard.error;
 
   const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
@@ -209,7 +209,7 @@ export const deleteClient = async (
     );
   }
 
-  const guard = await requireWorkspaceAdmin();
+  const guard = await requireWorkspacePermission("MANAGE_CLIENTS");
   if (!guard.ok) return guard.error;
 
   const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);

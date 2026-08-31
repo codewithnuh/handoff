@@ -1,22 +1,23 @@
 import { redirect } from "next/navigation";
-import { requireWorkspace } from "@/lib/actions/guards";
+import { requireWorkspacePermission } from "@/lib/actions/guards";
 import { listTeamMembers, listTeamInvites } from "@/lib/actions/team";
 import { getManageableProjects } from "@/lib/queries/project";
-import { TeamManagement } from "@/components/dashboard/team-management";
+import { TeamManagement } from "@/components/dashboard/team";
 
 export const metadata = { title: "Team — Handoff" };
 
 export default async function TeamPage() {
-  const guard = await requireWorkspace();
+  const guard = await requireWorkspacePermission("MANAGE_MEMBERS");
   if (!guard.ok) {
-    redirect("/login");
+    redirect(guard.error.error.code === "UNAUTHORIZED" ? "/login" : "/dashboard");
   }
 
-  const { user, isOwner, isAdmin } = guard.value;
+  const { user, isOwner, isAdmin, permissions } = guard.value;
+  const canManageMembers = isAdmin || permissions.includes("MANAGE_MEMBERS");
 
   const [membersResult, invitesResult, manageable] = await Promise.all([
     listTeamMembers(),
-    isAdmin ? listTeamInvites() : Promise.resolve(null),
+    canManageMembers ? listTeamInvites() : Promise.resolve({ success: true, data: { items: [] } }),
     getManageableProjects(),
   ]);
 
@@ -38,6 +39,7 @@ export default async function TeamPage() {
         isAdmin={isOwner || isAdmin}
         currentUserId={user.id}
         manageableProjects={manageable.projects}
+        permissions={permissions}
       />
     </div>
   );

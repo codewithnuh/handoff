@@ -21,6 +21,7 @@ import {
   Link2,
   Crown,
   X,
+  Key,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -62,10 +63,12 @@ import {
   revokeTeamInvite,
   removeTeamMember,
   updateTeamMemberRole,
+  updateMemberPermissions,
   updateProjectMemberRole,
   removeProjectMember,
   listProjectMembers,
 } from "@/lib/actions/team";
+import type { WorkspacePermission } from "@/app/generated/prisma/client";
 import { useEffect } from "react";
 
 const ROLE_BADGE: Record<
@@ -89,11 +92,10 @@ type Invite = TeamInviteListResult["items"][number];
 interface TeamManagementProps {
   members: Member[];
   invites: Invite[];
-  /** Caller can manage the roster (owner/admin) */
   isAdmin: boolean;
   currentUserId: string;
-  /** Projects whose assignments this caller may manage */
   manageableProjects: TeamAssignmentProject[];
+  permissions?: WorkspacePermission[];
 }
 
 export function TeamManagement({
@@ -102,16 +104,21 @@ export function TeamManagement({
   isAdmin,
   currentUserId,
   manageableProjects,
+  permissions = [],
 }: TeamManagementProps) {
+  const canManageMembers = isAdmin || permissions.includes("MANAGE_MEMBERS");
+
   return (
     <div className="space-y-6">
       <MembersSection
         members={members}
         isAdmin={isAdmin}
         currentUserId={currentUserId}
+        permissions={permissions}
       />
-      {isAdmin && <InvitesSection projects={manageableProjects} invites={invites} />}
-
+      {canManageMembers && (
+        <InvitesSection projects={manageableProjects} invites={invites} />
+      )}
 
       {manageableProjects.length > 0 && (
         <AssignmentsSection projects={manageableProjects} members={members} />
@@ -124,18 +131,71 @@ export function TeamManagement({
 // Members roster
 // ──────────────────────────────────────────────
 
+const ALL_PERMISSIONS: {
+  value: WorkspacePermission;
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: "MANAGE_WORKSPACE",
+    label: "Manage workspace",
+    description: "Rename workspace and change settings",
+  },
+  {
+    value: "MANAGE_MEMBERS",
+    label: "Manage members",
+    description: "Invite, remove, and change member roles",
+  },
+  {
+    value: "MANAGE_CLIENTS",
+    label: "Manage clients",
+    description: "Create, edit, and delete clients",
+  },
+  {
+    value: "MANAGE_PROJECTS",
+    label: "Manage projects",
+    description: "Edit project details and settings",
+  },
+  {
+    value: "CREATE_PROJECTS",
+    label: "Create projects",
+    description: "Create new projects in the workspace",
+  },
+  {
+    value: "VIEW_ALL_PROJECTS",
+    label: "View all projects",
+    description: "See all projects, not just assigned ones",
+  },
+  {
+    value: "MANAGE_BILLING",
+    label: "Manage billing",
+    description: "Access billing and subscription settings",
+  },
+];
+
 function MembersSection({
   members,
   isAdmin,
   currentUserId,
+  permissions = [],
 }: {
   members: Member[];
   isAdmin: boolean;
   currentUserId: string;
+  permissions: WorkspacePermission[];
 }) {
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
+  const [permissionsTarget, setPermissionsTarget] = useState<Member | null>(
+    null,
+  );
+  const [editingPermissions, setEditingPermissions] = useState<
+    WorkspacePermission[]
+  >([]);
+  const [savingPermissions, setSavingPermissions] = useState(false);
+
+  const canManageMembers = isAdmin || permissions.includes("MANAGE_MEMBERS");
 
   const handleRoleChange = async (userId: string, role: string) => {
     setBusyId(userId);
@@ -180,6 +240,41 @@ function MembersSection({
     }
   };
 
+  const openPermissions = (member: Member) => {
+    setPermissionsTarget(member);
+    setEditingPermissions([...member.permissions]);
+  };
+
+  const togglePermission = (perm: WorkspacePermission) => {
+    setEditingPermissions((prev) =>
+      prev.includes(perm) ? prev.filter((p) => p !== perm) : [...prev, perm],
+    );
+  };
+
+  const handleSavePermissions = async () => {
+    if (!permissionsTarget) return;
+    setSavingPermissions(true);
+    try {
+      const result = await updateMemberPermissions({
+        userId: permissionsTarget.userId,
+        permissions: editingPermissions,
+      });
+      if (!result.success) {
+        toast.add({
+          type: "error",
+          title: "Couldn't update permissions",
+          description: result.message,
+        });
+        return;
+      }
+      toast.add({ type: "success", title: "Permissions updated" });
+      setPermissionsTarget(null);
+      router.refresh();
+    } finally {
+      setSavingPermissions(false);
+    }
+  };
+
   return (
     <Card className="shadow-xs">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
@@ -212,13 +307,20 @@ function MembersSection({
                     {m.role === "OWNER" && <Crown className="size-3" />}
                     {badge.label}
                   </Badge>
+                  {!isOwnerRow && m.permissions.length > 0 && (
+                    <Badge variant="outline" className="text-[10px] gap-1">
+                      <Key className="size-2.5" />
+                      {m.permissions.length} perm
+                      {m.permissions.length !== 1 ? "s" : ""}
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground truncate">
                   {m.email}
                 </p>
               </div>
 
-              {isAdmin && !isSelf && (
+              {canManageMembers && !isSelf && (
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     render={<Button variant="ghost" size="icon-sm" />}
@@ -232,22 +334,40 @@ function MembersSection({
                           Change role
                         </div>
                         <DropdownMenuItem
-                          disabled={
-                            busyId === m.userId || m.role === "ADMIN"
-                          }
+                          disabled={busyId === m.userId || m.role === "ADMIN"}
                           onClick={() => handleRoleChange(m.userId, "ADMIN")}
                         >
                           <Shield className="mr-2 h-3.5 w-3.5" />
                           Make Admin
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          disabled={
-                            busyId === m.userId || m.role === "MEMBER"
-                          }
+                          disabled={busyId === m.userId || m.role === "MEMBER"}
                           onClick={() => handleRoleChange(m.userId, "MEMBER")}
                         >
                           <ShieldOff className="mr-2 h-3.5 w-3.5" />
                           Set as Member
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                    {!isOwnerRow && m.role === "MEMBER" && (
+                      <>
+                        <div className="px-2 py-1.5 text-[10px] text-muted-foreground">
+                          Permissions
+                        </div>
+                        <DropdownMenuItem
+                          disabled={busyId === m.userId}
+                          onClick={() => openPermissions(m)}
+                        >
+                          <Key className="mr-2 h-3.5 w-3.5" />
+                          Manage permissions
+                          {m.permissions.length > 0 && (
+                            <Badge
+                              variant="secondary"
+                              className="ml-auto text-[10px]"
+                            >
+                              {m.permissions.length}
+                            </Badge>
+                          )}
                         </DropdownMenuItem>
                       </>
                     )}
@@ -293,6 +413,60 @@ function MembersSection({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={!!permissionsTarget}
+        onOpenChange={(open) => !open && setPermissionsTarget(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Manage permissions</DialogTitle>
+            <DialogDescription>
+              {permissionsTarget?.role === "ADMIN"
+                ? "Admins have full workspace access. These are additional granular permissions."
+                : `Set what ${permissionsTarget?.name} can do beyond default member access.`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-1 max-h-80 overflow-y-auto py-1">
+            {ALL_PERMISSIONS.map((perm) => (
+              <label
+                key={perm.value}
+                className="hover:bg-muted/50 flex cursor-pointer items-start gap-3 rounded-md px-3 py-2.5"
+              >
+                <Checkbox
+                  checked={editingPermissions.includes(perm.value)}
+                  onCheckedChange={() => togglePermission(perm.value)}
+                  aria-label={perm.label}
+                  className="mt-0.5"
+                />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{perm.label}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {perm.description}
+                  </p>
+                </div>
+              </label>
+            ))}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPermissionsTarget(null)}
+              disabled={savingPermissions}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSavePermissions}
+              disabled={savingPermissions}
+            >
+              {savingPermissions ? "Saving..." : "Save permissions"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
@@ -312,6 +486,8 @@ function InvitesSection({
   const [inviteOpen, setInviteOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
+  const [inviteRole, setInviteRole] = useState("MEMBER");
+  const [invitePermissions, setInvitePermissions] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [link, setLink] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -337,6 +513,12 @@ function InvitesSection({
     );
   };
 
+  const togglePermission = (perm: string) => {
+    setInvitePermissions((prev) =>
+      prev.includes(perm) ? prev.filter((p) => p !== perm) : [...prev, perm],
+    );
+  };
+
   const handleInvite = async () => {
     if (!email.trim()) return;
     setSubmitting(true);
@@ -344,6 +526,8 @@ function InvitesSection({
       const result = await inviteTeammate({
         email: email.trim(),
         projectIds: selectedProjects,
+        role: inviteRole as "ADMIN" | "MEMBER",
+        permissions: invitePermissions as WorkspacePermission[],
       });
       if (!result.success) {
         toast.add({
@@ -386,6 +570,8 @@ function InvitesSection({
     if (!open) {
       setEmail("");
       setSelectedProjects([]);
+      setInviteRole("MEMBER");
+      setInvitePermissions([]);
       setLink(null);
     }
   };
@@ -521,6 +707,66 @@ function InvitesSection({
                 />
               </div>
 
+              <div className="flex flex-col gap-1.5">
+                <Label>Workspace role</Label>
+                <Select
+                  value={inviteRole}
+                  onValueChange={(v) => v && setInviteRole(v)}
+                >
+                  <SelectTrigger className="w-full h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="MEMBER">Member</SelectItem>
+                      <SelectItem value="ADMIN">Admin</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <p className="text-muted-foreground text-[10px]">
+                  Admins can manage the workspace. Members see assigned projects
+                  only.
+                </p>
+              </div>
+
+              {inviteRole === "MEMBER" && (
+                <div className="space-y-1.5">
+                  <Label>Permissions</Label>
+                  <div className="border-border divide-border max-h-40 divide-y overflow-y-auto rounded-md border">
+                    {[
+                      { value: "MANAGE_WORKSPACE", label: "Manage workspace", description: "Rename workspace and change settings" },
+                      { value: "MANAGE_MEMBERS", label: "Manage members", description: "Invite, remove, and change member roles" },
+                      { value: "MANAGE_CLIENTS", label: "Manage clients", description: "Create, edit, and delete clients" },
+                      { value: "MANAGE_PROJECTS", label: "Manage projects", description: "Edit project details and settings" },
+                      { value: "CREATE_PROJECTS", label: "Create projects", description: "Create new projects in the workspace" },
+                      { value: "VIEW_ALL_PROJECTS", label: "View all projects", description: "See all projects, not just assigned ones" },
+                      { value: "MANAGE_BILLING", label: "Manage billing", description: "Access billing and subscription settings" },
+                    ].map((perm) => (
+                      <label
+                        key={perm.value}
+                        className="hover:bg-muted/50 flex cursor-pointer items-start gap-2.5 px-3 py-2 text-xs"
+                      >
+                        <Checkbox
+                          checked={invitePermissions.includes(perm.value)}
+                          onCheckedChange={() => togglePermission(perm.value)}
+                          aria-label={perm.label}
+                          className="mt-0.5"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">{perm.label}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {perm.description}
+                          </p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-muted-foreground text-[10px]">
+                    Extra permissions beyond default member access.
+                  </p>
+                </div>
+              )}
+
               {projects.length > 0 && (
                 <div className="space-y-1.5">
                   <Label>Project access</Label>
@@ -552,7 +798,10 @@ function InvitesSection({
               {link ? "Done" : "Cancel"}
             </Button>
             {!link && (
-              <Button onClick={handleInvite} disabled={submitting || !email.trim()}>
+              <Button
+                onClick={handleInvite}
+                disabled={submitting || !email.trim()}
+              >
                 {submitting ? "Creating..." : "Create Invite"}
               </Button>
             )}
@@ -656,7 +905,11 @@ function AssignmentsSection({
         role: role as "LEAD" | "CONTRIBUTOR" | "OBSERVER",
       });
       if (!result.success) {
-        toast.add({ type: "error", title: "Couldn't update", description: result.message });
+        toast.add({
+          type: "error",
+          title: "Couldn't update",
+          description: result.message,
+        });
         return;
       }
       await loadRows(projectId);
@@ -671,7 +924,11 @@ function AssignmentsSection({
     try {
       const result = await removeProjectMember({ projectId, userId });
       if (!result.success) {
-        toast.add({ type: "error", title: "Couldn't remove", description: result.message });
+        toast.add({
+          type: "error",
+          title: "Couldn't remove",
+          description: result.message,
+        });
         return;
       }
       await loadRows(projectId);
@@ -695,10 +952,7 @@ function AssignmentsSection({
       </CardHeader>
       <CardContent className="space-y-4">
         {projects.length > 1 && (
-          <Select
-            value={projectId}
-            onValueChange={(v) => v && setProjectId(v)}
-          >
+          <Select value={projectId} onValueChange={(v) => v && setProjectId(v)}>
             <SelectTrigger className="w-[240px] h-8 text-xs">
               <SelectValue placeholder="Choose project" />
             </SelectTrigger>
@@ -714,7 +968,10 @@ function AssignmentsSection({
           </Select>
         )}
 
-        <div className="rounded-md border border-border min-h-[80px]" data-loading={loading}>
+        <div
+          className="rounded-md border border-border min-h-[80px]"
+          data-loading={loading}
+        >
           {rows === null || loading ? (
             <p className="text-xs text-muted-foreground p-4 text-center">
               Loading…
@@ -775,7 +1032,10 @@ function AssignmentsSection({
         </div>
 
         <div className="flex flex-col sm:flex-row gap-2">
-          <Select value={assignUser} onValueChange={(v) => v && setAssignUser(v)}>
+          <Select
+            value={assignUser}
+            onValueChange={(v) => v && setAssignUser(v)}
+          >
             <SelectTrigger className="w-full sm:w-[220px] h-8 text-xs">
               <SelectValue placeholder="Add member…" />
             </SelectTrigger>
@@ -789,7 +1049,10 @@ function AssignmentsSection({
               </SelectGroup>
             </SelectContent>
           </Select>
-          <Select value={assignRole} onValueChange={(v) => v && setAssignRole(v)}>
+          <Select
+            value={assignRole}
+            onValueChange={(v) => v && setAssignRole(v)}
+          >
             <SelectTrigger className="w-full sm:w-[140px] h-8 text-xs">
               <SelectValue />
             </SelectTrigger>

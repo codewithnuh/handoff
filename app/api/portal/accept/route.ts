@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/prisma";
+import { INVITE_TTL_MS } from "@/lib/constants/invitations";
 import {
   issueClientSession,
   getClientPortalSession,
@@ -107,7 +108,7 @@ export async function GET(request: NextRequest) {
     data: {
       email: invitation.email,
       token: crypto.randomUUID(),
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      expiresAt: new Date(Date.now() + INVITE_TTL_MS),
     },
   });
 

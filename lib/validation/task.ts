@@ -1,11 +1,13 @@
 import { z } from "zod";
+import { TaskStatus } from "@/app/generated/prisma/client";
 import {
   idSchema,
   optionalNullableString,
   titleSchema,
 } from "@/lib/validation/shared";
+import { enumTuple } from "@/lib/validation/shared";
 
-const taskStatusEnum = z.enum(["TODO", "IN_PROGRESS", "DONE"]);
+const taskStatusEnum = z.enum(enumTuple(TaskStatus));
 
 export const createTaskSchema = z.object({
   projectId: idSchema,

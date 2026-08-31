@@ -261,8 +261,11 @@ describe("portal token acceptance logic", () => {
     // Should have created a session
     expect(db.clientSession.create).toHaveBeenCalled();
 
-    // Should have set the cookie
-    expect(mockCookieStore.set).toHaveBeenCalled();
+    // Cookie is set via response headers (not cookies().set()) to avoid
+    // a Next.js redirect + cookie merge issue.
+    const setCookie = response.headers.get("Set-Cookie");
+    expect(setCookie).toBeTruthy();
+    expect(setCookie).toContain("cp_session");
   });
 });
 

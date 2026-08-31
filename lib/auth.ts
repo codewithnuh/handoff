@@ -4,6 +4,7 @@ import { nextCookies } from "better-auth/next-js";
 import { emailOTP } from "better-auth/plugins/email-otp";
 import { env } from "@/env";
 import { db } from "@/lib/prisma";
+import { INVITE_TTL_SECONDS } from "@/lib/constants/invitations";
 import {
   otpEmailHtml,
   resetPasswordEmailHtml,
@@ -60,7 +61,7 @@ export const auth = betterAuth({
     },
   },
   session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 days
+    expiresIn: INVITE_TTL_SECONDS,
     updateAge: 60 * 60 * 24, // refresh every 24 hours
   },
   rateLimit: {
@@ -82,7 +83,6 @@ export const auth = betterAuth({
     },
   },
   plugins: [
-    nextCookies(),
     emailOTP({
       // 6-digit codes valid for 10 minutes, max 5 attempts, stored hashed.
       otpLength: 6,
@@ -101,6 +101,8 @@ export const auth = betterAuth({
         });
       },
     }),
+    // nextCookies must be last so other plugins' Set-Cookie headers are forwarded
+    nextCookies(),
   ],
 });
 

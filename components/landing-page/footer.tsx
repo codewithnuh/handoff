@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { Container } from "../globals/container";
-import { IconHandOff } from "@tabler/icons-react";
 import Image from "next/image";
 
 export function Footer() {
@@ -8,7 +7,6 @@ export function Footer() {
     <footer className="border-t border-border bg-background">
       <Container>
         <div className="flex flex-col gap-8 py-10 sm:flex-row sm:items-center sm:justify-between">
-          {/* Brand */}
           <div>
             <Link
               href="/"
@@ -31,17 +29,16 @@ export function Footer() {
             </Link>
 
             <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
-              A simple way for freelancers to share work, collect feedback, and
-              keep clients in the loop.
+              One link for client approvals. No more chasing answers
+              across email, Slack, and WhatsApp.
             </p>
           </div>
 
-          {/* Navigation */}
           <nav aria-label="Footer navigation">
             <ul className="flex flex-wrap gap-x-6 gap-y-3 text-sm text-muted-foreground">
               <li>
                 <Link
-                  href="/features"
+                  href="/"
                   className="transition-colors hover:text-foreground"
                 >
                   Features
@@ -50,7 +47,7 @@ export function Footer() {
 
               <li>
                 <Link
-                  href="/pricing"
+                  href="/#pricing"
                   className="transition-colors hover:text-foreground"
                 >
                   Pricing
@@ -68,7 +65,7 @@ export function Footer() {
 
               <li>
                 <Link
-                  href="/signup"
+                  href="/register"
                   className="transition-colors hover:text-foreground"
                 >
                   Start free
@@ -78,9 +75,8 @@ export function Footer() {
           </nav>
         </div>
 
-        {/* Bottom */}
         <div className="flex flex-col gap-4 border-t border-border py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} HandOff. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} HandOff. All rights reserved.</p>
 
           <nav aria-label="Legal navigation">
             <ul className="flex gap-5">

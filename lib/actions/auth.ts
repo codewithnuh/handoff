@@ -1,14 +1,13 @@
 "use server";
 
 import { headers } from "next/headers";
-import { APIError } from "better-auth/api";
 import { env } from "@/env";
 import { auth } from "@/lib/auth";
 import type { AuthUser, Session } from "@/lib/auth";
+import { toActionError } from "@/lib/actions/helpers";
 import { ActionResponse } from "@/lib/utils/action-response";
-import type { ActionError, ActionResponseType } from "@/lib/types/action";
+import type { ActionResponseType } from "@/lib/types/action";
 import { ERROR_CODES } from "@/lib/constants/errors";
-import type { ErrorCode } from "@/lib/constants/errors";
 import {
   loginSchema,
   registerSchema,
@@ -35,43 +34,6 @@ export type PasswordResetResult = { status: boolean };
 export type SessionResult = Session | null;
 export type SendOtpResult = { delivered: boolean };
 export type VerifyOtpResult = { verified: boolean };
-
-// ──────────────────────────────────────────────
-// Helpers
-// ──────────────────────────────────────────────
-
-const errorCodeForStatus = (status: number | string): ErrorCode => {
-  const code = typeof status === "string" ? Number(status) : status;
-  switch (code) {
-    case 400:
-    case 422:
-      return ERROR_CODES.VALIDATION_ERROR;
-    case 401:
-      return ERROR_CODES.UNAUTHORIZED;
-    case 403:
-      return ERROR_CODES.FORBIDDEN;
-    case 409:
-      return ERROR_CODES.CONFLICT;
-    case 429:
-      return ERROR_CODES.RATE_LIMITED;
-    default:
-      return ERROR_CODES.INTERNAL_ERROR;
-  }
-};
-
-const toActionError = (error: unknown): ActionError => {
-  if (error instanceof APIError) {
-    return ActionResponse.failure(
-      errorCodeForStatus(error.status),
-      error.message,
-    );
-  }
-  console.error("Unexpected auth action error:", error);
-  return ActionResponse.failure(
-    ERROR_CODES.INTERNAL_ERROR,
-    "Something went wrong. Please try again.",
-  );
-};
 
 // ──────────────────────────────────────────────
 // Server Actions

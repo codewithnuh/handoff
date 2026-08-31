@@ -24,9 +24,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toast";
 import { createWorkspace, switchWorkspace } from "@/lib/actions/workspace";
 import type { WorkspaceListItem } from "@/lib/actions/workspace";
+
+const ROLE_LABEL: Record<string, string> = {
+  OWNER: "Owner",
+  ADMIN: "Admin",
+  MEMBER: "Member",
+};
 
 interface WorkspaceSwitcherProps {
   /** Resolved on the server so there's no client-side loading flash. */
@@ -45,6 +52,9 @@ export function WorkspaceSwitcher({
   const [isCreating, setIsCreating] = useState(false);
 
   const activeWorkspace = workspaces.find((ws) => ws.isActive) ?? workspaces[0];
+
+  const ownedWorkspaces = workspaces.filter((ws) => ws.isOwner);
+  const sharedWorkspaces = workspaces.filter((ws) => !ws.isOwner);
 
   const handleSwitch = (workspaceId: string) => {
     if (workspaceId === activeWorkspace?.id) return;
@@ -115,6 +125,37 @@ export function WorkspaceSwitcher({
   if (workspaces.length === 0 || !activeWorkspace) {
     return null;
   }
+
+  /** Renders a single workspace row in the dropdown */
+  const renderWorkspaceItem = (ws: WorkspaceListItem) => (
+    <DropdownMenuItem
+      key={ws.id}
+      onClick={() => handleSwitch(ws.id)}
+      className="cursor-pointer"
+    >
+      <Check
+        className={cn(
+          "mr-2 size-4",
+          ws.isActive ? "text-primary opacity-100" : "opacity-0",
+        )}
+      />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-sm">{ws.name}</span>
+        {ws.isOwner ? (
+          <span className="text-[10px] text-muted-foreground">Owner</span>
+        ) : (
+          <span className="text-[10px] text-muted-foreground">
+            {ws.ownerName ? `Owned by ${ws.ownerName}` : ROLE_LABEL[ws.role] ?? ws.role}
+          </span>
+        )}
+      </div>
+      {ws.role !== "OWNER" && (
+        <Badge variant="secondary" className="ml-2 text-[10px] shrink-0">
+          {ROLE_LABEL[ws.role] ?? ws.role}
+        </Badge>
+      )}
+    </DropdownMenuItem>
+  );
 
   // Single workspace
   if (workspaces.length === 1) {
@@ -193,29 +234,27 @@ export function WorkspaceSwitcher({
           }
         />
 
-        <DropdownMenuContent align="start" className="w-56">
-          <DropdownMenuGroup>
-            <DropdownMenuLabel className="text-muted-foreground text-xs">
-              Workspaces
-            </DropdownMenuLabel>
+        <DropdownMenuContent align="start" className="w-64">
+          {ownedWorkspaces.length > 0 && (
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="text-muted-foreground text-xs">
+                My Workspaces
+              </DropdownMenuLabel>
+              {ownedWorkspaces.map(renderWorkspaceItem)}
+            </DropdownMenuGroup>
+          )}
 
-            {workspaces.map((ws) => (
-              <DropdownMenuItem
-                key={ws.id}
-                onClick={() => handleSwitch(ws.id)}
-                className="cursor-pointer"
-              >
-                <Check
-                  className={cn(
-                    "mr-2 size-4",
-                    ws.isActive ? "text-primary opacity-100" : "opacity-0",
-                  )}
-                />
-
-                <span className="truncate">{ws.name}</span>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuGroup>
+          {sharedWorkspaces.length > 0 && (
+            <>
+              {ownedWorkspaces.length > 0 && <DropdownMenuSeparator />}
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="text-muted-foreground text-xs">
+                  Shared with me
+                </DropdownMenuLabel>
+                {sharedWorkspaces.map(renderWorkspaceItem)}
+              </DropdownMenuGroup>
+            </>
+          )}
 
           <DropdownMenuSeparator />
 

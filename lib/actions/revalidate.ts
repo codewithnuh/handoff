@@ -10,11 +10,17 @@ const DASHBOARD_PATHS = [
   "/dashboard/projects",
   "/dashboard/projects/[slug]",
   "/dashboard/clients",
+  "/dashboard/team",
+  "/dashboard/settings",
   "/dashboard/portal",
 ] as const;
 
 export function revalidateDashboard(): void {
-  for (const path of DASHBOARD_PATHS) {
-    revalidatePath(path, "layout");
+  try {
+    for (const path of DASHBOARD_PATHS) {
+      revalidatePath(path, "layout");
+    }
+  } catch (error) {
+    console.error("Failed to revalidate dashboard:", error);
   }
 }

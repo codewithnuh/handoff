@@ -2,18 +2,18 @@
 
 import { randomBytes } from "node:crypto";
 import { headers } from "next/headers";
-import type { TeamInvitation } from "@/app/generated/prisma/client";
+import type {
+  TeamInvitation,
+  WorkspacePermission,
+} from "@/app/generated/prisma/client";
 import { db } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { env } from "@/env";
-import {
-  teamInviteEmailHtml,
-  sendEmail,
-} from "@/lib/email";
+import { teamInviteEmailHtml, sendEmail } from "@/lib/email";
 import { toActionError } from "@/lib/actions/helpers";
 import {
   requireWorkspace,
-  requireWorkspaceAdmin,
+  requireWorkspacePermission,
   resolveProjectAccess,
 } from "@/lib/actions/guards";
 import { revalidateDashboard } from "@/lib/actions/revalidate";
@@ -27,6 +27,7 @@ import {
   removeProjectMemberSchema,
   teamInviteIdSchema,
   teamMemberIdSchema,
+  updateMemberPermissionsSchema,
   updateProjectMemberRoleSchema,
   updateTeamMemberRoleSchema,
 } from "@/lib/validation/team";
@@ -37,6 +38,7 @@ import type {
   RemoveProjectMemberInput,
   TeamInviteIdInput,
   TeamMemberIdInput,
+  UpdateMemberPermissionsInput,
   UpdateProjectMemberRoleInput,
   UpdateTeamMemberRoleInput,
 } from "@/lib/validation/team";
@@ -51,6 +53,8 @@ export type TeamMember = {
   email: string;
   /** Workspace standing — owners are not WorkspaceMember rows */
   role: "OWNER" | "ADMIN" | "MEMBER";
+  /** Granular permissions (empty for owners who have implicit full access) */
+  permissions: WorkspacePermission[];
   createdAt: Date;
 };
 
@@ -77,7 +81,7 @@ export type ProjectMemberInfo = {
 
 export type ProjectMemberListResult = { items: ProjectMemberInfo[] };
 
-const INVITE_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+import { INVITE_TTL_MS } from "@/lib/constants/invitations";
 
 /** Builds the public accept URL for an invitation token. */
 const teamAcceptUrl = (token: string) =>
@@ -89,18 +93,28 @@ const teamAcceptUrl = (token: string) =>
 
 /**
  * Creates the membership rows for an accepted invitation:
- * WorkspaceMember (MEMBER) + one ProjectMember (CONTRIBUTOR) per assigned
- * project. Idempotent via unique-constraint upserts.
+ * WorkspaceMember (with role + permissions from the invite) + one ProjectMember
+ * (CONTRIBUTOR) per assigned project. Idempotent via unique-constraint upserts.
  */
 async function grantInvitedAccess(
   workspaceId: string,
   userId: string,
   projectIds: string[],
+  role: "ADMIN" | "MEMBER" = "MEMBER",
+  permissions: string[] = [],
 ) {
   await db.workspaceMember.upsert({
     where: { workspaceId_userId: { workspaceId, userId } },
-    create: { workspaceId, userId, role: "MEMBER" },
-    update: {},
+    create: {
+      workspaceId,
+      userId,
+      role,
+      permissions: permissions as WorkspacePermission[],
+    },
+    update: {
+      role,
+      permissions: permissions as WorkspacePermission[],
+    },
   });
 
   // Only assign projects that actually belong to this workspace
@@ -156,7 +170,7 @@ export const inviteTeammate = async (
     );
   }
 
-  const guard = await requireWorkspaceAdmin();
+  const guard = await requireWorkspacePermission("MANAGE_MEMBERS");
   if (!guard.ok) return guard.error;
 
   try {
@@ -227,6 +241,8 @@ export const inviteTeammate = async (
         token: randomBytes(32).toString("hex"),
         invitedByEmail: guard.value.user.email,
         projectIds: validProjects.map((p) => p.id),
+        role: validated.data.role,
+        permissions: validated.data.permissions,
         expiresAt: new Date(Date.now() + INVITE_TTL_MS),
       },
     });
@@ -264,7 +280,7 @@ export const inviteTeammate = async (
 export const listPendingTeamInvites = async (): Promise<
   ActionResponseType<PendingTeamInviteListResult>
 > => {
-  const guard = await requireWorkspaceAdmin();
+  const guard = await requireWorkspacePermission("MANAGE_MEMBERS");
   if (!guard.ok) return guard.error;
 
   try {
@@ -296,7 +312,7 @@ export const listPendingTeamInvites = async (): Promise<
 export const listTeamInvites = async (): Promise<
   ActionResponseType<TeamInviteListResult>
 > => {
-  const guard = await requireWorkspaceAdmin();
+  const guard = await requireWorkspacePermission("MANAGE_MEMBERS");
   if (!guard.ok) return guard.error;
 
   try {
@@ -339,7 +355,7 @@ export const revokeTeamInvite = async (
     );
   }
 
-  const guard = await requireWorkspaceAdmin();
+  const guard = await requireWorkspacePermission("MANAGE_MEMBERS");
   if (!guard.ok) return guard.error;
 
   try {
@@ -377,7 +393,15 @@ export const listTeamMembers = async (): Promise<
     const members = await db.workspaceMember.findMany({
       where: { workspaceId },
       orderBy: { createdAt: "asc" },
-      include: { user: { select: { id: true, name: true, email: true } } },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
     });
 
     const items: TeamMember[] = [];
@@ -387,6 +411,7 @@ export const listTeamMembers = async (): Promise<
         name: owner.name,
         email: owner.email,
         role: "OWNER",
+        permissions: [],
         createdAt: owner.createdAt,
       });
     }
@@ -396,6 +421,7 @@ export const listTeamMembers = async (): Promise<
         name: m.user.name,
         email: m.user.email,
         role: m.role === "ADMIN" ? "ADMIN" : "MEMBER",
+        permissions: m.permissions,
         createdAt: m.createdAt,
       });
     }
@@ -419,7 +445,7 @@ export const updateTeamMemberRole = async (
     );
   }
 
-  const guard = await requireWorkspaceAdmin();
+  const guard = await requireWorkspacePermission("MANAGE_MEMBERS");
   if (!guard.ok) return guard.error;
 
   const { userId, role } = validated.data;
@@ -449,6 +475,47 @@ export const updateTeamMemberRole = async (
   }
 };
 
+/**
+ * Updates the granular workspace permissions for a member.
+ * Owners always have full access — permissions are only meaningful for non-owner members.
+ * Only admins or users with MANAGE_MEMBERS permission can change permissions.
+ */
+export const updateMemberPermissions = async (
+  data: UpdateMemberPermissionsInput,
+): Promise<ActionResponseType<{ updated: boolean }>> => {
+  const validated = updateMemberPermissionsSchema.safeParse(data);
+  if (!validated.success) {
+    return ActionResponse.failure(
+      ERROR_CODES.VALIDATION_ERROR,
+      "Invalid input",
+      validated.error.flatten().fieldErrors,
+    );
+  }
+
+  const guard = await requireWorkspacePermission("MANAGE_MEMBERS");
+  if (!guard.ok) return guard.error;
+
+  const { userId, permissions } = validated.data;
+
+  if (userId === guard.value.workspace.ownerId) {
+    return ActionResponse.failure(
+      ERROR_CODES.FORBIDDEN,
+      "The workspace owner always has full access. Permissions cannot be modified.",
+    );
+  }
+
+  try {
+    await db.workspaceMember.updateMany({
+      where: { workspaceId: guard.value.workspace.id, userId },
+      data: { permissions: permissions as WorkspacePermission[] },
+    });
+    revalidateDashboard();
+    return ActionResponse.success({ updated: true }, "Permissions updated");
+  } catch (error) {
+    return toActionError(error, { fallback: "Failed to update permissions." });
+  }
+};
+
 /** Removes a teammate and all their project assignments in this workspace. */
 export const removeTeamMember = async (
   data: TeamMemberIdInput,
@@ -462,7 +529,7 @@ export const removeTeamMember = async (
     );
   }
 
-  const guard = await requireWorkspaceAdmin();
+  const guard = await requireWorkspacePermission("MANAGE_MEMBERS");
   if (!guard.ok) return guard.error;
 
   const { userId } = validated.data;
@@ -592,7 +659,10 @@ export const updateProjectMemberRole = async (
       },
     });
     if (!ws) {
-      return ActionResponse.failure(ERROR_CODES.NOT_FOUND, "Project not found.");
+      return ActionResponse.failure(
+        ERROR_CODES.NOT_FOUND,
+        "Project not found.",
+      );
     }
 
     const isWorkspaceMember =
@@ -667,7 +737,12 @@ export const removeProjectMember = async (
 // ──────────────────────────────────────────────
 
 type AcceptInviteState =
-  | { status: "VALID"; email: string; workspaceName: string; projectNameCount: number }
+  | {
+      status: "VALID";
+      email: string;
+      workspaceName: string;
+      projectNameCount: number;
+    }
   | { status: "INVALID"; reason: string };
 
 /**
@@ -719,27 +794,14 @@ export const validateTeamInvite = async (
  */
 export const acceptTeamInvite = async (
   data: AcceptTeamInviteInput,
-): Promise<
-  | { success: true; message: string; data: { workspaceId: string } }
-  | {
-      success: false;
-      message: string;
-      error: { code: string; fieldErrors?: Record<string, string[]> };
-    }
-> => {
+): Promise<ActionResponseType<{ workspaceId: string }>> => {
   const validated = acceptTeamInviteSchema.safeParse(data);
   if (!validated.success) {
-    return {
-      success: false,
-      message: "Invalid input",
-      error: {
-        code: ERROR_CODES.VALIDATION_ERROR,
-        fieldErrors: validated.error.flatten().fieldErrors as Record<
-          string,
-          string[]
-        >,
-      },
-    };
+    return ActionResponse.failure(
+      ERROR_CODES.VALIDATION_ERROR,
+      "Invalid input",
+      validated.error.flatten().fieldErrors as Record<string, string[]>,
+    );
   }
 
   const { token } = validated.data;
@@ -749,11 +811,8 @@ export const acceptTeamInvite = async (
     include: { workspace: { select: { id: true, name: true } } },
   });
 
-  const invalid = (message: string) => ({
-    success: false as const,
-    message,
-    error: { code: ERROR_CODES.NOT_FOUND },
-  });
+  const invalid = (message: string) =>
+    ActionResponse.failure(ERROR_CODES.NOT_FOUND, message);
 
   if (!invitation) return invalid("This invite link is invalid.");
   if (invitation.acceptedAt) {
@@ -770,11 +829,10 @@ export const acceptTeamInvite = async (
 
     if (session?.user) {
       if (session.user.email.toLowerCase() !== invitation.email.toLowerCase()) {
-        return {
-          success: false,
-          message: `This invite is for ${invitation.email}. Sign in with that account to accept it.`,
-          error: { code: ERROR_CODES.FORBIDDEN },
-        };
+        return ActionResponse.failure(
+          ERROR_CODES.FORBIDDEN,
+          `This invite is for ${invitation.email}. Sign in with that account to accept it.`,
+        );
       }
       userId = session.user.id;
     } else {
@@ -785,29 +843,24 @@ export const acceptTeamInvite = async (
         select: { id: true },
       });
       if (existingUser) {
-        return {
-          success: false,
-          message:
-            "This email already has a Handoff account. Sign in with your existing password, then open the invite link again to join.",
-          error: { code: "ACCOUNT_EXISTS" },
-        };
+        return ActionResponse.failure(
+          ERROR_CODES.ACCOUNT_EXISTS,
+          "This email already has a Handoff account. Sign in with your existing password, then open the invite link again to join.",
+        );
       }
 
       // Create the account — this invite IS the sign-up flow
       if (!validated.data.name || !validated.data.password) {
-        return {
-          success: false,
-          message: "Name and password are required to join.",
-          error: {
-            code: ERROR_CODES.VALIDATION_ERROR,
-            fieldErrors: {
-              ...(validated.data.name ? {} : { name: ["Name is required"] }),
-              ...(validated.data.password
-                ? {}
-                : { password: ["Password is required"] }),
-            },
+        return ActionResponse.failure(
+          ERROR_CODES.VALIDATION_ERROR,
+          "Name and password are required to join.",
+          {
+            ...(validated.data.name ? {} : { name: ["Name is required"] }),
+            ...(validated.data.password
+              ? {}
+              : { password: ["Password is required"] }),
           },
-        };
+        );
       }
 
       const result = await auth.api.signUpEmail({
@@ -819,11 +872,10 @@ export const acceptTeamInvite = async (
         headers: await headers(),
       });
       if (!result.user) {
-        return {
-          success: false,
-          message: "Failed to create your account.",
-          error: { code: "INTERNAL_ERROR" as string },
-        };
+        return ActionResponse.failure(
+          ERROR_CODES.INTERNAL_ERROR,
+          "Failed to create your account.",
+        );
       }
       userId = result.user.id;
     }
@@ -833,29 +885,38 @@ export const acceptTeamInvite = async (
         ? "An account with this email already exists. Sign in to accept the invite."
         : "Couldn't accept the invite. Please try again.";
     console.error("acceptTeamInvite error:", error);
-    return { success: false, message, error: { code: "INTERNAL_ERROR" } };
+    return ActionResponse.failure(ERROR_CODES.INTERNAL_ERROR, message);
   }
 
   try {
     const projectIds = Array.isArray(invitation.projectIds)
       ? (invitation.projectIds as string[])
       : [];
+    const inviteRole = invitation.role === "ADMIN" ? "ADMIN" : "MEMBER";
+    const invitePermissions = Array.isArray(invitation.permissions)
+      ? (invitation.permissions as string[])
+      : [];
 
-    await grantInvitedAccess(invitation.workspace.id, userId, projectIds);
+    await grantInvitedAccess(
+      invitation.workspace.id,
+      userId,
+      projectIds,
+      inviteRole,
+      invitePermissions,
+    );
     await db.teamInvitation.update({
       where: { id: invitation.id },
       data: { acceptedAt: new Date() },
     });
 
     revalidateDashboard();
-    return {
-      success: true,
-      message: `Welcome to ${invitation.workspace.name}!`,
-      data: { workspaceId: invitation.workspace.id },
-    };
+    return ActionResponse.success(
+      { workspaceId: invitation.workspace.id },
+      `Welcome to ${invitation.workspace.name}!`,
+    );
   } catch (error) {
     return toActionError(error, {
       fallback: "Couldn't finish setting up your membership.",
-    }) as never;
+    }) as ActionResponseType<{ workspaceId: string }>;
   }
 };

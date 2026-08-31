@@ -3,21 +3,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 const PROBLEMS = [
   {
     number: "01",
-    title: "Scattered questions",
+    title: "\"Did you get my email?\"",
     description:
-      "“What’s the status?” arrives in WhatsApp, email, and Slack — often about work you already sent.",
+      "Your client messages on WhatsApp, emails a revision, and DMs you on Slack. You reply to one, miss the other, and spend 20 minutes hunting for the latest version.",
   },
   {
     number: "02",
-    title: "No single source of truth",
+    title: "\"Which file is the final one?\"",
     description:
-      "Clients dig through old threads looking for the latest file, update, or decision.",
+      "They open the wrong deliverable, approve something you already replaced, or reject a draft you thought was done. Nothing is labeled clearly.",
   },
   {
     number: "03",
-    title: "Unclear decisions",
+    title: "\"I thought we agreed on this.\"",
     description:
-      "Accepts, rejects, and feedback live in different places. Nothing is cleanly recorded.",
+      "Feedback lives in email threads, chat messages, and sticky notes. When something goes wrong, there's no record of who said what or when.",
   },
 ];
 
@@ -25,23 +25,21 @@ export const ProblemSection = () => {
   return (
     <section className="bg-background py-24 text-foreground">
       <div className="mx-auto max-w-6xl px-6">
-        {/* Section heading */}
         <div className="mx-auto max-w-2xl text-center">
           <div className="mb-4 inline-flex items-center rounded-full border border-border bg-secondary px-3 py-1 text-xs font-medium text-muted-foreground">
             The problem
           </div>
 
           <h2 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-            The status update problem
+            Every freelancer knows these moments
           </h2>
 
           <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-muted-foreground">
-            Most freelancers lose time and professionalism to the same messy
-            loops.
+            You did the work. Now you&apos;re stuck chasing replies across
+            five apps instead of moving on to the next project.
           </p>
         </div>
 
-        {/* Problem cards */}
         <div className="mt-12 grid gap-4 md:grid-cols-3">
           {PROBLEMS.map((problem) => (
             <Card
@@ -54,7 +52,6 @@ export const ProblemSection = () => {
                 hover:shadow-md
               "
             >
-              {/* Subtle top line */}
               <div
                 aria-hidden
                 className="
@@ -72,7 +69,6 @@ export const ProblemSection = () => {
                     className="
                       flex size-9 items-center bg-primary text-primary-foreground justify-center
                       rounded-md border border-border
-                    
                       text-xs font-semibold
                       text-muted-foreground
                     "

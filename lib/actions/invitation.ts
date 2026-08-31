@@ -31,7 +31,7 @@ export type ClientInvitationResult = ClientInvitation & {
 export type RevokeAccessResult = { revoked: boolean; email: string; projectId: string };
 export type ResendInvitationResult = ClientInvitationResult;
 
-const INVITE_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+import { INVITE_TTL_MS } from "@/lib/constants/invitations";
 
 const revalidatePortalPages = () => {
   revalidatePath("/dashboard/portal");

@@ -1,13 +1,15 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/prisma";
-import { requireWorkspace } from "@/lib/actions/guards";
+import { requireWorkspacePermission } from "@/lib/actions/guards";
 import { SettingsForm } from "@/components/dashboard/settings-form";
 
 export const metadata = { title: "Settings — Handoff" };
 
 export default async function SettingsPage() {
-  const guard = await requireWorkspace();
-  if (!guard.ok) redirect("/login");
+  const guard = await requireWorkspacePermission("MANAGE_WORKSPACE");
+  if (!guard.ok) {
+    redirect(guard.error.error.code === "UNAUTHORIZED" ? "/login" : "/dashboard");
+  }
 
   const user = await db.user.findUnique({
     where: { id: guard.value.user.id },

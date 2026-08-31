@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { db } from "@/lib/prisma";
-import { getVisibleProjectIds, requireWorkspace } from "@/lib/actions/guards";
+import { getVisibleProjectIds, requireWorkspacePermission } from "@/lib/actions/guards";
 import { ClientList } from "@/components/dashboard/client-list";
 
 // ──────────────────────────────────────────────
@@ -10,7 +10,7 @@ import { ClientList } from "@/components/dashboard/client-list";
 // ──────────────────────────────────────────────
 
 async function ClientsData() {
-  const guard = await requireWorkspace();
+  const guard = await requireWorkspacePermission("MANAGE_CLIENTS");
   if (!guard.ok) return <ClientList clients={[]} />;
 
   // Need-to-know scoping: members only see clients tied to their

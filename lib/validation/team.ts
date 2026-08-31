@@ -1,14 +1,25 @@
 import { z } from "zod";
 import {
+  WorkspaceRole,
+  WorkspacePermission,
+  ProjectRole,
+} from "@/app/generated/prisma/client";
+import {
   emailSchema,
   idSchema,
   nameSchema,
 } from "@/lib/validation/shared";
+import { enumTuple } from "@/lib/validation/shared";
+
+const workspaceRoleSchema = z.enum(enumTuple(WorkspaceRole));
+const workspacePermissionSchema = z.enum(enumTuple(WorkspacePermission));
 
 /** Invite a teammate: email + initial project assignments (need-to-know). */
 export const inviteTeammateSchema = z.object({
   email: emailSchema,
   projectIds: z.array(idSchema).max(50).optional().default([]),
+  role: workspaceRoleSchema.optional().default("MEMBER"),
+  permissions: z.array(workspacePermissionSchema).optional().default([]),
 });
 export type InviteTeammateInput = z.infer<typeof inviteTeammateSchema>;
 
@@ -17,7 +28,7 @@ export type TeamInviteIdInput = z.infer<typeof teamInviteIdSchema>;
 
 export const updateTeamMemberRoleSchema = z.object({
   userId: idSchema,
-  role: z.enum(["ADMIN", "MEMBER"]),
+  role: workspaceRoleSchema,
 });
 export type UpdateTeamMemberRoleInput = z.infer<
   typeof updateTeamMemberRoleSchema
@@ -29,7 +40,7 @@ export type TeamMemberIdInput = z.infer<typeof teamMemberIdSchema>;
 export const updateProjectMemberRoleSchema = z.object({
   projectId: idSchema,
   userId: idSchema,
-  role: z.enum(["LEAD", "CONTRIBUTOR", "OBSERVER"]),
+  role: z.enum(enumTuple(ProjectRole)),
 });
 export type UpdateProjectMemberRoleInput = z.infer<
   typeof updateProjectMemberRoleSchema
@@ -55,3 +66,11 @@ export type AcceptTeamInviteInput = z.infer<typeof acceptTeamInviteSchema>;
 
 export const listProjectMembersSchema = z.object({ projectId: idSchema });
 export type ListProjectMembersInput = z.infer<typeof listProjectMembersSchema>;
+
+export const updateMemberPermissionsSchema = z.object({
+  userId: idSchema,
+  permissions: z.array(workspacePermissionSchema),
+});
+export type UpdateMemberPermissionsInput = z.infer<
+  typeof updateMemberPermissionsSchema
+>;

@@ -6,9 +6,9 @@
  * PRO ($12/mo): 5 workspaces, up to 100 projects each — for studios
  *       running many clients in parallel.
  *
- * When a paid user cancels, they enter a 30-day grace period.
- * After the grace period, the workspace becomes read-only and
- * effective limits drop to FREE tier.
+ * When a paid user cancels, they enter a 30-day grace period
+ * (stored in Subscription.gracePeriodEndsAt). After the grace period,
+ * the workspace becomes read-only and effective limits drop to FREE tier.
  */
 export const PLAN_LIMITS = {
   FREE: {
@@ -22,9 +22,6 @@ export const PLAN_LIMITS = {
 } as const;
 
 export type PlanKey = keyof typeof PLAN_LIMITS;
-
-/** Number of days a workspace stays writable after subscription cancellation. */
-export const DOWNGRADE_GRACE_PERIOD_DAYS = 30;
 
 /**
  * Returns the plan key for a given subscription plan string.

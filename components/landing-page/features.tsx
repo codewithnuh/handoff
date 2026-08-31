@@ -15,20 +15,19 @@ export function FeaturesSection() {
   return (
     <section className="bg-background py-20">
       <div className="mx-auto max-w-6xl px-6">
-        {/* Section heading */}
         <div className="mb-12 max-w-2xl">
-          <p className="mb-3 text-sm font-medium text-primary">FEATURES</p>
+          <p className="mb-3 text-sm font-medium text-primary">What you get</p>
 
           <h2 className="font-heading text-4xl font-semibold tracking-tight text-foreground md:text-5xl">
-            Built for clarity
+            Everything your client needs. Nothing they don&apos;t.
           </h2>
 
           <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
-            Only what freelancers and their clients actually need.
+            No onboarding. No app to install. They open a link and see
+            what&apos;s done, what&apos;s next, and where to leave feedback.
           </p>
         </div>
 
-        {/* Bento Grid */}
         <BentoGrid className="mx-auto max-w-5xl">
           {items.map((item, i) => (
             <BentoGridItem
@@ -48,7 +47,7 @@ export function FeaturesSection() {
 
 const FeatureVisual = ({ index }: { index: number }) => {
   const visuals = [
-    // 0 — Live status clients trust (col-span-2)
+    // 0 — Live status (col-span-2)
     <motion.div
       key={0}
       initial={{ opacity: 0, y: 12 }}
@@ -58,7 +57,6 @@ const FeatureVisual = ({ index }: { index: number }) => {
       className="flex h-full min-h-[10rem] w-full items-center justify-center rounded-xl border border-border bg-muted p-4 md:p-6"
     >
       <div className="flex w-full max-w-md flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-        {/* Deliverable card 1 */}
         <motion.div
           initial={{ opacity: 0, x: -10 }}
           whileInView={{ opacity: 1, x: 0 }}
@@ -93,7 +91,6 @@ const FeatureVisual = ({ index }: { index: number }) => {
           </div>
         </motion.div>
 
-        {/* Deliverable card 2 */}
         <motion.div
           initial={{ opacity: 0, x: -10 }}
           whileInView={{ opacity: 1, x: 0 }}
@@ -130,7 +127,7 @@ const FeatureVisual = ({ index }: { index: number }) => {
       </div>
     </motion.div>,
 
-    // 1 — Accept or reject in context
+    // 1 — Accept or reject
     <motion.div
       key={1}
       initial={{ opacity: 0, y: 12 }}
@@ -140,7 +137,6 @@ const FeatureVisual = ({ index }: { index: number }) => {
       className="flex h-full min-h-[10rem] w-full items-center justify-center rounded-xl border border-border bg-muted p-4"
     >
       <div className="w-full max-w-[13rem] space-y-2">
-        {/* Comment */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
@@ -158,7 +154,6 @@ const FeatureVisual = ({ index }: { index: number }) => {
           </p>
         </motion.div>
 
-        {/* Approve / Reject buttons */}
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -184,7 +179,6 @@ const FeatureVisual = ({ index }: { index: number }) => {
           </motion.button>
         </motion.div>
 
-        {/* Status badge */}
         <motion.div
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
@@ -198,7 +192,7 @@ const FeatureVisual = ({ index }: { index: number }) => {
       </div>
     </motion.div>,
 
-    // 2 — You control visibility
+    // 2 — Control visibility
     <motion.div
       key={2}
       initial={{ opacity: 0, y: 12 }}
@@ -246,7 +240,6 @@ const FeatureVisual = ({ index }: { index: number }) => {
       className="flex h-full min-h-[10rem] w-full items-center justify-center rounded-xl border border-border bg-muted p-4 md:p-6"
     >
       <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-6">
-        {/* Phone mockup */}
         <motion.div
           initial={{ opacity: 0, rotate: -3 }}
           whileInView={{ opacity: 1, rotate: 0 }}
@@ -254,7 +247,6 @@ const FeatureVisual = ({ index }: { index: number }) => {
           transition={{ duration: 0.5, delay: 0.3, type: "spring" }}
           className="relative w-[8rem] shrink-0 rounded-[1rem] border-2 border-border bg-card p-1.5 shadow-md sm:w-[9rem]"
         >
-          {/* Notch */}
           <div className="mx-auto mb-1.5 h-1.5 w-8 rounded-full bg-muted" />
           <div className="space-y-1 rounded-md bg-muted/50 p-1.5">
             <div className="rounded bg-card p-1.5 shadow-sm">
@@ -288,7 +280,6 @@ const FeatureVisual = ({ index }: { index: number }) => {
           </div>
         </motion.div>
 
-        {/* Feature pills */}
         <div className="flex flex-col gap-2">
           {[
             { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2" /><line x1="12" y1="18" x2="12.01" y2="18" /></svg>, title: "Any device", sub: "iPhone, Android, tablet" },
@@ -321,27 +312,27 @@ const FeatureVisual = ({ index }: { index: number }) => {
 
 const items = [
   {
-    title: "Live status clients trust",
+    title: "One link, full picture",
     description:
-      "Deliverables show real progress. No more digging through messages for the latest version.",
+      "Clients see every deliverable, its status, and the latest file. No more 'which version did you send?'",
     icon: <IconChartLine className="h-5 w-5 text-primary" />,
   },
   {
-    title: "Accept or reject in context",
+    title: "Decisions on the spot",
     description:
-      "Clients make decisions directly on the work. Feedback and history stay attached.",
+      "Approve, reject, or comment right on the work. Every decision gets timestamped and stored.",
     icon: <IconCircleCheck className="h-5 w-5 text-primary" />,
   },
   {
-    title: "You control visibility",
+    title: "Show only what matters",
     description:
-      "Share only what you want them to see. Internal notes and drafts stay private.",
+      "Toggle deliverables, drafts, and internal notes on or off per project. Clients never see what they shouldn't.",
     icon: <IconEye className="h-5 w-5 text-primary" />,
   },
   {
-    title: "Works on any phone",
+    title: "Looks good on their phone",
     description:
-      "Most clients open links on mobile. The private view is clean and readable there.",
+      "Most clients open links on mobile. The portal is fast, clean, and readable on any screen.",
     icon: <IconDeviceMobile className="h-5 w-5 text-primary" />,
   },
 ];

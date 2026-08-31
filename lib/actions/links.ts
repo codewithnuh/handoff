@@ -7,14 +7,20 @@
  */
 
 import { db } from "@/lib/prisma";
-import { requireWorkspace, requireWorkspaceAdmin } from "@/lib/actions/guards";
+import { requireWorkspacePermission, requireWorkspaceAdmin } from "@/lib/actions/guards";
 import { revalidateDashboard } from "@/lib/actions/revalidate";
 import { toActionError } from "@/lib/actions/helpers";
 import { ERROR_CODES } from "@/lib/constants/errors";
 import type { ActionResponseType } from "@/lib/types/action";
 import { ActionResponse } from "@/lib/utils/action-response";
-import { z } from "zod";
-import { idSchema } from "@/lib/validation/shared";
+import {
+  revokeLinkSchema,
+  bulkRevokeSchema,
+} from "@/lib/validation/links";
+import type {
+  RevokeLinkInput,
+  BulkRevokeInput,
+} from "@/lib/validation/links";
 
 // ──────────────────────────────────────────────
 // Types
@@ -44,24 +50,6 @@ export type LinksListResult = {
 };
 
 // ──────────────────────────────────────────────
-// Schemas
-// ──────────────────────────────────────────────
-
-const revokeLinkSchema = z.object({
-  id: idSchema,
-  type: z.enum(["team", "client"]),
-});
-
-type RevokeLinkInput = z.infer<typeof revokeLinkSchema>;
-
-const bulkRevokeSchema = z.object({
-  ids: z.array(idSchema).min(1, "Select at least one link"),
-  type: z.enum(["team", "client"]),
-});
-
-type BulkRevokeInput = z.infer<typeof bulkRevokeSchema>;
-
-// ──────────────────────────────────────────────
 // Helpers
 // ──────────────────────────────────────────────
 
@@ -81,7 +69,7 @@ function computeStatus(
 export const listAllLinks = async (): Promise<
   ActionResponseType<LinksListResult>
 > => {
-  const guard = await requireWorkspace();
+  const guard = await requireWorkspacePermission("MANAGE_MEMBERS");
   if (!guard.ok) return guard.error;
 
   try {

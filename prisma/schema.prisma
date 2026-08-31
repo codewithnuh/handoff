@@ -55,6 +55,18 @@ enum WorkspaceRole {
   MEMBER
 }
 
+// Granular workspace-level permissions (assigned to non-owner members).
+// Grouped by scope: workspace, projects, clients, billing.
+enum WorkspacePermission {
+  MANAGE_WORKSPACE
+  MANAGE_MEMBERS
+  MANAGE_CLIENTS
+  MANAGE_PROJECTS
+  CREATE_PROJECTS
+  VIEW_ALL_PROJECTS
+  MANAGE_BILLING
+}
+
 // Project-level roles (override workspace defaults, need-to-know scoping):
 //   LEAD        — full edit + submit to client
 //   CONTRIBUTOR — drafts only; cannot submit to client
@@ -216,6 +228,9 @@ model WorkspaceMember {
   workspaceId String
   userId      String
   role        WorkspaceRole @default(MEMBER)
+  // Granular permissions (empty = member with default access).
+  // Owners always have full access regardless of this field.
+  permissions WorkspacePermission[]
   createdAt   DateTime      @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -248,7 +263,8 @@ model Task {
 }
 
 // Pending teammate invitations. The invite carries the invitee's initial
-// project assignments (need-to-know scoping) as a JSON array of project IDs.
+// project assignments (need-to-know scoping) as a JSON array of project IDs,
+// plus the workspace role and granular permissions to apply on acceptance.
 model TeamInvitation {
   id             String   @id @default(cuid())
   workspaceId    String
@@ -256,6 +272,8 @@ model TeamInvitation {
   token          String   @unique // long random token for the set-password link
   invitedByEmail String? // audit trail — survives inviter deletion
   projectIds     Json? // string[] of projects to assign on accept
+  role           WorkspaceRole @default(MEMBER) // workspace role to assign on accept
+  permissions    Json? // WorkspacePermission[] to apply on accept
   expiresAt      DateTime
   acceptedAt     DateTime?
   createdAt      DateTime @default(now())
