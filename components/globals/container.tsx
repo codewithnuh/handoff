@@ -3,37 +3,19 @@ import { cn } from "@/lib/utils";
 type ContainerProps = {
   children: React.ReactNode;
   className?: string;
-  leftBorder?: boolean;
-  rightBorder?: boolean;
+  border?: boolean;
 };
 
 export const Container = ({
   children,
   className,
-  leftBorder = false,
-  rightBorder = false,
+  border = false,
 }: ContainerProps) => {
   return (
     <div
       className={cn(
-        "max-w-6xl mx-auto px-4 md:px-10 relative",
-
-        // Left perforated border
-        leftBorder && [
-          "before:absolute before:left-0 before:top-0 before:h-full before:w-[3px]",
-          "before:bg-[radial-gradient(circle,_#71717a_1.5px,_transparent_1.5px)]",
-          "before:bg-[length:3px_10px]",
-          "dark:before:bg-[radial-gradient(circle,_#a1a1aa_1.5px,_transparent_1.5px)]",
-        ],
-
-        // Right perforated border
-        rightBorder && [
-          "after:absolute after:right-0 after:top-0 after:h-full after:w-[3px]",
-          "after:bg-[radial-gradient(circle,_#71717a_1.5px,_transparent_1.5px)]",
-          "after:bg-[length:3px_10px]",
-          "dark:after:bg-[radial-gradient(circle,_#a1a1aa_1.5px,_transparent_1.5px)]",
-        ],
-
+        "max-w-6xl mx-auto  px-4 md:px-10 relative",
+        border && "border-l-3 border-r-3 border-dotted",
         className,
       )}
     >

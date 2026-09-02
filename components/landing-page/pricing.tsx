@@ -1,6 +1,9 @@
+"use client";
+
 import { Container } from "@/components/globals/container";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ScrollReveal } from "./scroll-reveal";
 
 const COMPARISON = [
   { feature: "Workspaces", free: "1", pro: "5" },

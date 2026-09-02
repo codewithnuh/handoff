@@ -14,9 +14,9 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-background">
       <Navbar />
-      <Container leftBorder rightBorder>
+      <Container border>
         <Hero />
-        <WorkflowDemo />
+        {/* <WorkflowDemo /> */}
         <ProblemSection />
         <HowItWorks />
         <FeaturesSection />
