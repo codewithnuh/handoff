@@ -6,13 +6,12 @@
  */
 
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Plus, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "@/components/ui/toast";
 import { clientCreateRequest } from "@/lib/actions/portal-actions";
+import { useServerAction } from "@/hooks/use-server-action";
 
 interface RequestFormProps {
   projectId: string;
@@ -22,42 +21,27 @@ export function RequestForm({ projectId }: RequestFormProps) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [loading, setLoading] = useState(false);
-  const router = useRouter();
+  const submit = useServerAction(clientCreateRequest, {
+    success: "Request submitted",
+    failure: "Error",
+    thrown: "Error",
+    thrownDescription: () => "Failed to submit request",
+    onSuccess: () => {
+      setTitle("");
+      setDescription("");
+      setOpen(false);
+    },
+  });
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim() || loading) return;
+    if (!title.trim() || submit.pending) return;
 
-    setLoading(true);
-    try {
-      const result = await clientCreateRequest(
-        projectId,
-        title,
-        description || undefined,
-      );
-      if (result.ok) {
-        setTitle("");
-        setDescription("");
-        setOpen(false);
-        toast.add({ type: "success", title: "Request submitted" });
-        router.refresh();
-      } else {
-        toast.add({
-          type: "error",
-          title: "Error",
-          description: result.error,
-        });
-      }
-    } catch {
-      toast.add({
-        type: "error",
-        title: "Error",
-        description: "Failed to submit request",
-      });
-    } finally {
-      setLoading(false);
-    }
+    await submit.run({
+      projectId,
+      title,
+      description: description || undefined,
+    });
   }
 
   if (!open) {
@@ -109,8 +93,8 @@ export function RequestForm({ projectId }: RequestFormProps) {
         className="text-xs resize-none"
       />
       <div className="flex items-center gap-2">
-        <Button type="submit" size="sm" disabled={!title.trim() || loading}>
-          {loading ? (
+        <Button type="submit" size="sm" disabled={!title.trim() || submit.pending}>
+          {submit.pending ? (
             <RefreshCw className="size-3.5 mr-1.5 animate-spin" />
           ) : (
             <Plus className="size-3.5 mr-1.5" />

@@ -2,14 +2,8 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
-import { IconAlertOctagon } from "@tabler/icons-react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ErrorPanel } from "@/components/presentational/error-panel";
 
 /** Hook-based button so the class boundary can navigate via the App Router */
 function SignInButton() {
@@ -65,39 +59,30 @@ export class DashboardError extends React.Component<
       return (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Card className="shadow-xs" key={i}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-destructive">
-                  {isAuthError ? "Session expired" : "Error loading data"}
-                </CardTitle>
-                <IconAlertOctagon className="size-4 text-destructive" />
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground">
-                  {isAuthError
-                    ? "Your session has expired. Please sign in again."
-                    : isNetworkError
-                      ? "A network error occurred. Check your connection and try again."
-                      : this.state.error?.message ||
-                        "An unexpected error occurred."}
-                </p>
-                {isAuthError ? (
-                  <SignInButton />
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
+            <ErrorPanel
+              key={i}
+              error={this.state.error ?? new Error("Unknown error")}
+              logLabel="Dashboard section error:"
+              title={isAuthError ? "Session expired" : "Error loading data"}
+              description={
+                isAuthError
+                  ? "Your session has expired. Please sign in again."
+                  : isNetworkError
+                    ? "A network error occurred. Check your connection and try again."
+                    : this.state.error?.message ||
+                      "An unexpected error occurred."
+              }
+              contentClassName="space-y-3"
+              actions={isAuthError ? <SignInButton /> : undefined}
+              retry={
+                isAuthError
+                  ? undefined
+                  : () => {
                       this.setState({ hasError: false, error: null });
                       window.location.reload();
-                    }}
-                    className="mt-3"
-                  >
-                    Try again
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
+                    }
+              }
+            />
           ))}
         </div>
       );

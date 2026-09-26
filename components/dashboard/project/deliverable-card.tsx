@@ -33,15 +33,16 @@ import {
 import { toast } from "@/components/ui/toast";
 import { FileUpload, type UploadedFile } from "@/components/ui/file-upload";
 import type { ViewerPermissions } from "./types";
-import type { ProjectDetailData } from "@/lib/queries/project";
+import type { ProjectDetailData } from "@/lib/queries/project-detail";
 import {
   updateDeliverable,
   deleteDeliverable,
   addDeliverableVersion,
 } from "@/lib/actions/deliverable";
 import { createFile } from "@/lib/actions/file";
+import { useServerAction } from "@/hooks/use-server-action";
 import { DeliverableStatusBadge } from "./status-badges";
-import { formatDate } from "./format";
+import { formatDate } from "@/lib/presentational/format";
 import { DeleteConfirmDialog } from "./delete-confirm-dialog";
 import { DashboardCommentSection } from "./comment-section";
 
@@ -58,12 +59,43 @@ export function DeliverableCard({
 }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
   const [versionNotes, setVersionNotes] = useState("");
   const router = useRouter();
+
+  const remove = useServerAction(deleteDeliverable, {
+    success: "Deliverable deleted",
+    successDescription: () => "The deliverable has been removed.",
+    failure: "Delete failed",
+    onSuccess: () => setDeleteOpen(false),
+  });
+
+  const uploadFile = useServerAction(createFile, {
+    failure: "Upload failed",
+    refresh: false,
+  });
+
+  const addVersion = useServerAction(addDeliverableVersion, {
+    failure: "Version creation failed",
+    refresh: false,
+  });
+
+  const statusChange = useServerAction(updateDeliverable, {
+    success: "Status updated",
+    successDescription: (data) =>
+      `Deliverable marked as ${data.status.replace(/_/g, " ").toLowerCase()}.`,
+    failure: (error) =>
+      error.code === "CONFLICT" ? "Outdated view" : "Update failed",
+    failureDescription: (error, message) =>
+      error.code === "CONFLICT"
+        ? "This deliverable was changed by your client. Refreshing…"
+        : message,
+    thrownDescription: () => "Please try again.",
+    onError: () => router.refresh(),
+    onThrown: () => router.refresh(),
+  });
+
+  const isUploading = uploadFile.pending || addVersion.pending;
 
   const isDraft = item.status === "DRAFT";
   const canSubmit = permissions.canSubmitForReview;
@@ -71,139 +103,58 @@ export function DeliverableCard({
 
   const handleStatusChange = async (newStatus: string) => {
     if (newStatus === item.status) return;
-    setIsUpdatingStatus(true);
-    try {
-      const result = await updateDeliverable({
-        id: item.id,
-        status: newStatus as
-          | "DRAFT"
-          | "IN_REVIEW"
-          | "CHANGES_REQUESTED"
-          | "APPROVED",
-        expectedVersion: item.version,
-      });
-      if (!result.success) {
-        toast.add({
-          type: "error",
-          title:
-            result.error.code === "CONFLICT"
-              ? "Outdated view"
-              : "Update failed",
-          description:
-            result.error.code === "CONFLICT"
-              ? "This deliverable was changed by your client. Refreshing…"
-              : result.message,
-        });
-      } else {
-        toast.add({
-          type: "success",
-          title: "Status updated",
-          description: `Deliverable marked as ${newStatus.replace(/_/g, " ").toLowerCase()}.`,
-        });
-      }
-    } catch {
-      toast.add({
-        type: "error",
-        title: "Something went wrong",
-        description: "Please try again.",
-      });
-    } finally {
-      setIsUpdatingStatus(false);
-      router.refresh();
-    }
+    await statusChange.run({
+      id: item.id,
+      status: newStatus as
+        | "DRAFT"
+        | "IN_REVIEW"
+        | "CHANGES_REQUESTED"
+        | "APPROVED",
+      expectedVersion: item.version,
+    });
   };
 
   const handleDelete = async () => {
-    setIsDeleting(true);
-    try {
-      const result = await deleteDeliverable({ id: item.id });
-      if (!result.success) {
-        toast.add({
-          type: "error",
-          title: "Delete failed",
-          description: result.message,
-        });
-      } else {
-        toast.add({
-          type: "success",
-          title: "Deliverable deleted",
-          description: "The deliverable has been removed.",
-        });
-        setDeleteOpen(false);
-      }
-    } catch {
-      toast.add({
-        type: "error",
-        title: "Something went wrong",
-        description: "Please try again.",
-      });
-    } finally {
-      setIsDeleting(false);
-      router.refresh();
-    }
+    await remove.run({ id: item.id });
   };
 
   const handleUploadVersion = async () => {
     if (!uploadedFile) return;
-    setIsUploading(true);
-    try {
-      // 1. Save file metadata
-      const fileResult = await createFile({
-        key: uploadedFile.key,
-        filename: uploadedFile.name,
-        mimeType: uploadedFile.type,
-        size: uploadedFile.size,
-      });
 
-      if (!fileResult.success) {
-        toast.add({
-          type: "error",
-          title: "Upload failed",
-          description: fileResult.message,
-        });
-        return;
-      }
+    // 1. Save file metadata
+    const fileResult = await uploadFile.run({
+      key: uploadedFile.key,
+      filename: uploadedFile.name,
+      mimeType: uploadedFile.type,
+      size: uploadedFile.size,
+    });
 
-      // 2. Create new version
-      const nextVersion = item.versions.length > 0
-        ? Math.max(...item.versions.map((v) => v.versionNumber)) + 1
-        : 1;
+    if (!fileResult?.success) return;
 
-      const versionResult = await addDeliverableVersion({
-        deliverableId: item.id,
-        versionNumber: nextVersion,
-        fileId: fileResult.data.id,
-        notes: versionNotes.trim() || null,
-      });
+    // 2. Create new version
+    const nextVersion = item.versions.length > 0
+      ? Math.max(...item.versions.map((v) => v.versionNumber)) + 1
+      : 1;
 
-      if (!versionResult.success) {
-        toast.add({
-          type: "error",
-          title: "Version creation failed",
-          description: versionResult.message,
-        });
-        return;
-      }
+    const versionResult = await addVersion.run({
+      deliverableId: item.id,
+      versionNumber: nextVersion,
+      fileId: fileResult.data.id,
+      notes: versionNotes.trim() || null,
+    });
 
-      toast.add({
-        type: "success",
-        title: "Version uploaded",
-        description: `Version ${nextVersion} has been added.`,
-      });
+    if (!versionResult?.success) return;
 
-      setUploadedFile(null);
-      setVersionNotes("");
-      setUploadOpen(false);
-      router.refresh();
-    } catch {
-      toast.add({
-        type: "error",
-        title: "Something went wrong",
-        description: "Please try again.",
-      });
-    } finally {
-      setIsUploading(false);
-    }
+    toast.add({
+      type: "success",
+      title: "Version uploaded",
+      description: `Version ${nextVersion} has been added.`,
+    });
+
+    setUploadedFile(null);
+    setVersionNotes("");
+    setUploadOpen(false);
+    router.refresh();
   };
 
   return (
@@ -241,7 +192,7 @@ export function DeliverableCard({
                   {canSubmit && isDraft && (
                     <DropdownMenuItem
                       onClick={() => handleStatusChange("IN_REVIEW")}
-                      disabled={isUpdatingStatus}
+                      disabled={statusChange.pending}
                     >
                       <Circle className="h-3.5 w-3.5" />
                       Submit for Review
@@ -250,7 +201,7 @@ export function DeliverableCard({
                   {canSubmit && !isDraft && (
                     <DropdownMenuItem
                       onClick={() => handleStatusChange("DRAFT")}
-                      disabled={isUpdatingStatus}
+                      disabled={statusChange.pending}
                     >
                       <Circle className="h-3.5 w-3.5" />
                       Move back to Draft
@@ -384,7 +335,7 @@ export function DeliverableCard({
           onConfirm={handleDelete}
           title="Delete Deliverable"
           description={`Are you sure you want to delete "${item.title}"? This action cannot be undone.`}
-          isDeleting={isDeleting}
+          isDeleting={remove.pending}
         />
       )}
     </>

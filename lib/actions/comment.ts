@@ -2,16 +2,14 @@
 
 import type { Comment } from "@/app/generated/prisma/client";
 import { db } from "@/lib/prisma";
-import { recordActivity } from "@/lib/actions/activity";
-import { revalidateDashboard } from "@/lib/actions/revalidate";
-import { toActionError } from "@/lib/actions/helpers";
-import { resolveProjectAccess } from "@/lib/actions/guards";
+import { actorOf, recordActivity } from "@/lib/actions/activity";
+import { defineAction } from "@/lib/actions/define";
+import { resolveProjectAccess } from "@/lib/access";
 import { ERROR_CODES } from "@/lib/constants/errors";
 import { assertWorkspaceWritable } from "@/lib/services/plan-limits";
 import type { ActionResponseType } from "@/lib/types/action";
 import { ActionResponse } from "@/lib/utils/action-response";
 import { addCommentSchema } from "@/lib/validation/comment";
-import type { AddCommentInput } from "@/lib/validation/comment";
 
 // ──────────────────────────────────────────────
 // Result types
@@ -27,21 +25,14 @@ export type CommentResult = Comment;
  * Freelancer adds a comment to a deliverable or request.
  * Uses authorUserId (not authorEmail like the client portal).
  */
-export const addComment = async (
-  data: AddCommentInput,
-): Promise<ActionResponseType<CommentResult>> => {
-  const validated = addCommentSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
+export const addComment = defineAction({
+  schema: addCommentSchema,
+  guard: null,
+  revalidate: true,
+  errors: { fallback: "Failed to add comment." },
+  run: async (input): Promise<ActionResponseType<CommentResult>> => {
+    const { targetType, targetId, content } = input;
 
-  const { targetType, targetId, content } = validated.data;
-
-  try {
     // Verify the target exists and get project ID
     let projectId: string;
 
@@ -95,15 +86,10 @@ export const addComment = async (
     await recordActivity({
       projectId,
       type: "COMMENT_ADDED",
-      actorUserId: access.value.user.id,
-      actorEmail: access.value.user.email,
-      actorName: access.value.user.name,
+      ...actorOf(access.value.user),
       meta: { targetType, targetId, preview: content.slice(0, 100) },
     });
 
-    revalidateDashboard();
     return ActionResponse.success(comment, "Comment added");
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to add comment." });
-  }
-};
+  },
+});

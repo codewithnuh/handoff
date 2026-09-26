@@ -13,6 +13,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CommentSection } from "./comment-section";
 import { RequestForm } from "./request-form";
+import { EmptyState } from "@/components/presentational/empty-state";
+import { formatDate } from "@/lib/presentational/format";
+import { REQUEST_STATUS_CONFIG } from "@/lib/presentational/status";
 
 export interface PortalRequest {
   id: string;
@@ -38,23 +41,6 @@ interface RequestSectionProps {
   viewerEmail?: string;
 }
 
-const REQUEST_STATUS: Record<
-  string,
-  { label: string; variant: "default" | "secondary" | "outline" }
-> = {
-  OPEN: { label: "Open", variant: "secondary" },
-  IN_PROGRESS: { label: "In Progress", variant: "default" },
-  COMPLETED: { label: "Completed", variant: "outline" },
-};
-
-function formatDate(date: Date): string {
-  return new Date(date).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
 export function RequestSection({
   projectId,
   requests,
@@ -75,19 +61,16 @@ export function RequestSection({
       </div>
       <div className="border-dotted border-neutral-500 border-t" />
       {requests.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-muted-foreground/25 bg-muted/25 p-12 text-center">
-          <div className="mx-auto flex size-10 items-center justify-center rounded-full bg-muted">
-            <Inbox className="size-5 text-muted-foreground" />
-          </div>
-          <h3 className="mt-3 text-sm font-semibold">No requests yet</h3>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Submit a request to ask for changes or new work.
-          </p>
-        </div>
+        <EmptyState
+          icon={<Inbox className="size-5 text-muted-foreground" />}
+          title="No requests yet"
+          description="Submit a request to ask for changes or new work."
+        />
       ) : (
         <div className="space-y-3 ">
           {requests.map((req) => {
-            const rStatus = REQUEST_STATUS[req.status] ?? REQUEST_STATUS.OPEN;
+            const rStatus =
+              REQUEST_STATUS_CONFIG[req.status] ?? REQUEST_STATUS_CONFIG.OPEN;
 
             return (
               <Card key={req.id} className="shadow-xs">

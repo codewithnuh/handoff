@@ -10,13 +10,11 @@ import { db } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { env } from "@/env";
 import { teamInviteEmailHtml, sendEmail } from "@/lib/email";
-import { toActionError } from "@/lib/actions/helpers";
+import { defineAction } from "@/lib/actions/define";
 import {
-  requireWorkspace,
   requireWorkspacePermission,
   resolveProjectAccess,
-} from "@/lib/actions/guards";
-import { revalidateDashboard } from "@/lib/actions/revalidate";
+} from "@/lib/access";
 import { ERROR_CODES } from "@/lib/constants/errors";
 import type { ActionResponseType } from "@/lib/types/action";
 import { ActionResponse } from "@/lib/utils/action-response";
@@ -30,17 +28,6 @@ import {
   updateMemberPermissionsSchema,
   updateProjectMemberRoleSchema,
   updateTeamMemberRoleSchema,
-} from "@/lib/validation/team";
-import type {
-  AcceptTeamInviteInput,
-  InviteTeammateInput,
-  ListProjectMembersInput,
-  RemoveProjectMemberInput,
-  TeamInviteIdInput,
-  TeamMemberIdInput,
-  UpdateMemberPermissionsInput,
-  UpdateProjectMemberRoleInput,
-  UpdateTeamMemberRoleInput,
 } from "@/lib/validation/team";
 
 // ──────────────────────────────────────────────
@@ -158,29 +145,22 @@ async function grantInvitedAccess(
  * Invites a teammate by generating a set-password link.
  * The selected projects become their need-to-know scope on acceptance.
  */
-export const inviteTeammate = async (
-  data: InviteTeammateInput,
-): Promise<ActionResponseType<TeammateInviteResult>> => {
-  const validated = inviteTeammateSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  const guard = await requireWorkspacePermission("MANAGE_MEMBERS");
-  if (!guard.ok) return guard.error;
-
-  try {
-    const workspaceId = guard.value.workspace.id;
-    const email = validated.data.email.toLowerCase();
+export const inviteTeammate = defineAction({
+  schema: inviteTeammateSchema,
+  guard: () => requireWorkspacePermission("MANAGE_MEMBERS"),
+  revalidate: true,
+  errors: { fallback: "Failed to create the invite." },
+  run: async (
+    input,
+    ctx,
+  ): Promise<ActionResponseType<TeammateInviteResult>> => {
+    const workspaceId = ctx.workspace.id;
+    const email = input.email.toLowerCase();
 
     // ── Account boundary guards ──
     // Don't invite someone who's already on the team.
     const owner = await db.user.findUnique({
-      where: { id: guard.value.workspace.ownerId },
+      where: { id: ctx.workspace.ownerId },
       select: { email: true },
     });
     if (owner?.email.toLowerCase() === email) {
@@ -228,7 +208,7 @@ export const inviteTeammate = async (
     // Validate assigned projects belong to this workspace
     const validProjects = await db.project.findMany({
       where: {
-        id: { in: validated.data.projectIds ?? [] },
+        id: { in: input.projectIds ?? [] },
         workspaceId,
       },
       select: { id: true },
@@ -239,10 +219,10 @@ export const inviteTeammate = async (
         workspaceId,
         email,
         token: randomBytes(32).toString("hex"),
-        invitedByEmail: guard.value.user.email,
+        invitedByEmail: ctx.user.email,
         projectIds: validProjects.map((p) => p.id),
-        role: validated.data.role,
-        permissions: validated.data.permissions,
+        role: input.role,
+        permissions: input.permissions,
         expiresAt: new Date(Date.now() + INVITE_TTL_MS),
       },
     });
@@ -251,42 +231,36 @@ export const inviteTeammate = async (
     // as a fallback, so a transport failure must not fail the invite.
     await sendEmail({
       to: email,
-      subject: `You've been invited to ${guard.value.workspace.name} on Handoff`,
+      subject: `You've been invited to ${ctx.workspace.name} on Handoff`,
       text:
-        `${guard.value.user.name} invited you to collaborate in ` +
-        `"${guard.value.workspace.name}". Accept here: ${teamAcceptUrl(invitation.token)}`,
+        `${ctx.user.name} invited you to collaborate in ` +
+        `"${ctx.workspace.name}". Accept here: ${teamAcceptUrl(invitation.token)}`,
       html: teamInviteEmailHtml(
-        guard.value.user.name,
-        guard.value.workspace.name,
+        ctx.user.name,
+        ctx.workspace.name,
         teamAcceptUrl(invitation.token),
       ),
     }).catch((err) => {
       console.error("Failed to send team invite email:", err);
     });
 
-    revalidateDashboard();
     return ActionResponse.success(
       { ...invitation, acceptUrl: teamAcceptUrl(invitation.token) },
       existingUser
         ? "Invite link generated. They already use Handoff, so they'll sign in with their existing password to accept it."
         : "Invite link generated. Copy and share it with your teammate.",
     );
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to create the invite." });
-  }
-};
+  },
+});
 
 /** Lists pending (unaccepted, unexpired) teammate invites with accept URLs. */
-export const listPendingTeamInvites = async (): Promise<
-  ActionResponseType<PendingTeamInviteListResult>
-> => {
-  const guard = await requireWorkspacePermission("MANAGE_MEMBERS");
-  if (!guard.ok) return guard.error;
-
-  try {
+export const listPendingTeamInvites = defineAction({
+  guard: () => requireWorkspacePermission("MANAGE_MEMBERS"),
+  errors: { fallback: "Failed to load invites." },
+  run: async (ctx): Promise<ActionResponseType<PendingTeamInviteListResult>> => {
     const invitations = await db.teamInvitation.findMany({
       where: {
-        workspaceId: guard.value.workspace.id,
+        workspaceId: ctx.workspace.id,
         acceptedAt: null,
       },
       orderBy: { createdAt: "desc" },
@@ -300,25 +274,20 @@ export const listPendingTeamInvites = async (): Promise<
       },
       "Invites loaded",
     );
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to load invites." });
-  }
-};
+  },
+});
 
 /**
  * Lists ALL invites for the workspace (newest first) with a computed
  * status so owners can see when an invite was accepted.
  */
-export const listTeamInvites = async (): Promise<
-  ActionResponseType<TeamInviteListResult>
-> => {
-  const guard = await requireWorkspacePermission("MANAGE_MEMBERS");
-  if (!guard.ok) return guard.error;
-
-  try {
+export const listTeamInvites = defineAction({
+  guard: () => requireWorkspacePermission("MANAGE_MEMBERS"),
+  errors: { fallback: "Failed to load invites." },
+  run: async (ctx): Promise<ActionResponseType<TeamInviteListResult>> => {
     const now = new Date();
     const invitations = await db.teamInvitation.findMany({
-      where: { workspaceId: guard.value.workspace.id },
+      where: { workspaceId: ctx.workspace.id },
       orderBy: { createdAt: "desc" },
       take: 50,
     });
@@ -337,56 +306,37 @@ export const listTeamInvites = async (): Promise<
       },
       "Invites loaded",
     );
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to load invites." });
-  }
-};
+  },
+});
 
 /** Revokes a pending invite — the link stops working immediately. */
-export const revokeTeamInvite = async (
-  data: TeamInviteIdInput,
-): Promise<ActionResponseType<{ revoked: boolean }>> => {
-  const validated = teamInviteIdSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  const guard = await requireWorkspacePermission("MANAGE_MEMBERS");
-  if (!guard.ok) return guard.error;
-
-  try {
+export const revokeTeamInvite = defineAction({
+  schema: teamInviteIdSchema,
+  guard: () => requireWorkspacePermission("MANAGE_MEMBERS"),
+  revalidate: true,
+  errors: { fallback: "Failed to revoke the invite." },
+  run: async (input, ctx): Promise<ActionResponseType<{ revoked: boolean }>> => {
     await db.teamInvitation.deleteMany({
       where: {
-        id: validated.data.id,
-        workspaceId: guard.value.workspace.id,
+        id: input.id,
+        workspaceId: ctx.workspace.id,
       },
     });
-    revalidateDashboard();
     return ActionResponse.success({ revoked: true }, "Invite revoked");
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to revoke the invite." });
-  }
-};
+  },
+});
 
 /**
  * Lists everyone with access to the active workspace:
  * the owner first, then admins and members.
  */
-export const listTeamMembers = async (): Promise<
-  ActionResponseType<TeamMemberListResult>
-> => {
-  const guard = await requireWorkspace();
-  if (!guard.ok) return guard.error;
-
-  try {
-    const workspaceId = guard.value.workspace.id;
+export const listTeamMembers = defineAction({
+  errors: { fallback: "Failed to load team members." },
+  run: async (ctx): Promise<ActionResponseType<TeamMemberListResult>> => {
+    const workspaceId = ctx.workspace.id;
 
     const owner = await db.user.findUnique({
-      where: { id: guard.value.workspace.ownerId },
+      where: { id: ctx.workspace.ownerId },
       select: { id: true, name: true, email: true, createdAt: true },
     });
 
@@ -427,128 +377,92 @@ export const listTeamMembers = async (): Promise<
     }
 
     return ActionResponse.success({ items }, "Team members loaded");
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to load team members." });
-  }
-};
+  },
+});
 
 /** Promotes/demotes between ADMIN and MEMBER. Owner's standing is fixed. */
-export const updateTeamMemberRole = async (
-  data: UpdateTeamMemberRoleInput,
-): Promise<ActionResponseType<{ updated: boolean }>> => {
-  const validated = updateTeamMemberRoleSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  const guard = await requireWorkspacePermission("MANAGE_MEMBERS");
-  if (!guard.ok) return guard.error;
-
-  const { userId, role } = validated.data;
-
-  if (userId === guard.value.workspace.ownerId) {
-    return ActionResponse.failure(
-      ERROR_CODES.FORBIDDEN,
-      "The workspace owner's role cannot be changed.",
-    );
-  }
-  if (userId === guard.value.user.id && role === "MEMBER") {
-    return ActionResponse.failure(
-      ERROR_CODES.FORBIDDEN,
-      "You cannot demote yourself.",
-    );
-  }
-
-  try {
+export const updateTeamMemberRole = defineAction({
+  schema: updateTeamMemberRoleSchema,
+  guard: () => requireWorkspacePermission("MANAGE_MEMBERS"),
+  check: [
+    (ctx, input) =>
+      input.userId === ctx.workspace.ownerId
+        ? ActionResponse.failure(
+            ERROR_CODES.FORBIDDEN,
+            "The workspace owner's role cannot be changed.",
+          )
+        : null,
+    (ctx, input) =>
+      input.userId === ctx.user.id && input.role === "MEMBER"
+        ? ActionResponse.failure(
+            ERROR_CODES.FORBIDDEN,
+            "You cannot demote yourself.",
+          )
+        : null,
+  ],
+  revalidate: true,
+  errors: { fallback: "Failed to update the role." },
+  run: async (input, ctx): Promise<ActionResponseType<{ updated: boolean }>> => {
     await db.workspaceMember.updateMany({
-      where: { workspaceId: guard.value.workspace.id, userId },
-      data: { role },
+      where: { workspaceId: ctx.workspace.id, userId: input.userId },
+      data: { role: input.role },
     });
-    revalidateDashboard();
     return ActionResponse.success({ updated: true }, "Role updated");
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to update the role." });
-  }
-};
+  },
+});
 
 /**
  * Updates the granular workspace permissions for a member.
  * Owners always have full access — permissions are only meaningful for non-owner members.
  * Only admins or users with MANAGE_MEMBERS permission can change permissions.
  */
-export const updateMemberPermissions = async (
-  data: UpdateMemberPermissionsInput,
-): Promise<ActionResponseType<{ updated: boolean }>> => {
-  const validated = updateMemberPermissionsSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  const guard = await requireWorkspacePermission("MANAGE_MEMBERS");
-  if (!guard.ok) return guard.error;
-
-  const { userId, permissions } = validated.data;
-
-  if (userId === guard.value.workspace.ownerId) {
-    return ActionResponse.failure(
-      ERROR_CODES.FORBIDDEN,
-      "The workspace owner always has full access. Permissions cannot be modified.",
-    );
-  }
-
-  try {
+export const updateMemberPermissions = defineAction({
+  schema: updateMemberPermissionsSchema,
+  guard: () => requireWorkspacePermission("MANAGE_MEMBERS"),
+  check: (ctx, input) =>
+    input.userId === ctx.workspace.ownerId
+      ? ActionResponse.failure(
+          ERROR_CODES.FORBIDDEN,
+          "The workspace owner always has full access. Permissions cannot be modified.",
+        )
+      : null,
+  revalidate: true,
+  errors: { fallback: "Failed to update permissions." },
+  run: async (input, ctx): Promise<ActionResponseType<{ updated: boolean }>> => {
     await db.workspaceMember.updateMany({
-      where: { workspaceId: guard.value.workspace.id, userId },
-      data: { permissions: permissions as WorkspacePermission[] },
+      where: { workspaceId: ctx.workspace.id, userId: input.userId },
+      data: { permissions: input.permissions as WorkspacePermission[] },
     });
-    revalidateDashboard();
     return ActionResponse.success({ updated: true }, "Permissions updated");
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to update permissions." });
-  }
-};
+  },
+});
 
 /** Removes a teammate and all their project assignments in this workspace. */
-export const removeTeamMember = async (
-  data: TeamMemberIdInput,
-): Promise<ActionResponseType<{ removed: boolean }>> => {
-  const validated = teamMemberIdSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
+export const removeTeamMember = defineAction({
+  schema: teamMemberIdSchema,
+  guard: () => requireWorkspacePermission("MANAGE_MEMBERS"),
+  check: [
+    (ctx, input) =>
+      input.userId === ctx.workspace.ownerId
+        ? ActionResponse.failure(
+            ERROR_CODES.FORBIDDEN,
+            "The workspace owner cannot be removed.",
+          )
+        : null,
+    (ctx, input) =>
+      input.userId === ctx.user.id
+        ? ActionResponse.failure(
+            ERROR_CODES.FORBIDDEN,
+            "You cannot remove yourself. Ask another admin or the owner.",
+          )
+        : null,
+  ],
+  revalidate: true,
+  errors: { fallback: "Failed to remove the member." },
+  run: async (input, ctx): Promise<ActionResponseType<{ removed: boolean }>> => {
+    const { userId } = input;
+    const workspaceId = ctx.workspace.id;
 
-  const guard = await requireWorkspacePermission("MANAGE_MEMBERS");
-  if (!guard.ok) return guard.error;
-
-  const { userId } = validated.data;
-  const workspaceId = guard.value.workspace.id;
-
-  if (userId === guard.value.workspace.ownerId) {
-    return ActionResponse.failure(
-      ERROR_CODES.FORBIDDEN,
-      "The workspace owner cannot be removed.",
-    );
-  }
-  if (userId === guard.value.user.id) {
-    return ActionResponse.failure(
-      ERROR_CODES.FORBIDDEN,
-      "You cannot remove yourself. Ask another admin or the owner.",
-    );
-  }
-
-  try {
     await db.$transaction([
       db.projectMember.deleteMany({
         where: { userId, project: { workspaceId } },
@@ -564,12 +478,9 @@ export const removeTeamMember = async (
       })
       .catch(() => {});
 
-    revalidateDashboard();
     return ActionResponse.success({ removed: true }, "Member removed");
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to remove the member." });
-  }
-};
+  },
+});
 
 // ──────────────────────────────────────────────
 // Server Actions — per-project assignments
@@ -579,24 +490,16 @@ export const removeTeamMember = async (
  * Lists a project's assigned members (for the project team picker).
  * Requires at least view access to the project.
  */
-export const listProjectMembers = async (
-  data: ListProjectMembersInput,
-): Promise<ActionResponseType<ProjectMemberListResult>> => {
-  const validated = listProjectMembersSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  const access = await resolveProjectAccess(validated.data.projectId);
-  if (!access.ok) return access.error;
-
-  try {
+export const listProjectMembers = defineAction({
+  schema: listProjectMembersSchema,
+  guard: (input) => resolveProjectAccess(input.projectId),
+  errors: { fallback: "Failed to load project members." },
+  run: async (
+    input,
+    ctx,
+  ): Promise<ActionResponseType<ProjectMemberListResult>> => {
     const rows = await db.projectMember.findMany({
-      where: { projectId: access.value.projectId },
+      where: { projectId: ctx.projectId },
       orderBy: { createdAt: "asc" },
       include: { user: { select: { id: true, name: true, email: true } } },
     });
@@ -609,47 +512,29 @@ export const listProjectMembers = async (
     }));
 
     return ActionResponse.success({ items }, "Project members loaded");
-  } catch (error) {
-    return toActionError(error, {
-      fallback: "Failed to load project members.",
-    });
-  }
-};
+  },
+});
 
 /**
  * Assigns a workspace member to a project with a role, or updates their
  * existing role. Admins can do this anywhere; leads within their projects.
  * Assignments are limited to actual workspace members.
  */
-export const updateProjectMemberRole = async (
-  data: UpdateProjectMemberRoleInput,
-): Promise<ActionResponseType<{ updated: boolean }>> => {
-  const validated = updateProjectMemberRoleSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
+export const updateProjectMemberRole = defineAction({
+  schema: updateProjectMemberRoleSchema,
+  guard: (input) => resolveProjectAccess(input.projectId),
+  check: (ctx) =>
+    ctx.role === "OWNER" || ctx.role === "ADMIN" || ctx.role === "LEAD"
+      ? null
+      : ActionResponse.failure(
+          ERROR_CODES.FORBIDDEN,
+          "Only the owner, an admin, or the project lead can manage access.",
+        ),
+  revalidate: true,
+  errors: { fallback: "Failed to update assignment." },
+  run: async (input): Promise<ActionResponseType<{ updated: boolean }>> => {
+    const { projectId, userId, role } = input;
 
-  const access = await resolveProjectAccess(validated.data.projectId);
-  if (!access.ok) return access.error;
-
-  const allowed =
-    access.value.role === "OWNER" ||
-    access.value.role === "ADMIN" ||
-    access.value.role === "LEAD";
-  if (!allowed) {
-    return ActionResponse.failure(
-      ERROR_CODES.FORBIDDEN,
-      "Only the owner, an admin, or the project lead can manage access.",
-    );
-  }
-
-  const { projectId, userId, role } = validated.data;
-
-  try {
     // Target must be part of the workspace (owner counts too)
     const ws = await db.project.findUnique({
       where: { id: projectId },
@@ -684,53 +569,33 @@ export const updateProjectMemberRole = async (
       update: { role },
     });
 
-    revalidateDashboard();
     return ActionResponse.success({ updated: true }, "Assignment updated");
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to update assignment." });
-  }
-};
+  },
+});
 
 /** Revokes a user's access to a specific project. */
-export const removeProjectMember = async (
-  data: RemoveProjectMemberInput,
-): Promise<ActionResponseType<{ removed: boolean }>> => {
-  const validated = removeProjectMemberSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  const access = await resolveProjectAccess(validated.data.projectId);
-  if (!access.ok) return access.error;
-
-  const allowed =
-    access.value.role === "OWNER" ||
-    access.value.role === "ADMIN" ||
-    access.value.role === "LEAD";
-  if (!allowed) {
-    return ActionResponse.failure(
-      ERROR_CODES.FORBIDDEN,
-      "Only the owner, an admin, or the project lead can manage access.",
-    );
-  }
-
-  try {
+export const removeProjectMember = defineAction({
+  schema: removeProjectMemberSchema,
+  guard: (input) => resolveProjectAccess(input.projectId),
+  check: (ctx) =>
+    ctx.role === "OWNER" || ctx.role === "ADMIN" || ctx.role === "LEAD"
+      ? null
+      : ActionResponse.failure(
+          ERROR_CODES.FORBIDDEN,
+          "Only the owner, an admin, or the project lead can manage access.",
+        ),
+  revalidate: true,
+  errors: { fallback: "Failed to remove access." },
+  run: async (input): Promise<ActionResponseType<{ removed: boolean }>> => {
     await db.projectMember.deleteMany({
       where: {
-        projectId: validated.data.projectId,
-        userId: validated.data.userId,
+        projectId: input.projectId,
+        userId: input.userId,
       },
     });
-    revalidateDashboard();
     return ActionResponse.success({ removed: true }, "Access removed");
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to remove access." });
-  }
-};
+  },
+});
 
 // ──────────────────────────────────────────────
 // Server Actions — accepting an invite (public)
@@ -792,103 +657,98 @@ export const validateTeamInvite = async (
  * - Signed in with a different account → rejected.
  * - Signed out → creates the account (name + password), then grants access.
  */
-export const acceptTeamInvite = async (
-  data: AcceptTeamInviteInput,
-): Promise<ActionResponseType<{ workspaceId: string }>> => {
-  const validated = acceptTeamInviteSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors as Record<string, string[]>,
-    );
-  }
+export const acceptTeamInvite = defineAction({
+  schema: acceptTeamInviteSchema,
+  guard: null,
+  revalidate: true,
+  errors: { fallback: "Couldn't finish setting up your membership." },
+  run: async (
+    input,
+  ): Promise<ActionResponseType<{ workspaceId: string }>> => {
+    const { token } = input;
 
-  const { token } = validated.data;
+    const invitation = await db.teamInvitation.findUnique({
+      where: { token },
+      include: { workspace: { select: { id: true, name: true } } },
+    });
 
-  const invitation = await db.teamInvitation.findUnique({
-    where: { token },
-    include: { workspace: { select: { id: true, name: true } } },
-  });
+    const invalid = (message: string) =>
+      ActionResponse.failure(ERROR_CODES.NOT_FOUND, message);
 
-  const invalid = (message: string) =>
-    ActionResponse.failure(ERROR_CODES.NOT_FOUND, message);
-
-  if (!invitation) return invalid("This invite link is invalid.");
-  if (invitation.acceptedAt) {
-    return invalid("This invite has already been used.");
-  }
-  if (invitation.expiresAt <= new Date()) {
-    return invalid("This invite has expired.");
-  }
-
-  // Who is accepting?
-  let userId: string;
-  try {
-    const session = await auth.api.getSession({ headers: await headers() });
-
-    if (session?.user) {
-      if (session.user.email.toLowerCase() !== invitation.email.toLowerCase()) {
-        return ActionResponse.failure(
-          ERROR_CODES.FORBIDDEN,
-          `This invite is for ${invitation.email}. Sign in with that account to accept it.`,
-        );
-      }
-      userId = session.user.id;
-    } else {
-      // No session. If this email already belongs to a Handoff account,
-      // NEVER create a second password for it — direct them to sign in.
-      const existingUser = await db.user.findUnique({
-        where: { email: invitation.email },
-        select: { id: true },
-      });
-      if (existingUser) {
-        return ActionResponse.failure(
-          ERROR_CODES.ACCOUNT_EXISTS,
-          "This email already has a Handoff account. Sign in with your existing password, then open the invite link again to join.",
-        );
-      }
-
-      // Create the account — this invite IS the sign-up flow
-      if (!validated.data.name || !validated.data.password) {
-        return ActionResponse.failure(
-          ERROR_CODES.VALIDATION_ERROR,
-          "Name and password are required to join.",
-          {
-            ...(validated.data.name ? {} : { name: ["Name is required"] }),
-            ...(validated.data.password
-              ? {}
-              : { password: ["Password is required"] }),
-          },
-        );
-      }
-
-      const result = await auth.api.signUpEmail({
-        body: {
-          name: validated.data.name,
-          email: invitation.email,
-          password: validated.data.password,
-        },
-        headers: await headers(),
-      });
-      if (!result.user) {
-        return ActionResponse.failure(
-          ERROR_CODES.INTERNAL_ERROR,
-          "Failed to create your account.",
-        );
-      }
-      userId = result.user.id;
+    if (!invitation) return invalid("This invite link is invalid.");
+    if (invitation.acceptedAt) {
+      return invalid("This invite has already been used.");
     }
-  } catch (error) {
-    const message =
-      error instanceof Error && error.message.includes("already registered")
-        ? "An account with this email already exists. Sign in to accept the invite."
-        : "Couldn't accept the invite. Please try again.";
-    console.error("acceptTeamInvite error:", error);
-    return ActionResponse.failure(ERROR_CODES.INTERNAL_ERROR, message);
-  }
+    if (invitation.expiresAt <= new Date()) {
+      return invalid("This invite has expired.");
+    }
 
-  try {
+    // Who is accepting?
+    let userId: string;
+    try {
+      const session = await auth.api.getSession({ headers: await headers() });
+
+      if (session?.user) {
+        if (session.user.email.toLowerCase() !== invitation.email.toLowerCase()) {
+          return ActionResponse.failure(
+            ERROR_CODES.FORBIDDEN,
+            `This invite is for ${invitation.email}. Sign in with that account to accept it.`,
+          );
+        }
+        userId = session.user.id;
+      } else {
+        // No session. If this email already belongs to a Handoff account,
+        // NEVER create a second password for it — direct them to sign in.
+        const existingUser = await db.user.findUnique({
+          where: { email: invitation.email },
+          select: { id: true },
+        });
+        if (existingUser) {
+          return ActionResponse.failure(
+            ERROR_CODES.ACCOUNT_EXISTS,
+            "This email already has a Handoff account. Sign in with your existing password, then open the invite link again to join.",
+          );
+        }
+
+        // Create the account — this invite IS the sign-up flow
+        if (!input.name || !input.password) {
+          return ActionResponse.failure(
+            ERROR_CODES.VALIDATION_ERROR,
+            "Name and password are required to join.",
+            {
+              ...(input.name ? {} : { name: ["Name is required"] }),
+              ...(input.password
+                ? {}
+                : { password: ["Password is required"] }),
+            },
+          );
+        }
+
+        const result = await auth.api.signUpEmail({
+          body: {
+            name: input.name,
+            email: invitation.email,
+            password: input.password,
+          },
+          headers: await headers(),
+        });
+        if (!result.user) {
+          return ActionResponse.failure(
+            ERROR_CODES.INTERNAL_ERROR,
+            "Failed to create your account.",
+          );
+        }
+        userId = result.user.id;
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.includes("already registered")
+          ? "An account with this email already exists. Sign in to accept the invite."
+          : "Couldn't accept the invite. Please try again.";
+      console.error("acceptTeamInvite error:", error);
+      return ActionResponse.failure(ERROR_CODES.INTERNAL_ERROR, message);
+    }
+
     const projectIds = Array.isArray(invitation.projectIds)
       ? (invitation.projectIds as string[])
       : [];
@@ -909,14 +769,9 @@ export const acceptTeamInvite = async (
       data: { acceptedAt: new Date() },
     });
 
-    revalidateDashboard();
     return ActionResponse.success(
       { workspaceId: invitation.workspace.id },
       `Welcome to ${invitation.workspace.name}!`,
     );
-  } catch (error) {
-    return toActionError(error, {
-      fallback: "Couldn't finish setting up your membership.",
-    }) as ActionResponseType<{ workspaceId: string }>;
-  }
-};
+  },
+});

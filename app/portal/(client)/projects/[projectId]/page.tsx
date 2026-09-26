@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { requireClientSession } from "@/lib/portal";
-import { getPortalProjectDetail } from "@/lib/queries/project";
+import { requirePortalSession } from "@/lib/access";
+import { getPortalProjectDetail } from "@/lib/queries/project-detail";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,32 +21,23 @@ import { DeliverableActions } from "@/components/portal/deliverable-actions";
 import { CommentSection } from "@/components/portal/comment-section";
 import { RequestSection } from "@/components/portal/request-section";
 import { PortalInvoiceSection } from "@/components/portal/invoice-detail";
+import { EmptyState } from "@/components/presentational/empty-state";
+import { formatDate, formatDateTime } from "@/lib/presentational/format";
+import {
+  PROJECT_STATUS_OPTIONS,
+  deliverableStatusOption,
+  projectStatusOption,
+} from "@/lib/presentational/status";
 
 // ──────────────────────────────────────────────
 // Status Config
 // ──────────────────────────────────────────────
 
-const PROJECT_STATUS: Record<
-  string,
-  {
-    label: string;
-    variant: "default" | "secondary" | "outline" | "destructive";
-  }
-> = {
-  PLANNING: { label: "Planning", variant: "secondary" },
-  IN_PROGRESS: { label: "In Progress", variant: "default" },
-  COMPLETED: { label: "Completed", variant: "outline" },
-  CANCELLED: { label: "Cancelled", variant: "destructive" },
-};
-
-const DELIVERABLE_STATUS: Record<
-  string,
-  { label: string; icon: typeof Circle }
-> = {
-  DRAFT: { label: "Draft", icon: Circle },
-  IN_REVIEW: { label: "In Review", icon: CircleDashed },
-  CHANGES_REQUESTED: { label: "Changes Requested", icon: Circle },
-  APPROVED: { label: "Approved", icon: CheckCircle2 },
+const DELIVERABLE_STATUS_ICONS: Record<string, typeof Circle> = {
+  DRAFT: Circle,
+  IN_REVIEW: CircleDashed,
+  CHANGES_REQUESTED: Circle,
+  APPROVED: CheckCircle2,
 };
 
 const ACTIVITY_LABELS: Record<string, string> = {
@@ -71,25 +62,6 @@ const ACTIVITY_LABELS: Record<string, string> = {
 // Format Helpers
 // ──────────────────────────────────────────────
 
-function formatDate(date: Date | null): string {
-  if (!date) return "N/A";
-  return new Date(date).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function formatDateTime(date: Date): string {
-  return new Date(date).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
 function formatFileSize(bytes: number | null): string {
   if (!bytes) return "";
   if (bytes < 1024) return `${bytes} B`;
@@ -109,18 +81,18 @@ export default async function PortalProjectPage({
   const { projectId } = await params;
 
   // 1. Require valid client session
-  const session = await requireClientSession();
+  const session = await requirePortalSession();
   if (!session.ok) {
     redirect("/portal/expired");
   }
 
   // 2. Fetch project data (includes access check)
-  const data = await getPortalProjectDetail(projectId, session.email);
+  const data = await getPortalProjectDetail(projectId, session.value.email);
   if (!data) notFound();
 
   const { project, deliverables, requests, invoices, activities } = data;
   const statusConfig =
-    PROJECT_STATUS[project.status] ?? PROJECT_STATUS.PLANNING;
+    projectStatusOption(project.status) ?? PROJECT_STATUS_OPTIONS[0];
 
   return (
     <div className="mx-auto max-w-5xl px-4 sm:px-6 py-8 space-y-8">
@@ -222,10 +194,11 @@ export default async function PortalProjectPage({
         ) : (
           <div className="space-y-3">
             {deliverables.map((deliverable) => {
-              const dStatus =
-                DELIVERABLE_STATUS[deliverable.status] ??
-                DELIVERABLE_STATUS.DRAFT;
-              const DIcon = dStatus.icon;
+              const DIcon =
+                DELIVERABLE_STATUS_ICONS[deliverable.status] ??
+                DELIVERABLE_STATUS_ICONS.DRAFT;
+              const dLabel =
+                deliverableStatusOption(deliverable.status)?.label ?? "Draft";
 
               return (
                 <Card key={deliverable.id} className="shadow-xs">
@@ -239,7 +212,7 @@ export default async function PortalProjectPage({
                             className="text-[10px] gap-1"
                           >
                             <DIcon className="size-3" />
-                            {dStatus.label}
+                            {dLabel}
                           </Badge>
                         </div>
                         {deliverable.description && (
@@ -317,7 +290,7 @@ export default async function PortalProjectPage({
                       targetType="deliverable"
                       targetId={deliverable.id}
                       comments={deliverable.comments}
-                      viewerEmail={session.email}
+                      viewerEmail={session.value.email}
                     />
                   </CardContent>
                 </Card>
@@ -331,7 +304,7 @@ export default async function PortalProjectPage({
       <RequestSection
         projectId={project.id}
         requests={requests}
-        viewerEmail={session.email}
+        viewerEmail={session.value.email}
       />
 
       {/* Invoices */}
@@ -383,26 +356,3 @@ export default async function PortalProjectPage({
   );
 }
 
-// ──────────────────────────────────────────────
-// Empty State
-// ──────────────────────────────────────────────
-
-function EmptyState({
-  icon,
-  title,
-  description,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="rounded-lg border border-dashed border-muted-foreground/25 bg-muted/25 p-12 text-center">
-      <div className="mx-auto flex size-10 items-center justify-center rounded-full bg-muted">
-        {icon}
-      </div>
-      <h3 className="mt-3 text-sm font-semibold">{title}</h3>
-      <p className="mt-1 text-xs text-muted-foreground">{description}</p>
-    </div>
-  );
-}

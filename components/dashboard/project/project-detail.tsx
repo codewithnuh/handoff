@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import {
   FileCheck,
@@ -27,10 +27,10 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { toast } from "@/components/ui/toast";
 import type { ProjectDetailProps } from "./types";
-import { PROJECT_STATUS_OPTIONS, ProjectStatusBadge } from "./status-badges";
-import { formatDate } from "./format";
+import { ProjectStatusBadge } from "./status-badges";
+import { PROJECT_STATUS_OPTIONS } from "@/lib/presentational/status";
+import { formatDate } from "@/lib/presentational/format";
 import { TasksTab } from "./tasks-tab";
 import { DeliverablesTab } from "./deliverables-tab";
 import { RequestsTab } from "./requests-tab";
@@ -39,77 +39,75 @@ import { InviteClientDialog } from "./invite-client-dialog";
 import { DeleteConfirmDialog } from "./delete-confirm-dialog";
 import { EditProjectDialog } from "./edit-project-dialog";
 import { updateProjectStatus, deleteProject } from "@/lib/actions/project";
+import { useServerAction } from "@/hooks/use-server-action";
+
+const PROJECT_TABS = [
+  "tasks",
+  "deliverables",
+  "requests",
+  "invoices",
+  "activity",
+] as const;
+
+type ProjectTab = (typeof PROJECT_TABS)[number];
+
+const DEFAULT_TAB: ProjectTab = "tasks";
+
+const readTab = (value: string | null): ProjectTab =>
+  PROJECT_TABS.find((tab) => tab === value) ?? DEFAULT_TAB;
 
 export function ProjectDetail({ data, permissions, initialTasks, currentUserId }: ProjectDetailProps) {
   const { project, deliverables, requests, invoices, activities } = data;
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const activeTab = readTab(searchParams.get("tab"));
+
+  const handleTabChange = (value: string) => {
+    const tab = readTab(value);
+    if (tab === activeTab) return;
+    const params = new URLSearchParams(searchParams.toString());
+    if (tab === DEFAULT_TAB) params.delete("tab");
+    else params.set("tab", tab);
+    const query = params.toString();
+    window.history.pushState(null, "", query ? `${pathname}?${query}` : pathname);
+  };
+
+  const statusChange = useServerAction(updateProjectStatus, {
+    success: "Status updated",
+    successDescription: (data) =>
+      `Project marked as ${data.status.replace(/_/g, " ").toLowerCase()}.`,
+    failure: "Update failed",
+  });
+
+  const remove = useServerAction(deleteProject, {
+    success: "Project deleted",
+    successDescription: () => "The project has been removed.",
+    failure: "Delete failed",
+    refresh: false,
+    onError: () => setIsDeleting(false),
+    onThrown: () => setIsDeleting(false),
+    onSuccess: () => {
+      setIsDeleting(false);
+      router.push("/dashboard/projects");
+    },
+  });
 
   const handleProjectStatusChange = async (newStatus: string) => {
     if (newStatus === project.status) return;
-    setIsUpdatingStatus(true);
-    try {
-      const result = await updateProjectStatus({
-        id: project.id,
-        status: newStatus as
-          | "PLANNING"
-          | "IN_PROGRESS"
-          | "COMPLETED"
-          | "CANCELLED",
-      });
-      if (!result.success) {
-        toast.add({
-          type: "error",
-          title: "Update failed",
-          description: result.message,
-        });
-      } else {
-        toast.add({
-          type: "success",
-          title: "Status updated",
-          description: `Project marked as ${newStatus.replace(/_/g, " ").toLowerCase()}.`,
-        });
-      }
-    } catch {
-      toast.add({
-        type: "error",
-        title: "Something went wrong",
-        description: "Please try again.",
-      });
-    } finally {
-      setIsUpdatingStatus(false);
-      router.refresh();
-    }
+    await statusChange.run({
+      id: project.id,
+      status: newStatus as
+        | "PLANNING"
+        | "IN_PROGRESS"
+        | "COMPLETED"
+        | "CANCELLED",
+    });
   };
 
   const handleDeleteProject = async () => {
-    setIsDeleting(true);
-    try {
-      const result = await deleteProject({ id: project.id });
-      if (!result.success) {
-        toast.add({
-          type: "error",
-          title: "Delete failed",
-          description: result.message,
-        });
-      } else {
-        toast.add({
-          type: "success",
-          title: "Project deleted",
-          description: "The project has been removed.",
-        });
-        router.push("/dashboard/projects");
-      }
-    } catch {
-      toast.add({
-        type: "error",
-        title: "Something went wrong",
-        description: "Please try again.",
-      });
-    } finally {
-      setIsDeleting(false);
-    }
+    await remove.run({ id: project.id });
   };
 
   return (
@@ -153,7 +151,7 @@ export function ProjectDetail({ data, permissions, initialTasks, currentUserId }
                   onValueChange={(val) => {
                     if (val) handleProjectStatusChange(val);
                   }}
-                  disabled={isUpdatingStatus}
+                  disabled={statusChange.pending}
                 >
                   <SelectTrigger className="h-8 w-[140px]">
                     <SelectValue placeholder="Status" />
@@ -238,7 +236,7 @@ export function ProjectDetail({ data, permissions, initialTasks, currentUserId }
       </Card>
 
       {/* Tabs */}
-      <Tabs defaultValue="tasks">
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
           <TabsTrigger value="tasks">
             <ListTodo />
@@ -302,7 +300,7 @@ export function ProjectDetail({ data, permissions, initialTasks, currentUserId }
         onConfirm={handleDeleteProject}
         title="Delete Project"
         description={`Are you sure you want to delete "${project.name}"? This will also delete all deliverables, requests, invoices, and activity. This action cannot be undone.`}
-        isDeleting={isDeleting}
+        isDeleting={remove.pending}
       />
     </div>
   );

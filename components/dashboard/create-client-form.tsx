@@ -4,14 +4,9 @@ import { useForm } from "@tanstack/react-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { toast } from "@/components/ui/toast";
 import { createClient } from "@/lib/actions/client";
-import {
-  ActionTimeoutError,
-  withTimeout,
-} from "@/lib/utils/with-timeout";
-
-const ACTION_TIMEOUT_MS = 15_000;
+import { useServerAction } from "@/hooks/use-server-action";
+import { ActionTimeoutError } from "@/lib/utils/with-timeout";
 
 type CreateClientFormProps = {
   onCreated: (client: {
@@ -22,6 +17,41 @@ type CreateClientFormProps = {
 };
 
 export function CreateClientForm({ onCreated }: CreateClientFormProps) {
+  const create = useServerAction(createClient, {
+    success: "Client created",
+    successDescription: (data) => `${data.name} was added to your workspace.`,
+    failure: "Couldn't create client",
+    thrown: (error) =>
+      error instanceof ActionTimeoutError
+        ? "Request timed out"
+        : "Something went wrong",
+    refresh: false,
+    onSuccess: (data) => onCreated(data),
+    onError: (error) => {
+      form.setFieldMeta("name", (meta) => ({
+        ...meta,
+        errorMap: {
+          onSubmit:
+            error.fieldErrors?.name?.join(", ") ?? meta.errorMap.onSubmit,
+        },
+      }));
+      form.setFieldMeta("email", (meta) => ({
+        ...meta,
+        errorMap: {
+          onSubmit:
+            error.fieldErrors?.email?.join(", ") ?? meta.errorMap.onSubmit,
+        },
+      }));
+      form.setFieldMeta("company", (meta) => ({
+        ...meta,
+        errorMap: {
+          onSubmit:
+            error.fieldErrors?.company?.join(", ") ?? meta.errorMap.onSubmit,
+        },
+      }));
+    },
+  });
+
   const form = useForm({
     defaultValues: {
       name: "",
@@ -30,70 +60,7 @@ export function CreateClientForm({ onCreated }: CreateClientFormProps) {
     },
 
     onSubmit: async ({ value }) => {
-      try {
-        const result = await withTimeout(
-          createClient(value),
-          ACTION_TIMEOUT_MS,
-        );
-
-        if (!result.success) {
-          form.setFieldMeta("name", (meta) => ({
-            ...meta,
-            errorMap: {
-              onSubmit:
-                result.error.fieldErrors?.name?.join(", ") ??
-                meta.errorMap.onSubmit,
-            },
-          }));
-          form.setFieldMeta("email", (meta) => ({
-            ...meta,
-            errorMap: {
-              onSubmit:
-                result.error.fieldErrors?.email?.join(", ") ??
-                meta.errorMap.onSubmit,
-            },
-          }));
-          form.setFieldMeta("company", (meta) => ({
-            ...meta,
-            errorMap: {
-              onSubmit:
-                result.error.fieldErrors?.company?.join(", ") ??
-                meta.errorMap.onSubmit,
-            },
-          }));
-
-          toast.add({
-            type: "error",
-            title: "Couldn't create client",
-            description: result.message,
-          });
-          return;
-        }
-
-        toast.add({
-          type: "success",
-          title: "Client created",
-          description: `${result.data.name} was added to your workspace.`,
-        });
-
-        onCreated(result.data);
-      } catch (error) {
-        if (error instanceof ActionTimeoutError) {
-          toast.add({
-            type: "error",
-            title: "Request timed out",
-            description: error.message,
-          });
-          return;
-        }
-
-        toast.add({
-          type: "error",
-          title: "Something went wrong",
-          description:
-            error instanceof Error ? error.message : "Please try again.",
-        });
-      }
+      await create.run(value);
     },
   });
 

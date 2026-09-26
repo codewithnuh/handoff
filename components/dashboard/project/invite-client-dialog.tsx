@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toast";
 import { inviteClient } from "@/lib/actions/invitation";
+import { useServerAction } from "@/hooks/use-server-action";
 
 export function InviteClientDialog({
   projectId,
@@ -30,44 +31,23 @@ export function InviteClientDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState(clientEmail);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const invite = useServerAction(inviteClient, {
+    success: "Invitation created",
+    successDescription: () => "Copy the link and share it with your client.",
+    failure: "Couldn't create invitation",
+    refresh: false,
+    onSuccess: (data) => setInviteLink(data.acceptUrl),
+  });
+
   const handleSubmit = async () => {
     if (!email.trim()) return;
-    setIsSubmitting(true);
-    try {
-      const result = await inviteClient({
-        projectId,
-        email: email.trim(),
-      });
-
-      if (!result.success) {
-        toast.add({
-          type: "error",
-          title: "Couldn't create invitation",
-          description: result.message,
-        });
-        return;
-      }
-
-      setInviteLink(result.data.acceptUrl);
-      toast.add({
-        type: "success",
-        title: "Invitation created",
-        description: "Copy the link and share it with your client.",
-      });
-    } catch (error) {
-      toast.add({
-        type: "error",
-        title: "Something went wrong",
-        description:
-          error instanceof Error ? error.message : "Please try again.",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+    await invite.run({
+      projectId,
+      email: email.trim(),
+    });
   };
 
   const handleCopyLink = async (url: string) => {
@@ -160,9 +140,9 @@ export function InviteClientDialog({
           {!inviteLink && (
             <Button
               onClick={handleSubmit}
-              disabled={isSubmitting || !email.trim()}
+              disabled={invite.pending || !email.trim()}
             >
-              {isSubmitting ? "Creating..." : "Create Link"}
+              {invite.pending ? "Creating..." : "Create Link"}
             </Button>
           )}
         </DialogFooter>

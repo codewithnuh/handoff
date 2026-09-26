@@ -1,42 +1,10 @@
 import { Badge } from "@/components/ui/badge";
-
-export const PROJECT_STATUS_OPTIONS = [
-  { value: "PLANNING", label: "Planning", variant: "secondary" as const },
-  { value: "IN_PROGRESS", label: "In Progress", variant: "default" as const },
-  { value: "COMPLETED", label: "Completed", variant: "outline" as const },
-  { value: "CANCELLED", label: "Cancelled", variant: "destructive" as const },
-];
-
-const DELIVERABLE_STATUS_OPTIONS = [
-  { value: "DRAFT", label: "Draft", variant: "secondary" as const },
-  { value: "IN_REVIEW", label: "In Review", variant: "default" as const },
-  {
-    value: "CHANGES_REQUESTED",
-    label: "Changes Requested",
-    variant: "secondary" as const,
-  },
-  { value: "APPROVED", label: "Approved", variant: "outline" as const },
-];
-
-const REQUEST_STATUS_CONFIG: Record<
-  string,
-  { label: string; variant: "default" | "secondary" | "outline" | "destructive" }
-> = {
-  OPEN: { label: "Open", variant: "secondary" },
-  IN_PROGRESS: { label: "In Progress", variant: "default" },
-  COMPLETED: { label: "Completed", variant: "outline" },
-};
-
-const INVOICE_STATUS_CONFIG: Record<
-  string,
-  { label: string; variant: "default" | "secondary" | "outline" | "destructive" }
-> = {
-  PAID: { label: "Paid", variant: "outline" },
-  SENT: { label: "Sent", variant: "default" },
-  OVERDUE: { label: "Overdue", variant: "destructive" },
-  DRAFT: { label: "Draft", variant: "secondary" },
-  CANCELLED: { label: "Cancelled", variant: "destructive" },
-};
+import {
+  PROJECT_STATUS_OPTIONS,
+  DELIVERABLE_STATUS_OPTIONS,
+  REQUEST_STATUS_CONFIG,
+  INVOICE_STATUS_CONFIG,
+} from "@/lib/presentational/status";
 
 export function ProjectStatusBadge({ status }: { status: string }) {
   const config =

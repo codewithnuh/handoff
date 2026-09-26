@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { Check, ChevronsUpDown, Building2, Plus } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,15 +24,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "@/components/ui/toast";
 import { createWorkspace, switchWorkspace } from "@/lib/actions/workspace";
 import type { WorkspaceListItem } from "@/lib/actions/workspace";
-
-const ROLE_LABEL: Record<string, string> = {
-  OWNER: "Owner",
-  ADMIN: "Admin",
-  MEMBER: "Member",
-};
+import { useServerAction } from "@/hooks/use-server-action";
+import { ROLE_BADGE } from "@/lib/presentational/status";
 
 interface WorkspaceSwitcherProps {
   /** Resolved on the server so there's no client-side loading flash. */
@@ -45,81 +39,43 @@ export function WorkspaceSwitcher({
   workspaces,
   className,
 }: WorkspaceSwitcherProps) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
 
   const activeWorkspace = workspaces.find((ws) => ws.isActive) ?? workspaces[0];
 
   const ownedWorkspaces = workspaces.filter((ws) => ws.isOwner);
   const sharedWorkspaces = workspaces.filter((ws) => !ws.isOwner);
 
+  const switcher = useServerAction(switchWorkspace, {
+    success: "Workspace switched",
+    successDescription: (_data, message) => message,
+    failure: "Couldn't switch workspace",
+  });
+
+  const creator = useServerAction(createWorkspace, {
+    success: "Workspace created",
+    successDescription: (data) =>
+      `"${data.name}" is now your active workspace.`,
+    failure: "Couldn't create workspace",
+    onSuccess: () => {
+      setCreateOpen(false);
+      setNewName("");
+    },
+  });
+
   const handleSwitch = (workspaceId: string) => {
     if (workspaceId === activeWorkspace?.id) return;
 
-    startTransition(async () => {
-      const result = await switchWorkspace({ id: workspaceId });
-
-      if (result.success) {
-        toast.add({
-          type: "success",
-          title: "Workspace switched",
-          description: result.message,
-        });
-
-        router.refresh();
-      } else {
-        toast.add({
-          type: "error",
-          title: "Couldn't switch workspace",
-          description: result.message,
-        });
-      }
-    });
+    void switcher.run({ id: workspaceId });
   };
 
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (isCreating) return;
+    if (creator.pending) return;
 
-    setIsCreating(true);
-
-    try {
-      const result = await createWorkspace({
-        name: newName.trim(),
-      });
-
-      if (!result.success) {
-        toast.add({
-          type: "error",
-          title: "Couldn't create workspace",
-          description: result.message,
-        });
-
-        return;
-      }
-
-      toast.add({
-        type: "success",
-        title: "Workspace created",
-        description: `"${result.data.name}" is now your active workspace.`,
-      });
-
-      setCreateOpen(false);
-      setNewName("");
-      router.refresh();
-    } catch {
-      toast.add({
-        type: "error",
-        title: "Something went wrong",
-        description: "Please try again.",
-      });
-    } finally {
-      setIsCreating(false);
-    }
+    await creator.run({ name: newName.trim() });
   };
 
   if (workspaces.length === 0 || !activeWorkspace) {
@@ -145,13 +101,13 @@ export function WorkspaceSwitcher({
           <span className="text-[10px] text-muted-foreground">Owner</span>
         ) : (
           <span className="text-[10px] text-muted-foreground">
-            {ws.ownerName ? `Owned by ${ws.ownerName}` : ROLE_LABEL[ws.role] ?? ws.role}
+            {ws.ownerName ? `Owned by ${ws.ownerName}` : ROLE_BADGE[ws.role]?.label ?? ws.role}
           </span>
         )}
       </div>
       {ws.role !== "OWNER" && (
         <Badge variant="secondary" className="ml-2 text-[10px] shrink-0">
-          {ROLE_LABEL[ws.role] ?? ws.role}
+          {ROLE_BADGE[ws.role]?.label ?? ws.role}
         </Badge>
       )}
     </DropdownMenuItem>
@@ -180,7 +136,7 @@ export function WorkspaceSwitcher({
           variant="ghost"
           size="icon"
           aria-label="Create workspace"
-          disabled={isPending}
+          disabled={switcher.pending}
           onClick={() => setCreateOpen(true)}
           className={cn(
             "size-8",
@@ -197,7 +153,7 @@ export function WorkspaceSwitcher({
           onOpenChange={setCreateOpen}
           newName={newName}
           setNewName={setNewName}
-          isCreating={isCreating}
+          isCreating={creator.pending}
           onSubmit={handleCreate}
         />
       </div>
@@ -211,7 +167,7 @@ export function WorkspaceSwitcher({
           render={
             <Button
               variant="outline"
-              disabled={isPending}
+              disabled={switcher.pending}
               className={cn(
                 "h-8 w-full justify-between gap-2",
                 "border-sidebar-border",
@@ -273,7 +229,7 @@ export function WorkspaceSwitcher({
         onOpenChange={setCreateOpen}
         newName={newName}
         setNewName={setNewName}
-        isCreating={isCreating}
+        isCreating={creator.pending}
         onSubmit={handleCreate}
       />
     </>

@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/components/ui/toast";
-import type { WorkspaceUsageData } from "@/lib/queries/project";
+import type { WorkspaceUsageData } from "@/lib/queries/usage";
 
 const PLANS = [
   {

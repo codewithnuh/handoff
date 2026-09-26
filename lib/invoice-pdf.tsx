@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Font,
 } from "@react-pdf/renderer";
+import { formatCurrency, formatLongDate } from "@/lib/presentational/format";
 
 // ──────────────────────────────────────────────
 // Types
@@ -202,21 +203,6 @@ const styles = StyleSheet.create({
 // Helpers
 // ──────────────────────────────────────────────
 
-function formatCurrency(amount: string, currency: string): string {
-  const num = parseFloat(amount);
-  if (isNaN(num)) return `${amount} ${currency}`;
-  return `$${num.toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
-}
-
-function formatDate(date: Date | null): string {
-  if (!date) return "N/A";
-  return new Date(date).toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
 const STATUS_COLORS: Record<string, string> = {
   DRAFT: "#6b7280",
   SENT: "#2563eb",
@@ -274,17 +260,17 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Issue Date</Text>
-            <Text style={styles.value}>{formatDate(data.createdAt)}</Text>
+            <Text style={styles.value}>{formatLongDate(data.createdAt)}</Text>
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Due Date</Text>
-            <Text style={styles.value}>{formatDate(data.dueDate)}</Text>
+            <Text style={styles.value}>{formatLongDate(data.dueDate)}</Text>
           </View>
           {data.paidAt && (
             <View style={styles.row}>
               <Text style={styles.label}>Paid On</Text>
               <Text style={[styles.value, { color: "#059669" }]}>
-                {formatDate(data.paidAt)}
+                {formatLongDate(data.paidAt)}
               </Text>
             </View>
           )}
@@ -333,12 +319,16 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
               <Text
                 style={[styles.tableCell, { flex: 1, textAlign: "right" }]}
               >
-                {formatCurrency(item.unitPrice, data.currency)}
+                {formatCurrency(item.unitPrice, data.currency, {
+                  showCurrencyCode: false,
+                })}
               </Text>
               <Text
                 style={[styles.tableCell, { flex: 1, textAlign: "right" }]}
               >
-                {formatCurrency(item.amount, data.currency)}
+                {formatCurrency(item.amount, data.currency, {
+                  showCurrencyCode: false,
+                })}
               </Text>
             </View>
           ))}
@@ -349,19 +339,25 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Subtotal</Text>
             <Text style={styles.totalValue}>
-              {formatCurrency(data.subtotal, data.currency)}
+              {formatCurrency(data.subtotal, data.currency, {
+                showCurrencyCode: false,
+              })}
             </Text>
           </View>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Tax ({data.taxRate}%)</Text>
             <Text style={styles.totalValue}>
-              {formatCurrency(data.taxAmount, data.currency)}
+              {formatCurrency(data.taxAmount, data.currency, {
+                showCurrencyCode: false,
+              })}
             </Text>
           </View>
           <View style={styles.grandTotalRow}>
             <Text style={styles.grandTotalLabel}>Total</Text>
             <Text style={styles.grandTotalValue}>
-              {formatCurrency(data.amount, data.currency)}
+              {formatCurrency(data.amount, data.currency, {
+                showCurrencyCode: false,
+              })}
             </Text>
           </View>
         </View>

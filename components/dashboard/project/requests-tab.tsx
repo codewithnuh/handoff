@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { MessageSquare } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,13 +11,14 @@ import {
   SelectGroup,
   SelectItem,
 } from "@/components/ui/select";
-import { toast } from "@/components/ui/toast";
-import type { ProjectDetailData } from "@/lib/queries/project";
+import type { ProjectDetailData } from "@/lib/queries/project-detail";
 import type { ViewerPermissions } from "./types";
 import { updateRequestStatus } from "@/lib/actions/request";
+import { useServerAction } from "@/hooks/use-server-action";
 import { RequestStatusBadge } from "./status-badges";
-import { formatDate } from "./format";
-import { EmptyTab } from "./empty-tab";
+import { REQUEST_STATUS_CONFIG } from "@/lib/presentational/status";
+import { formatDate } from "@/lib/presentational/format";
+import { EmptyState } from "@/components/presentational/empty-state";
 import { DashboardCommentSection } from "./comment-section";
 
 export function RequestsTab({
@@ -31,46 +30,26 @@ export function RequestsTab({
   permissions: ViewerPermissions;
   currentUserId: string;
 }) {
-  const router = useRouter();
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const update = useServerAction(updateRequestStatus, {
+    success: "Status updated",
+    successDescription: (data) =>
+      `Request marked as ${data.status.replace(/_/g, " ").toLowerCase()}.`,
+    failure: "Update failed",
+  });
 
   const handleStatusChange = async (requestId: string, newStatus: string) => {
     const req = requests.find((r) => r.id === requestId);
     if (!req || req.status === newStatus) return;
-    setUpdatingId(requestId);
-    try {
-      const result = await updateRequestStatus({
-        id: requestId,
-        status: newStatus as "OPEN" | "IN_PROGRESS" | "COMPLETED",
-      });
-      if (!result.success) {
-        toast.add({
-          type: "error",
-          title: "Update failed",
-          description: result.message,
-        });
-      } else {
-        toast.add({
-          type: "success",
-          title: "Status updated",
-          description: `Request marked as ${newStatus.replace(/_/g, " ").toLowerCase()}.`,
-        });
-      }
-    } catch {
-      toast.add({
-        type: "error",
-        title: "Something went wrong",
-        description: "Please try again.",
-      });
-    } finally {
-      setUpdatingId(null);
-      router.refresh();
-    }
+    await update.run({
+      id: requestId,
+      status: newStatus as "OPEN" | "IN_PROGRESS" | "COMPLETED",
+    });
   };
 
   if (requests.length === 0) {
     return (
-      <EmptyTab
+      <EmptyState
+        className="space-y-4"
         icon={<MessageSquare className="size-5 text-muted-foreground" />}
         title="No client requests"
         description="Client work requests will appear here."
@@ -105,16 +84,20 @@ export function RequestsTab({
                     onValueChange={(val) => {
                       if (val) handleStatusChange(req.id, val);
                     }}
-                    disabled={updatingId === req.id}
+                    disabled={update.pending}
                   >
                     <SelectTrigger className="w-[130px] h-8 text-xs">
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
-                        <SelectItem value="OPEN">Open</SelectItem>
-                        <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-                        <SelectItem value="COMPLETED">Completed</SelectItem>
+                        {Object.entries(REQUEST_STATUS_CONFIG).map(
+                          ([value, { label }]) => (
+                            <SelectItem key={value} value={value}>
+                              {label}
+                            </SelectItem>
+                          ),
+                        )}
                       </SelectGroup>
                     </SelectContent>
                   </Select>

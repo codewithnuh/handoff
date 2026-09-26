@@ -29,6 +29,9 @@ import {
   createInvoice,
   convertDeliverablesToLineItems,
 } from "@/lib/actions/invoice";
+import { useServerAction } from "@/hooks/use-server-action";
+import { computeTotals } from "@/lib/invoice/totals";
+import { formatMoney } from "@/lib/presentational/format";
 
 // ──────────────────────────────────────────────
 // Types
@@ -79,8 +82,18 @@ export function CreateInvoiceDialog({
   const [selectedDeliverables, setSelectedDeliverables] = useState<Set<string>>(
     new Set(),
   );
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
+
+  const create = useServerAction(createInvoice, {
+    failure: "Couldn't create invoice",
+    refresh: false,
+  });
+
+  const convert = useServerAction(convertDeliverablesToLineItems, {
+    refresh: false,
+  });
+
+  const isSubmitting = create.pending || convert.pending;
 
   // Form state
   const [description, setDescription] = useState("");
@@ -96,24 +109,18 @@ export function CreateInvoiceDialog({
   ]);
 
   // ── Calculated totals ──
-  const totals = useMemo(() => {
-    const subtotal = lineItems.reduce(
-      (sum, item) => sum + item.quantity * item.unitPrice,
-      0,
-    );
-    const discountNum = parseFloat(discount) || 0;
-    const taxableAmount = Math.max(0, subtotal - discountNum);
-    const taxRateNum = parseFloat(taxRate) || 0;
-    const taxAmount = taxableAmount * (taxRateNum / 100);
-    const total = taxableAmount + taxAmount;
-    return { subtotal, discountNum, taxAmount, total };
-  }, [lineItems, taxRate, discount]);
-
-  const formatMoney = (amount: number) =>
-    new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency,
-    }).format(amount);
+  const totals = useMemo(
+    () =>
+      computeTotals({
+        subtotal: lineItems.reduce(
+          (sum, item) => sum + item.quantity * item.unitPrice,
+          0,
+        ),
+        discount: parseFloat(discount) || 0,
+        taxRate: parseFloat(taxRate) || 0,
+      }),
+    [lineItems, taxRate, discount],
+  );
 
   // ── Line item helpers ──
   const addLineItem = () =>
@@ -183,64 +190,45 @@ export function CreateInvoiceDialog({
       return;
     }
 
-    setIsSubmitting(true);
-    try {
-      const result = await createInvoice({
+    const result = await create.run({
+      projectId,
+      description: description.trim() || null,
+      dueDate: dueDate ? new Date(dueDate) : null,
+      taxRate: parseFloat(taxRate) || 0,
+      discount: parseFloat(discount) || 0,
+      currency,
+      paymentNotes: paymentNotes.trim() || null,
+      lineItems: validLineItems,
+    });
+    if (!result?.success) return;
+
+    // Convert selected deliverables (if any weren't already added as line items)
+    if (selectedDeliverables.size > 0) {
+      const converted = await convert.run({
         projectId,
-        description: description.trim() || null,
-        dueDate: dueDate ? new Date(dueDate) : null,
-        taxRate: parseFloat(taxRate) || 0,
-        discount: parseFloat(discount) || 0,
-        currency,
-        paymentNotes: paymentNotes.trim() || null,
-        lineItems: validLineItems,
+        invoiceId: result.data.id,
+        deliverableIds: Array.from(selectedDeliverables),
       });
-
-      if (!result.success) {
-        toast.add({
-          type: "error",
-          title: "Couldn't create invoice",
-          description: result.message,
-        });
-        return;
-      }
-
-      // Convert selected deliverables (if any weren't already added as line items)
-      if (selectedDeliverables.size > 0) {
-        await convertDeliverablesToLineItems({
-          projectId,
-          invoiceId: result.data.id,
-          deliverableIds: Array.from(selectedDeliverables),
-        });
-      }
-
-      toast.add({
-        type: "success",
-        title: "Invoice created",
-        description: `Invoice ${result.data.invoiceNumber} has been created.`,
-      });
-
-      // Reset
-      setDescription("");
-      setDueDate("");
-      setTaxRate("0");
-      setDiscount("0");
-      setCurrency("USD");
-      setPaymentNotes("");
-      setLineItems([{ description: "", quantity: 1, unitPrice: 0 }]);
-      setSelectedDeliverables(new Set());
-      setOpen(false);
-      router.refresh();
-    } catch (error) {
-      toast.add({
-        type: "error",
-        title: "Something went wrong",
-        description:
-          error instanceof Error ? error.message : "Please try again.",
-      });
-    } finally {
-      setIsSubmitting(false);
+      if (converted === null) return;
     }
+
+    toast.add({
+      type: "success",
+      title: "Invoice created",
+      description: `Invoice ${result.data.invoiceNumber} has been created.`,
+    });
+
+    // Reset
+    setDescription("");
+    setDueDate("");
+    setTaxRate("0");
+    setDiscount("0");
+    setCurrency("USD");
+    setPaymentNotes("");
+    setLineItems([{ description: "", quantity: 1, unitPrice: 0 }]);
+    setSelectedDeliverables(new Set());
+    setOpen(false);
+    router.refresh();
   };
 
   return (
@@ -478,12 +466,12 @@ export function CreateInvoiceDialog({
             <div className="space-y-1 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Subtotal</span>
-                <span>{formatMoney(totals.subtotal)}</span>
+                <span>{formatMoney(totals.subtotal, currency)}</span>
               </div>
-              {totals.discountNum > 0 && (
+              {totals.discount > 0 && (
                 <div className="flex justify-between text-green-600">
                   <span>Discount</span>
-                  <span>-{formatMoney(totals.discountNum)}</span>
+                  <span>-{formatMoney(totals.discount, currency)}</span>
                 </div>
               )}
               {totals.taxAmount > 0 && (
@@ -491,12 +479,12 @@ export function CreateInvoiceDialog({
                   <span className="text-muted-foreground">
                     Tax ({parseFloat(taxRate) || 0}%)
                   </span>
-                  <span>{formatMoney(totals.taxAmount)}</span>
+                  <span>{formatMoney(totals.taxAmount, currency)}</span>
                 </div>
               )}
               <div className="flex justify-between font-semibold border-t border-border pt-1 mt-1">
                 <span>Total</span>
-                <span>{formatMoney(totals.total)}</span>
+                <span>{formatMoney(totals.total, currency)}</span>
               </div>
             </div>
           </div>

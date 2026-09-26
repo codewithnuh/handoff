@@ -2,19 +2,16 @@
 
 import type { Project } from "@/app/generated/prisma/client";
 import { db } from "@/lib/prisma";
-import { recordActivity } from "@/lib/actions/activity";
-import { toActionError } from "@/lib/actions/helpers";
-import { revalidateDashboard } from "@/lib/actions/revalidate";
+import { actorOf, recordActivity } from "@/lib/actions/activity";
+import { can, defineAction, ensure, writable } from "@/lib/actions/define";
 import {
   requireClientInWorkspace,
-  requireWorkspace,
-  requireWorkspaceAdmin,
   requireWorkspacePermission,
   resolveProjectAccess,
   getVisibleProjectIds,
-} from "@/lib/actions/guards";
+} from "@/lib/access";
 import { ERROR_CODES } from "@/lib/constants/errors";
-import { assertCanCreateProject, assertWorkspaceWritable } from "@/lib/services/plan-limits";
+import { assertCanCreateProject } from "@/lib/services/plan-limits";
 import type { ActionResponseType } from "@/lib/types/action";
 import { ActionResponse } from "@/lib/utils/action-response";
 import {
@@ -23,13 +20,6 @@ import {
   updateProjectProgressSchema,
   updateProjectSchema,
   updateProjectStatusSchema,
-} from "@/lib/validation/project";
-import type {
-  CreateProjectInput,
-  ProjectIdInput,
-  UpdateProjectInput,
-  UpdateProjectProgressInput,
-  UpdateProjectStatusInput,
 } from "@/lib/validation/project";
 
 // ──────────────────────────────────────────────
@@ -43,56 +33,36 @@ export type DeleteProjectResult = { deleted: boolean };
 // ──────────────────────────────────────────────
 // Server Actions
 // ──────────────────────────────────────────────
-export const listProjects = async (): Promise<
-  ActionResponseType<ProjectListResult>
-> => {
-  const guard = await requireWorkspace();
-  if (!guard.ok) return guard.error;
-
-  try {
+export const listProjects = defineAction({
+  errors: { fallback: "Failed to load projects." },
+  run: async (ctx): Promise<ActionResponseType<ProjectListResult>> => {
     // Need-to-know scoping: regular members only see assigned projects
     const visibleIds = await getVisibleProjectIds(
-      guard.value.workspace.id,
-      guard.value.user.id,
-      guard.value.isAdmin,
+      ctx.workspace.id,
+      ctx.user.id,
+      ctx.isAdmin,
     );
 
     const items = await db.project.findMany({
       where: {
-        workspaceId: guard.value.workspace.id,
+        workspaceId: ctx.workspace.id,
         ...(visibleIds ? { id: { in: visibleIds } } : {}),
       },
       orderBy: { createdAt: "desc" },
     });
     return ActionResponse.success({ items }, "Projects loaded");
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to load projects." });
-  }
-};
+  },
+});
 
-export const getProject = async (
-  data: ProjectIdInput,
-): Promise<ActionResponseType<ProjectResult>> => {
-  const validated = projectIdSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  const guard = await requireWorkspace();
-  if (!guard.ok) return guard.error;
-
-  const access = await resolveProjectAccess(validated.data.id);
-  if (!access.ok) return access.error;
-
-  try {
+export const getProject = defineAction({
+  schema: projectIdSchema,
+  guard: (input) => resolveProjectAccess(input.id),
+  errors: { fallback: "Failed to load the project." },
+  run: async (input, ctx): Promise<ActionResponseType<ProjectResult>> => {
     const project = await db.project.findFirst({
       where: {
-        id: validated.data.id,
-        workspaceId: guard.value.workspace.id,
+        id: input.id,
+        workspaceId: ctx.workspaceId,
       },
     });
     if (!project) {
@@ -102,107 +72,69 @@ export const getProject = async (
       );
     }
     return ActionResponse.success(project, "Project loaded");
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to load the project." });
-  }
-};
+  },
+});
 
-export const createProject = async (
-  data: CreateProjectInput,
-): Promise<ActionResponseType<ProjectResult>> => {
-  const validated = createProjectSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
+export const createProject = defineAction({
+  schema: createProjectSchema,
   // Creating projects requires CREATE_PROJECTS permission (admins always pass)
-  const guard = await requireWorkspacePermission("CREATE_PROJECTS");
-  if (!guard.ok) return guard.error;
-
-  const clientInWorkspace = await requireClientInWorkspace(
-    guard.value.workspace.id,
-    validated.data.clientId,
-  );
-  if (!clientInWorkspace.ok) return clientInWorkspace.error;
-
-  // 1. Enforce per-workspace project limit
-  const limitCheck = await assertCanCreateProject(guard.value.workspace.id);
-  if (!limitCheck.ok) return limitCheck.error;
-
-  // 2. Check read-only mode (downgrade grace period expired)
-  const readOnlyError = await assertWorkspaceWritable(guard.value.workspace.id);
-  if (readOnlyError) return readOnlyError;
-
-  try {
+  guard: () => requireWorkspacePermission("CREATE_PROJECTS"),
+  check: [
+    ensure((ctx, input) =>
+      requireClientInWorkspace(ctx.workspace.id, input.clientId),
+    ),
+    // 1. Enforce per-workspace project limit
+    ensure((ctx) => assertCanCreateProject(ctx.workspace.id)),
+    // 2. Check read-only mode (downgrade grace period expired)
+    writable,
+  ],
+  revalidate: true,
+  errors: { fallback: "Failed to create the project." },
+  run: async (input, ctx): Promise<ActionResponseType<ProjectResult>> => {
     const project = await db.project.create({
       data: {
-        workspaceId: guard.value.workspace.id,
-        clientId: validated.data.clientId,
-        name: validated.data.name,
-        description: validated.data.description ?? null,
-        status: validated.data.status,
-        progress: validated.data.progress,
-        startDate: validated.data.startDate ?? null,
-        dueDate: validated.data.dueDate ?? null,
+        workspaceId: ctx.workspace.id,
+        clientId: input.clientId,
+        name: input.name,
+        description: input.description ?? null,
+        status: input.status,
+        progress: input.progress,
+        startDate: input.startDate ?? null,
+        dueDate: input.dueDate ?? null,
       },
     });
 
     await recordActivity({
       projectId: project.id,
       type: "PROJECT_CREATED",
-      actorUserId: guard.value.user.id,
-      actorEmail: guard.value.user.email,
-      actorName: guard.value.user.name,
+      ...actorOf(ctx.user),
       meta: { name: project.name },
     });
 
-    revalidateDashboard();
     return ActionResponse.success(project, "Project created successfully");
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to create the project." });
-  }
-};
+  },
+});
 
-export const updateProject = async (
-  data: UpdateProjectInput,
-): Promise<ActionResponseType<ProjectResult>> => {
-  const validated = updateProjectSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  const access = await resolveProjectAccess(validated.data.id);
-  if (!access.ok) return access.error;
-
-  if (!access.value.canEditProject) {
-    return ActionResponse.failure(
-      ERROR_CODES.FORBIDDEN,
-      "You don't have permission to edit this project.",
-    );
-  }
-
-  const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
-  if (readOnlyError) return readOnlyError;
-
-  if (validated.data.clientId) {
-    const clientInWorkspace = await requireClientInWorkspace(
-      access.value.workspaceId,
-      validated.data.clientId,
-    );
-    if (!clientInWorkspace.ok) return clientInWorkspace.error;
-  }
-
-  try {
+export const updateProject = defineAction({
+  schema: updateProjectSchema,
+  guard: (input) => resolveProjectAccess(input.id),
+  check: [
+    can("canEditProject", "You don't have permission to edit this project."),
+    writable,
+    async (ctx, input) => {
+      if (!input.clientId) return null;
+      const clientInWorkspace = await requireClientInWorkspace(
+        ctx.workspaceId,
+        input.clientId,
+      );
+      return clientInWorkspace.ok ? null : clientInWorkspace.error;
+    },
+  ],
+  revalidate: true,
+  errors: { fallback: "Failed to update the project." },
+  run: async (input, ctx): Promise<ActionResponseType<ProjectResult>> => {
     const existing = await db.project.findFirst({
-      where: { id: validated.data.id, workspaceId: access.value.workspaceId },
+      where: { id: input.id, workspaceId: ctx.workspaceId },
     });
     if (!existing) {
       return ActionResponse.failure(
@@ -212,38 +144,27 @@ export const updateProject = async (
     }
 
     const statusChanged =
-      validated.data.status !== undefined &&
-      validated.data.status !== existing.status;
+      input.status !== undefined && input.status !== existing.status;
     const progressChanged =
-      validated.data.progress !== undefined &&
-      validated.data.progress !== existing.progress;
+      input.progress !== undefined && input.progress !== existing.progress;
 
     // Partial-update semantics: only touch fields the caller sent so a
     // narrow edit (e.g. rename only) can't wipe description or dates.
     const data: Record<string, unknown> = {};
-    if (validated.data.clientId !== undefined)
-      data.clientId = validated.data.clientId;
-    if (validated.data.name !== undefined) data.name = validated.data.name;
-    if (validated.data.description !== undefined)
-      data.description = validated.data.description;
-    if (validated.data.status !== undefined) data.status = validated.data.status;
-    if (validated.data.progress !== undefined)
-      data.progress = validated.data.progress;
-    if (validated.data.startDate !== undefined)
-      data.startDate = validated.data.startDate;
-    if (validated.data.dueDate !== undefined)
-      data.dueDate = validated.data.dueDate;
+    if (input.clientId !== undefined) data.clientId = input.clientId;
+    if (input.name !== undefined) data.name = input.name;
+    if (input.description !== undefined) data.description = input.description;
+    if (input.status !== undefined) data.status = input.status;
+    if (input.progress !== undefined) data.progress = input.progress;
+    if (input.startDate !== undefined) data.startDate = input.startDate;
+    if (input.dueDate !== undefined) data.dueDate = input.dueDate;
 
     const project = await db.project.update({
-      where: { id: validated.data.id },
+      where: { id: input.id },
       data,
     });
 
-    const actor = {
-      actorUserId: access.value.user.id,
-      actorEmail: access.value.user.email,
-      actorName: access.value.user.name,
-    };
+    const actor = actorOf(ctx.user);
     if (statusChanged) {
       await recordActivity({
         projectId: project.id,
@@ -261,41 +182,22 @@ export const updateProject = async (
       });
     }
 
-    revalidateDashboard();
     return ActionResponse.success(project, "Project updated successfully");
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to update the project." });
-  }
-};
+  },
+});
 
-export const updateProjectStatus = async (
-  data: UpdateProjectStatusInput,
-): Promise<ActionResponseType<ProjectResult>> => {
-  const validated = updateProjectStatusSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  const access = await resolveProjectAccess(validated.data.id);
-  if (!access.ok) return access.error;
-
-  if (!access.value.canEditProject) {
-    return ActionResponse.failure(
-      ERROR_CODES.FORBIDDEN,
-      "You don't have permission to edit this project.",
-    );
-  }
-
-  const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
-  if (readOnlyError) return readOnlyError;
-
-  try {
+export const updateProjectStatus = defineAction({
+  schema: updateProjectStatusSchema,
+  guard: (input) => resolveProjectAccess(input.id),
+  check: [
+    can("canEditProject", "You don't have permission to edit this project."),
+    writable,
+  ],
+  revalidate: true,
+  errors: { fallback: "Failed to update the project status." },
+  run: async (input, ctx): Promise<ActionResponseType<ProjectResult>> => {
     const existing = await db.project.findUnique({
-      where: { id: validated.data.id },
+      where: { id: input.id },
     });
     if (!existing) {
       return ActionResponse.failure(
@@ -305,113 +207,70 @@ export const updateProjectStatus = async (
     }
 
     const project = await db.project.update({
-      where: { id: validated.data.id },
-      data: { status: validated.data.status },
+      where: { id: input.id },
+      data: { status: input.status },
     });
 
     await recordActivity({
       projectId: project.id,
       type: "PROJECT_STATUS_CHANGED",
-      actorUserId: access.value.user.id,
-      actorEmail: access.value.user.email,
-      actorName: access.value.user.name,
+      ...actorOf(ctx.user),
       meta: { from: existing.status, to: project.status },
     });
 
-    revalidateDashboard();
     return ActionResponse.success(
       project,
       "Project status updated successfully",
     );
-  } catch (error) {
-    return toActionError(error, {
-      fallback: "Failed to update the project status.",
-    });
-  }
-};
+  },
+});
 
-export const updateProjectProgress = async (
-  data: UpdateProjectProgressInput,
-): Promise<ActionResponseType<ProjectResult>> => {
-  const validated = updateProjectProgressSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  const access = await resolveProjectAccess(validated.data.id);
-  if (!access.ok) return access.error;
-
-  if (!access.value.canEditProject) {
-    return ActionResponse.failure(
-      ERROR_CODES.FORBIDDEN,
-      "You don't have permission to edit this project.",
-    );
-  }
-
-  const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
-  if (readOnlyError) return readOnlyError;
-
-  try {
+export const updateProjectProgress = defineAction({
+  schema: updateProjectProgressSchema,
+  guard: (input) => resolveProjectAccess(input.id),
+  check: [
+    can("canEditProject", "You don't have permission to edit this project."),
+    writable,
+  ],
+  revalidate: true,
+  errors: { fallback: "Failed to update the project progress." },
+  run: async (input, ctx): Promise<ActionResponseType<ProjectResult>> => {
     const project = await db.project.update({
-      where: { id: validated.data.id },
-      data: { progress: validated.data.progress },
+      where: { id: input.id },
+      data: { progress: input.progress },
     });
 
     await recordActivity({
       projectId: project.id,
       type: "PROJECT_PROGRESS_UPDATED",
-      actorUserId: access.value.user.id,
-      actorEmail: access.value.user.email,
-      actorName: access.value.user.name,
+      ...actorOf(ctx.user),
       meta: { progress: project.progress },
     });
 
-    revalidateDashboard();
     return ActionResponse.success(
       project,
       "Project progress updated successfully",
     );
-  } catch (error) {
-    return toActionError(error, {
-      fallback: "Failed to update the project progress.",
-    });
-  }
-};
+  },
+});
 
-export const deleteProject = async (
-  data: ProjectIdInput,
-): Promise<ActionResponseType<DeleteProjectResult>> => {
-  const validated = projectIdSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  const access = await resolveProjectAccess(validated.data.id);
-  if (!access.ok) return access.error;
-
-  if (!access.value.canDeleteProject) {
-    return ActionResponse.failure(
-      ERROR_CODES.FORBIDDEN,
+export const deleteProject = defineAction({
+  schema: projectIdSchema,
+  guard: (input) => resolveProjectAccess(input.id),
+  check: [
+    can(
+      "canDeleteProject",
       "Only the workspace owner or an admin can delete projects.",
-    );
-  }
-
-  const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
-  if (readOnlyError) return readOnlyError;
-
-  try {
+    ),
+    writable,
+  ],
+  revalidate: true,
+  errors: { fallback: "Failed to delete the project." },
+  run: async (input, ctx): Promise<ActionResponseType<DeleteProjectResult>> => {
     const result = await db.project.deleteMany({
       where: {
-        id: validated.data.id,
-        workspaceId: access.value.workspaceId,
+        id: input.id,
+        workspaceId: ctx.workspaceId,
       },
     });
     if (result.count === 0) {
@@ -420,12 +279,9 @@ export const deleteProject = async (
         "Project not found.",
       );
     }
-    revalidateDashboard();
     return ActionResponse.success(
       { deleted: true },
       "Project deleted successfully",
     );
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to delete the project." });
-  }
-};
+  },
+});

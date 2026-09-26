@@ -6,10 +6,9 @@ import type {
 } from "@/app/generated/prisma/client";
 import { db } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { recordActivity } from "@/lib/actions/activity";
-import { revalidateDashboard } from "@/lib/actions/revalidate";
-import { toActionError } from "@/lib/actions/helpers";
-import { resolveProjectAccess } from "@/lib/actions/guards";
+import { actorOf, recordActivity } from "@/lib/actions/activity";
+import { can, defineAction, writable } from "@/lib/actions/define";
+import { resolveProjectAccess } from "@/lib/access";
 import { ERROR_CODES } from "@/lib/constants/errors";
 import { assertWorkspaceWritable } from "@/lib/services/plan-limits";
 import type { ActionResponseType } from "@/lib/types/action";
@@ -20,13 +19,6 @@ import {
   deliverableIdSchema,
   projectDeliverablesSchema,
   updateDeliverableSchema,
-} from "@/lib/validation/deliverable";
-import type {
-  CreateDeliverableInput,
-  CreateDeliverableVersionInput,
-  DeliverableIdInput,
-  ProjectDeliverablesInput,
-  UpdateDeliverableInput,
 } from "@/lib/validation/deliverable";
 
 // ──────────────────────────────────────────────
@@ -44,49 +36,26 @@ export type DeleteResult = { deleted: boolean };
 // Server Actions
 // ──────────────────────────────────────────────
 
-export const listDeliverables = async (
-  data: ProjectDeliverablesInput,
-): Promise<ActionResponseType<DeliverableListResult>> => {
-  const validated = projectDeliverablesSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  const access = await resolveProjectAccess(validated.data.projectId);
-  if (!access.ok) return access.error;
-
-  try {
+export const listDeliverables = defineAction({
+  schema: projectDeliverablesSchema,
+  guard: (input) => resolveProjectAccess(input.projectId),
+  errors: { fallback: "Failed to load deliverables." },
+  run: async (input): Promise<ActionResponseType<DeliverableListResult>> => {
     const items = await db.deliverable.findMany({
-      where: { projectId: validated.data.projectId },
+      where: { projectId: input.projectId },
       orderBy: { createdAt: "desc" },
     });
     return ActionResponse.success({ items }, "Deliverables loaded");
-  } catch (error) {
-    return toActionError(error, {
-      fallback: "Failed to load deliverables.",
-    });
-  }
-};
+  },
+});
 
-export const getDeliverable = async (
-  data: DeliverableIdInput,
-): Promise<ActionResponseType<DeliverableResult>> => {
-  const validated = deliverableIdSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  try {
+export const getDeliverable = defineAction({
+  schema: deliverableIdSchema,
+  guard: null,
+  errors: { fallback: "Failed to load the deliverable." },
+  run: async (input): Promise<ActionResponseType<DeliverableResult>> => {
     const deliverable = await db.deliverable.findUnique({
-      where: { id: validated.data.id },
+      where: { id: input.id },
     });
     if (!deliverable) {
       return ActionResponse.failure(
@@ -100,83 +69,53 @@ export const getDeliverable = async (
     if (!access.ok) return access.error;
 
     return ActionResponse.success(deliverable, "Deliverable loaded");
-  } catch (error) {
-    return toActionError(error, {
-      fallback: "Failed to load the deliverable.",
-    });
-  }
-};
+  },
+});
 
-export const createDeliverable = async (
-  data: CreateDeliverableInput,
-): Promise<ActionResponseType<DeliverableResult>> => {
-  const validated = createDeliverableSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  const access = await resolveProjectAccess(validated.data.projectId);
-  if (!access.ok) return access.error;
-
-  if (!access.value.canManageDeliverables) {
-    return ActionResponse.failure(
-      ERROR_CODES.FORBIDDEN,
-      "You have view-only access to this project.",
-    );
-  }
-
-  const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
-  if (readOnlyError) return readOnlyError;
-
-  try {
+export const createDeliverable = defineAction({
+  schema: createDeliverableSchema,
+  guard: (input) => resolveProjectAccess(input.projectId),
+  check: [
+    can("canManageDeliverables", "You have view-only access to this project."),
+    writable,
+  ],
+  revalidate: true,
+  errors: { fallback: "Failed to create the deliverable." },
+  run: async (input, ctx): Promise<ActionResponseType<DeliverableResult>> => {
     const deliverable = await db.deliverable.create({
       data: {
-        projectId: validated.data.projectId,
-        title: validated.data.title,
-        description: validated.data.description ?? null,
+        projectId: input.projectId,
+        title: input.title,
+        description: input.description ?? null,
       },
     });
 
     await recordActivity({
-      projectId: validated.data.projectId,
+      projectId: input.projectId,
       type: "DELIVERABLE_CREATED",
-      actorUserId: access.value.user.id,
-      actorEmail: access.value.user.email,
-      actorName: access.value.user.name,
+      ...actorOf(ctx.user),
       meta: { title: deliverable.title },
     });
 
-    revalidateDashboard();
     return ActionResponse.success(
       deliverable,
       "Deliverable created successfully",
     );
-  } catch (error) {
-    return toActionError(error, {
-      fallback: "Failed to create the deliverable.",
-    });
-  }
-};
+  },
+});
 
-export const updateDeliverable = async (
-  data: UpdateDeliverableInput,
-): Promise<ActionResponseType<DeliverableResult>> => {
-  const validated = updateDeliverableSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
+export const updateDeliverable = defineAction({
+  schema: updateDeliverableSchema,
+  guard: null,
+  revalidate: true,
+  errors: {
+    fallback: "Failed to update the deliverable.",
+    notFound:
+      "This deliverable was just modified by someone else. Refresh and try again.",
+  },
+  run: async (input): Promise<ActionResponseType<DeliverableResult>> => {
+    const { id, expectedVersion, title, description, status } = input;
 
-  const { id, expectedVersion, title, description, status } = validated.data;
-
-  try {
     const existing = await db.deliverable.findUnique({ where: { id } });
     if (!existing) {
       return ActionResponse.failure(
@@ -285,44 +224,28 @@ export const updateDeliverable = async (
         await recordActivity({
           projectId: deliverable.projectId,
           type: activityType,
-          actorUserId: access.value.user.id,
-          actorEmail: access.value.user.email,
-          actorName: access.value.user.name,
+          ...actorOf(access.value.user),
           meta: { from: existing.status, to: deliverable.status },
         });
       }
     }
 
-    revalidateDashboard();
     revalidatePath(`/portal/projects/${deliverable.projectId}`, "page");
     return ActionResponse.success(
       deliverable,
       "Deliverable updated successfully",
     );
-  } catch (error) {
-    return toActionError(error, {
-      fallback: "Failed to update the deliverable.",
-      notFound:
-        "This deliverable was just modified by someone else. Refresh and try again.",
-    });
-  }
-};
+  },
+});
 
-export const deleteDeliverable = async (
-  data: DeliverableIdInput,
-): Promise<ActionResponseType<DeleteResult>> => {
-  const validated = deliverableIdSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  try {
+export const deleteDeliverable = defineAction({
+  schema: deliverableIdSchema,
+  guard: null,
+  revalidate: true,
+  errors: { fallback: "Failed to delete the deliverable." },
+  run: async (input): Promise<ActionResponseType<DeleteResult>> => {
     const deliverable = await db.deliverable.findUnique({
-      where: { id: validated.data.id },
+      where: { id: input.id },
       select: { id: true, projectId: true },
     });
     if (!deliverable) {
@@ -347,34 +270,25 @@ export const deleteDeliverable = async (
     );
     if (readOnlyError) return readOnlyError;
 
-    await db.deliverable.delete({ where: { id: validated.data.id } });
-    revalidateDashboard();
+    await db.deliverable.delete({ where: { id: input.id } });
     return ActionResponse.success(
       { deleted: true },
       "Deliverable deleted successfully",
     );
-  } catch (error) {
-    return toActionError(error, {
-      fallback: "Failed to delete the deliverable.",
-    });
-  }
-};
+  },
+});
 
-export const addDeliverableVersion = async (
-  data: CreateDeliverableVersionInput,
-): Promise<ActionResponseType<DeliverableVersionResult>> => {
-  const validated = createDeliverableVersionSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  try {
+export const addDeliverableVersion = defineAction({
+  schema: createDeliverableVersionSchema,
+  guard: null,
+  revalidate: true,
+  errors: {
+    fallback: "Failed to add the deliverable version.",
+    conflict: "A version with this number already exists.",
+  },
+  run: async (input): Promise<ActionResponseType<DeliverableVersionResult>> => {
     const deliverable = await db.deliverable.findUnique({
-      where: { id: validated.data.deliverableId },
+      where: { id: input.deliverableId },
       select: { id: true, projectId: true, status: true },
     });
     if (!deliverable) {
@@ -412,36 +326,28 @@ export const addDeliverableVersion = async (
       select: { versionNumber: true },
     });
     const versionNumber =
-      validated.data.versionNumber ??
+      input.versionNumber ??
       (lastVersion ? lastVersion.versionNumber + 1 : 1);
 
     const version = await db.deliverableVersion.create({
       data: {
         deliverableId: deliverable.id,
         versionNumber,
-        fileId: validated.data.fileId ?? null,
-        notes: validated.data.notes ?? null,
+        fileId: input.fileId ?? null,
+        notes: input.notes ?? null,
       },
     });
 
     await recordActivity({
       projectId: deliverable.projectId,
       type: "DELIVERABLE_VERSION_UPLOADED",
-      actorUserId: access.value.user.id,
-      actorEmail: access.value.user.email,
-      actorName: access.value.user.name,
+      ...actorOf(access.value.user),
       meta: { versionNumber },
     });
 
-    revalidateDashboard();
     return ActionResponse.success(
       version,
       "Deliverable version uploaded successfully",
     );
-  } catch (error) {
-    return toActionError(error, {
-      fallback: "Failed to add the deliverable version.",
-      conflict: "A version with this number already exists.",
-    });
-  }
-};
+  },
+});

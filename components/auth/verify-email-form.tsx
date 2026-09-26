@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
@@ -11,17 +11,31 @@ import {
   InputOTPSeparator,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
-import { toast } from "@/components/ui/toast";
 import { sendVerificationOtp, verifyEmailOtp } from "@/lib/actions/auth";
+import { useServerAction } from "@/hooks/use-server-action";
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
 export default function VerifyEmailForm({ email }: { email: string }) {
   const router = useRouter();
   const [otp, setOtp] = useState("");
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [isResending, setIsResending] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+
+  const verify = useServerAction(verifyEmailOtp, {
+    success: "Email verified",
+    successDescription: () => "Welcome to Handoff!",
+    failure: "Verification failed",
+    onError: () => setOtp(""),
+    onSuccess: () => router.push("/dashboard"),
+  });
+
+  const resend = useServerAction(sendVerificationOtp, {
+    success: "Code sent",
+    successDescription: (_data, message) => message,
+    failure: "Couldn't resend code",
+    refresh: false,
+    onSuccess: () => setCooldown(RESEND_COOLDOWN_SECONDS),
+  });
 
   // Tick down the resend cooldown once per second.
   useEffect(() => {
@@ -34,66 +48,14 @@ export default function VerifyEmailForm({ email }: { email: string }) {
   }, [cooldown]);
 
   const handleVerify = async (code: string) => {
-    if (isVerifying) return;
-    setIsVerifying(true);
-    try {
-      const result = await verifyEmailOtp(code);
-      if (!result.success) {
-        toast.add({
-          type: "error",
-          title: "Verification failed",
-          description: result.message,
-        });
-        setOtp("");
-        return;
-      }
-      toast.add({
-        type: "success",
-        title: "Email verified",
-        description: "Welcome to Handoff!",
-      });
-      router.push("/dashboard");
-      router.refresh();
-    } catch {
-      toast.add({
-        type: "error",
-        title: "Something went wrong",
-        description: "Please try again.",
-      });
-    } finally {
-      setIsVerifying(false);
-    }
+    if (verify.pending) return;
+    await verify.run(code);
   };
 
-  const handleResend = useCallback(async () => {
-    if (isResending || cooldown > 0) return;
-    setIsResending(true);
-    try {
-      const result = await sendVerificationOtp();
-      if (!result.success) {
-        toast.add({
-          type: "error",
-          title: "Couldn't resend code",
-          description: result.message,
-        });
-        return;
-      }
-      setCooldown(RESEND_COOLDOWN_SECONDS);
-      toast.add({
-        type: "success",
-        title: "Code sent",
-        description: result.message,
-      });
-    } catch {
-      toast.add({
-        type: "error",
-        title: "Something went wrong",
-        description: "Please try again.",
-      });
-    } finally {
-      setIsResending(false);
-    }
-  }, [isResending, cooldown]);
+  const handleResend = () => {
+    if (resend.pending || cooldown > 0) return;
+    void resend.run();
+  };
 
   return (
     <div className="flex w-full max-w-sm flex-col items-center gap-6">
@@ -132,8 +94,8 @@ export default function VerifyEmailForm({ email }: { email: string }) {
           </InputOTPGroup>
         </InputOTP>
 
-        <Button type="submit" disabled={otp.length !== 6 || isVerifying}>
-          {isVerifying ? (
+        <Button type="submit" disabled={otp.length !== 6 || verify.pending}>
+          {verify.pending ? (
             <>
               <Loader2 className="animate-spin" data-icon="inline-start" />
               Verifying…
@@ -152,11 +114,11 @@ export default function VerifyEmailForm({ email }: { email: string }) {
           size="sm"
           className="h-auto p-0"
           onClick={() => void handleResend()}
-          disabled={cooldown > 0 || isResending}
+          disabled={cooldown > 0 || resend.pending}
         >
           {cooldown > 0
             ? `Resend in ${cooldown}s`
-            : isResending
+            : resend.pending
               ? "Sending…"
               : "Resend code"}
         </Button>

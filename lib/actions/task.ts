@@ -2,9 +2,8 @@
 
 import type { Task } from "@/app/generated/prisma/client";
 import { db } from "@/lib/prisma";
-import { toActionError } from "@/lib/actions/helpers";
-import { revalidateDashboard } from "@/lib/actions/revalidate";
-import { resolveProjectAccess } from "@/lib/actions/guards";
+import { defineAction } from "@/lib/actions/define";
+import { resolveProjectAccess } from "@/lib/access";
 import { ERROR_CODES } from "@/lib/constants/errors";
 import { assertWorkspaceWritable } from "@/lib/services/plan-limits";
 import type { ActionResponseType } from "@/lib/types/action";
@@ -14,12 +13,6 @@ import {
   reorderTasksSchema,
   taskIdSchema,
   updateTaskSchema,
-} from "@/lib/validation/task";
-import type {
-  CreateTaskInput,
-  ReorderTasksInput,
-  TaskIdInput,
-  UpdateTaskInput,
 } from "@/lib/validation/task";
 
 export type TaskResult = Task;
@@ -45,26 +38,16 @@ async function requireWorkAccess(projectId: string) {
   return access;
 }
 
-export const createTask = async (
-  data: CreateTaskInput,
-): Promise<ActionResponseType<TaskResult>> => {
-  const validated = createTaskSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  const access = await requireWorkAccess(validated.data.projectId);
-  if (!access.ok) return access.error;
-
-  try {
-    const status = validated.data.status ?? "TODO";
+export const createTask = defineAction({
+  schema: createTaskSchema,
+  guard: (input) => requireWorkAccess(input.projectId),
+  revalidate: true,
+  errors: { fallback: "Failed to create the task." },
+  run: async (input): Promise<ActionResponseType<TaskResult>> => {
+    const status = input.status ?? "TODO";
     const last = await db.task.findFirst({
       where: {
-        projectId: validated.data.projectId,
+        projectId: input.projectId,
         status,
       },
       orderBy: { position: "desc" },
@@ -73,9 +56,9 @@ export const createTask = async (
 
     const task = await db.task.create({
       data: {
-        projectId: validated.data.projectId,
-        title: validated.data.title,
-        description: validated.data.description ?? null,
+        projectId: input.projectId,
+        title: input.title,
+        description: input.description ?? null,
         status,
         position: (last?.position ?? -1) + 1,
       },
@@ -83,28 +66,18 @@ export const createTask = async (
 
     // No activity-log entry on purpose: task churn would flood the
     // client-facing timeline. The board itself is the record.
-    revalidateDashboard();
     return ActionResponse.success(task, "Task created");
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to create the task." });
-  }
-};
+  },
+});
 
-export const updateTask = async (
-  data: UpdateTaskInput,
-): Promise<ActionResponseType<TaskResult>> => {
-  const validated = updateTaskSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  try {
+export const updateTask = defineAction({
+  schema: updateTaskSchema,
+  guard: null,
+  revalidate: true,
+  errors: { fallback: "Failed to update the task." },
+  run: async (input): Promise<ActionResponseType<TaskResult>> => {
     const existing = await db.task.findUnique({
-      where: { id: validated.data.id },
+      where: { id: input.id },
       select: { id: true, projectId: true },
     });
     if (!existing) {
@@ -115,36 +88,25 @@ export const updateTask = async (
     if (!access.ok) return access.error;
 
     const patch: Record<string, unknown> = {};
-    if (validated.data.title !== undefined) patch.title = validated.data.title;
-    if (validated.data.description !== undefined)
-      patch.description = validated.data.description;
+    if (input.title !== undefined) patch.title = input.title;
+    if (input.description !== undefined) patch.description = input.description;
 
     const task = await db.task.update({
       where: { id: existing.id },
       data: patch,
     });
-    revalidateDashboard();
     return ActionResponse.success(task, "Task updated");
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to update the task." });
-  }
-};
+  },
+});
 
-export const deleteTask = async (
-  data: TaskIdInput,
-): Promise<ActionResponseType<{ deleted: boolean }>> => {
-  const validated = taskIdSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  try {
+export const deleteTask = defineAction({
+  schema: taskIdSchema,
+  guard: null,
+  revalidate: true,
+  errors: { fallback: "Failed to delete the task." },
+  run: async (input): Promise<ActionResponseType<{ deleted: boolean }>> => {
     const existing = await db.task.findUnique({
-      where: { id: validated.data.id },
+      where: { id: input.id },
       select: { id: true, projectId: true },
     });
     if (!existing) {
@@ -155,37 +117,24 @@ export const deleteTask = async (
     if (!access.ok) return access.error;
 
     await db.task.delete({ where: { id: existing.id } });
-    revalidateDashboard();
     return ActionResponse.success({ deleted: true }, "Task deleted");
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to delete the task." });
-  }
-};
+  },
+});
 
 /**
  * Persists a drag-and-drop result: status + ordering for the affected
  * tasks, atomically. The client sends only what changed.
  */
-export const reorderTasks = async (
-  data: ReorderTasksInput,
-): Promise<ActionResponseType<{ updated: number }>> => {
-  const validated = reorderTasksSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  const access = await requireWorkAccess(validated.data.projectId);
-  if (!access.ok) return access.error;
-
-  try {
+export const reorderTasks = defineAction({
+  schema: reorderTasksSchema,
+  guard: (input) => requireWorkAccess(input.projectId),
+  revalidate: true,
+  errors: { fallback: "Failed to save the board." },
+  run: async (input): Promise<ActionResponseType<{ updated: number }>> => {
     // Verify all touched tasks belong to this project before writing
-    const ids = validated.data.items.map((i) => i.id);
+    const ids = input.items.map((i) => i.id);
     const owned = await db.task.count({
-      where: { id: { in: ids }, projectId: validated.data.projectId },
+      where: { id: { in: ids }, projectId: input.projectId },
     });
     if (owned !== ids.length) {
       return ActionResponse.failure(
@@ -195,7 +144,7 @@ export const reorderTasks = async (
     }
 
     await db.$transaction(
-      validated.data.items.map((item) =>
+      input.items.map((item) =>
         db.task.update({
           where: { id: item.id },
           data: { status: item.status, position: item.position },
@@ -203,12 +152,9 @@ export const reorderTasks = async (
       ),
     );
 
-    revalidateDashboard();
     return ActionResponse.success(
-      { updated: validated.data.items.length },
+      { updated: input.items.length },
       "Board updated",
     );
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to save the board." });
-  }
-};
+  },
+});

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
-import { requireWorkspacePermission } from "@/lib/actions/guards";
+import { requireWorkspacePermission } from "@/lib/access";
 import { listTeamMembers, listTeamInvites } from "@/lib/actions/team";
-import { getManageableProjects } from "@/lib/queries/project";
+import { getManageableProjects } from "@/lib/queries/team";
 import { TeamManagement } from "@/components/dashboard/team";
 
 export const metadata = { title: "Team — Handoff" };

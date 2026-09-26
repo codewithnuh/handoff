@@ -6,7 +6,6 @@
  */
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   MoreHorizontal,
   Trash2,
@@ -34,18 +33,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
-import { toast } from "@/components/ui/toast";
 import type { TeamMemberListResult } from "@/lib/actions/team";
 import {
   removeTeamMember,
   updateTeamMemberRole,
   updateMemberPermissions,
 } from "@/lib/actions/team";
+import { useServerAction } from "@/hooks/use-server-action";
 import type { WorkspacePermission } from "@/app/generated/prisma/client";
-import {
-  ALL_PERMISSIONS,
-  ROLE_BADGE,
-} from "@/components/dashboard/team/constants";
+import { ALL_PERMISSIONS } from "@/components/dashboard/team/constants";
+import { ROLE_BADGE } from "@/lib/presentational/status";
 
 type Member = TeamMemberListResult["items"][number];
 
@@ -62,8 +59,6 @@ export function MembersSection({
   currentUserId,
   permissions = [],
 }: MembersSectionProps) {
-  const router = useRouter();
-  const [busyId, setBusyId] = useState<string | null>(null);
   const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
   const [permissionsTarget, setPermissionsTarget] = useState<Member | null>(
     null,
@@ -71,51 +66,38 @@ export function MembersSection({
   const [editingPermissions, setEditingPermissions] = useState<
     WorkspacePermission[]
   >([]);
-  const [savingPermissions, setSavingPermissions] = useState(false);
 
   const canManageMembers = isAdmin || permissions.includes("MANAGE_MEMBERS");
 
+  const roleChange = useServerAction(updateTeamMemberRole, {
+    success: "Role updated",
+    failure: "Update failed",
+  });
+
+  const removeMember = useServerAction(removeTeamMember, {
+    success: removeTarget ? `${removeTarget.name} removed` : undefined,
+    failure: "Couldn't remove member",
+    onSuccess: () => setRemoveTarget(null),
+  });
+
+  const savePermissions = useServerAction(updateMemberPermissions, {
+    success: "Permissions updated",
+    failure: "Couldn't update permissions",
+    onSuccess: () => setPermissionsTarget(null),
+  });
+
+  const busy = roleChange.pending || removeMember.pending;
+
   const handleRoleChange = async (userId: string, role: string) => {
-    setBusyId(userId);
-    try {
-      const result = await updateTeamMemberRole({
-        userId,
-        role: role as "ADMIN" | "MEMBER",
-      });
-      if (!result.success) {
-        toast.add({
-          type: "error",
-          title: "Update failed",
-          description: result.message,
-        });
-        return;
-      }
-      toast.add({ type: "success", title: "Role updated" });
-      router.refresh();
-    } finally {
-      setBusyId(null);
-    }
+    await roleChange.run({
+      userId,
+      role: role as "ADMIN" | "MEMBER",
+    });
   };
 
   const handleRemove = async () => {
     if (!removeTarget) return;
-    setBusyId(removeTarget.userId);
-    try {
-      const result = await removeTeamMember({ userId: removeTarget.userId });
-      if (!result.success) {
-        toast.add({
-          type: "error",
-          title: "Couldn't remove member",
-          description: result.message,
-        });
-        return;
-      }
-      toast.add({ type: "success", title: `${removeTarget.name} removed` });
-      setRemoveTarget(null);
-      router.refresh();
-    } finally {
-      setBusyId(null);
-    }
+    await removeMember.run({ userId: removeTarget.userId });
   };
 
   const openPermissions = (member: Member) => {
@@ -131,26 +113,10 @@ export function MembersSection({
 
   const handleSavePermissions = async () => {
     if (!permissionsTarget) return;
-    setSavingPermissions(true);
-    try {
-      const result = await updateMemberPermissions({
-        userId: permissionsTarget.userId,
-        permissions: editingPermissions,
-      });
-      if (!result.success) {
-        toast.add({
-          type: "error",
-          title: "Couldn't update permissions",
-          description: result.message,
-        });
-        return;
-      }
-      toast.add({ type: "success", title: "Permissions updated" });
-      setPermissionsTarget(null);
-      router.refresh();
-    } finally {
-      setSavingPermissions(false);
-    }
+    await savePermissions.run({
+      userId: permissionsTarget.userId,
+      permissions: editingPermissions,
+    });
   };
 
   return (
@@ -212,14 +178,14 @@ export function MembersSection({
                           Change role
                         </div>
                         <DropdownMenuItem
-                          disabled={busyId === m.userId || m.role === "ADMIN"}
+                          disabled={busy || m.role === "ADMIN"}
                           onClick={() => handleRoleChange(m.userId, "ADMIN")}
                         >
                           <Shield className="mr-2 h-3.5 w-3.5" />
                           Make Admin
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          disabled={busyId === m.userId || m.role === "MEMBER"}
+                          disabled={busy || m.role === "MEMBER"}
                           onClick={() => handleRoleChange(m.userId, "MEMBER")}
                         >
                           <ShieldOff className="mr-2 h-3.5 w-3.5" />
@@ -233,7 +199,7 @@ export function MembersSection({
                           Permissions
                         </div>
                         <DropdownMenuItem
-                          disabled={busyId === m.userId}
+                          disabled={busy}
                           onClick={() => openPermissions(m)}
                         >
                           <Key className="mr-2 h-3.5 w-3.5" />
@@ -253,7 +219,7 @@ export function MembersSection({
                       <>
                         <DropdownMenuItem
                           variant="destructive"
-                          disabled={busyId === m.userId}
+                          disabled={busy}
                           onClick={() => setRemoveTarget(m)}
                         >
                           <Trash2 className="mr-2 h-3.5 w-3.5" />
@@ -332,15 +298,15 @@ export function MembersSection({
             <Button
               variant="outline"
               onClick={() => setPermissionsTarget(null)}
-              disabled={savingPermissions}
+              disabled={savePermissions.pending}
             >
               Cancel
             </Button>
             <Button
               onClick={handleSavePermissions}
-              disabled={savingPermissions}
+              disabled={savePermissions.pending}
             >
-              {savingPermissions ? "Saving..." : "Save permissions"}
+              {savePermissions.pending ? "Saving..." : "Save permissions"}
             </Button>
           </DialogFooter>
         </DialogContent>

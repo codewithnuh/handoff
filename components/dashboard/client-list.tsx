@@ -34,15 +34,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { DeleteConfirmDialog } from "@/components/dashboard/project/delete-confirm-dialog";
-import { toast } from "@/components/ui/toast";
+import { EmptyState } from "@/components/presentational/empty-state";
 import {
   createClient,
   updateClient,
   deleteClient,
 } from "@/lib/actions/client";
-import { withTimeout } from "@/lib/utils/with-timeout";
-
-const ACTION_TIMEOUT_MS = 15_000;
+import { useServerAction } from "@/hooks/use-server-action";
 
 // ──────────────────────────────────────────────
 // Types
@@ -70,7 +68,14 @@ export function ClientList({ clients }: ClientListProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const [editClient, setEditClient] = useState<ClientItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ClientItem | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+
+  const remove = useServerAction(deleteClient, {
+    success: "Client deleted",
+    successDescription: () => `${deleteTarget?.name} has been removed.`,
+    failure: "Couldn't delete client",
+    refresh: false,
+    onSuccess: () => setDeleteTarget(null),
+  });
 
   const filteredClients = useMemo(() => {
     return clients.filter((client) => {
@@ -85,49 +90,18 @@ export function ClientList({ clients }: ClientListProps) {
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    setIsDeleting(true);
-    try {
-      const result = await withTimeout(
-        deleteClient({ id: deleteTarget.id }),
-        ACTION_TIMEOUT_MS,
-      );
-
-      if (!result.success) {
-        toast.add({
-          type: "error",
-          title: "Couldn't delete client",
-          description: result.message,
-        });
-        return;
-      }
-
-      toast.add({
-        type: "success",
-        title: "Client deleted",
-        description: `${deleteTarget.name} has been removed.`,
-      });
-      setDeleteTarget(null);
-    } catch (error) {
-      toast.add({
-        type: "error",
-        title: "Something went wrong",
-        description:
-          error instanceof Error ? error.message : "Please try again.",
-      });
-    } finally {
-      setIsDeleting(false);
-    }
+    await remove.run({ id: deleteTarget.id });
   };
 
   if (clients.length === 0) {
     return (
       <>
-        <div className="rounded-lg border border-dashed border-muted-foreground/25 bg-muted/25 p-12 text-center">
-          <Users className="mx-auto size-8 text-muted-foreground" />
-          <h3 className="mt-3 text-sm font-semibold">No clients yet</h3>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Add your first client to start managing projects and portal access.
-          </p>
+        <EmptyState
+          showIconCircle={false}
+          icon={<Users className="mx-auto size-8 text-muted-foreground" />}
+          title="No clients yet"
+          description="Add your first client to start managing projects and portal access."
+        >
           <Button
             size="sm"
             className="mt-4"
@@ -136,7 +110,7 @@ export function ClientList({ clients }: ClientListProps) {
             <UserPlus className="mr-1.5 h-3.5 w-3.5" />
             Add Client
           </Button>
-        </div>
+        </EmptyState>
 
         <CreateClientDialog open={createOpen} onOpenChange={setCreateOpen} />
       </>
@@ -224,12 +198,12 @@ export function ClientList({ clients }: ClientListProps) {
           ))}
         </div>
       ) : (
-        <div className="rounded-lg border border-dashed border-muted-foreground/25 bg-muted/25 p-12 text-center">
-          <Users className="mx-auto size-8 text-muted-foreground" />
-          <h3 className="mt-3 text-sm font-semibold">No clients found</h3>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Try adjusting your search or add a new client.
-          </p>
+        <EmptyState
+          showIconCircle={false}
+          icon={<Users className="mx-auto size-8 text-muted-foreground" />}
+          title="No clients found"
+          description="Try adjusting your search or add a new client."
+        >
           <Button
             variant="outline"
             size="sm"
@@ -238,7 +212,7 @@ export function ClientList({ clients }: ClientListProps) {
           >
             Clear search
           </Button>
-        </div>
+        </EmptyState>
       )}
 
       {/* Dialogs */}
@@ -258,7 +232,7 @@ export function ClientList({ clients }: ClientListProps) {
         onConfirm={handleDelete}
         title="Delete client"
         description={`Are you sure you want to delete "${deleteTarget?.name}"? This will also remove them from all projects. This action cannot be undone.`}
-        isDeleting={isDeleting}
+        isDeleting={remove.pending}
       />
     </div>
   );
@@ -275,6 +249,17 @@ function CreateClientDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const create = useServerAction(createClient, {
+    success: "Client added",
+    successDescription: (data) => `"${data.name}" has been added.`,
+    failure: "Couldn't add client",
+    refresh: false,
+    onSuccess: () => {
+      form.reset();
+      onOpenChange(false);
+    },
+  });
+
   const form = useForm({
     defaultValues: {
       name: "",
@@ -282,40 +267,11 @@ function CreateClientDialog({
       company: "",
     },
     onSubmit: async ({ value }) => {
-      try {
-        const result = await withTimeout(
-          createClient({
-            name: value.name,
-            email: value.email,
-            company: value.company.trim() || null,
-          }),
-          ACTION_TIMEOUT_MS,
-        );
-
-        if (!result.success) {
-          toast.add({
-            type: "error",
-            title: "Couldn't add client",
-            description: result.message,
-          });
-          return;
-        }
-
-        toast.add({
-          type: "success",
-          title: "Client added",
-          description: `"${result.data.name}" has been added.`,
-        });
-        form.reset();
-        onOpenChange(false);
-      } catch (error) {
-        toast.add({
-          type: "error",
-          title: "Something went wrong",
-          description:
-            error instanceof Error ? error.message : "Please try again.",
-        });
-      }
+      await create.run({
+        name: value.name,
+        email: value.email,
+        company: value.company.trim() || null,
+      });
     },
   });
 
@@ -426,6 +382,14 @@ function EditClientDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const update = useServerAction(updateClient, {
+    success: "Client updated",
+    successDescription: (data) => `"${data.name}" has been updated.`,
+    failure: "Couldn't update client",
+    refresh: false,
+    onSuccess: () => onOpenChange(false),
+  });
+
   const form = useForm({
     defaultValues: {
       name: client.name,
@@ -433,40 +397,12 @@ function EditClientDialog({
       company: client.company ?? "",
     },
     onSubmit: async ({ value }) => {
-      try {
-        const result = await withTimeout(
-          updateClient({
-            id: client.id,
-            name: value.name,
-            email: value.email,
-            company: value.company.trim() || null,
-          }),
-          ACTION_TIMEOUT_MS,
-        );
-
-        if (!result.success) {
-          toast.add({
-            type: "error",
-            title: "Couldn't update client",
-            description: result.message,
-          });
-          return;
-        }
-
-        toast.add({
-          type: "success",
-          title: "Client updated",
-          description: `"${result.data.name}" has been updated.`,
-        });
-        onOpenChange(false);
-      } catch (error) {
-        toast.add({
-          type: "error",
-          title: "Something went wrong",
-          description:
-            error instanceof Error ? error.message : "Please try again.",
-        });
-      }
+      await update.run({
+        id: client.id,
+        name: value.name,
+        email: value.email,
+        company: value.company.trim() || null,
+      });
     },
   });
 

@@ -95,7 +95,7 @@ export function FinalCTA() {
             {/* CTA */}
             <div className="mt-9 flex flex-col items-center gap-4 sm:mt-10">
               <Link
-                href="/signup"
+                href="/register"
                 className="group inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:w-auto"
               >
                 Get started free

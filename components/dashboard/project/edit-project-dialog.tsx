@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useForm } from "@tanstack/react-form";
 import { Pencil } from "lucide-react";
 
@@ -16,8 +15,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { toast } from "@/components/ui/toast";
 import { updateProject } from "@/lib/actions/project";
+import { useServerAction } from "@/hooks/use-server-action";
 
 type EditProjectDialogProps = {
   project: {
@@ -35,7 +34,13 @@ const toInputDate = (date: Date | null): string =>
 
 export function EditProjectDialog({ project }: EditProjectDialogProps) {
   const [open, setOpen] = useState(false);
-  const router = useRouter();
+
+  const update = useServerAction(updateProject, {
+    success: "Project updated",
+    successDescription: (data) => `"${data.name}" has been saved.`,
+    failure: "Couldn't update project",
+    onSuccess: () => setOpen(false),
+  });
 
   const form = useForm({
     defaultValues: {
@@ -46,41 +51,14 @@ export function EditProjectDialog({ project }: EditProjectDialogProps) {
       dueDate: toInputDate(project.dueDate),
     },
     onSubmit: async ({ value }) => {
-      try {
-        const result = await updateProject({
-          id: project.id,
-          name: value.name,
-          description: value.description.trim() || null,
-          progress: Number(value.progress) || 0,
-          startDate: value.startDate ? new Date(value.startDate) : null,
-          dueDate: value.dueDate ? new Date(value.dueDate) : null,
-        });
-
-        if (!result.success) {
-          toast.add({
-            type: "error",
-            title: "Couldn't update project",
-            description: result.message,
-          });
-          return;
-        }
-
-        toast.add({
-          type: "success",
-          title: "Project updated",
-          description: `"${result.data.name}" has been saved.`,
-        });
-
-        setOpen(false);
-        router.refresh();
-      } catch (error) {
-        toast.add({
-          type: "error",
-          title: "Something went wrong",
-          description:
-            error instanceof Error ? error.message : "Please try again.",
-        });
-      }
+      await update.run({
+        id: project.id,
+        name: value.name,
+        description: value.description.trim() || null,
+        progress: Number(value.progress) || 0,
+        startDate: value.startDate ? new Date(value.startDate) : null,
+        dueDate: value.dueDate ? new Date(value.dueDate) : null,
+      });
     },
   });
 

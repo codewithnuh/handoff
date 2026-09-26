@@ -7,19 +7,14 @@
  */
 
 import { db } from "@/lib/prisma";
-import { requireWorkspacePermission, requireWorkspaceAdmin } from "@/lib/actions/guards";
-import { revalidateDashboard } from "@/lib/actions/revalidate";
-import { toActionError } from "@/lib/actions/helpers";
+import { defineAction } from "@/lib/actions/define";
+import { requireWorkspacePermission, requireWorkspaceAdmin } from "@/lib/access";
 import { ERROR_CODES } from "@/lib/constants/errors";
 import type { ActionResponseType } from "@/lib/types/action";
 import { ActionResponse } from "@/lib/utils/action-response";
 import {
   revokeLinkSchema,
   bulkRevokeSchema,
-} from "@/lib/validation/links";
-import type {
-  RevokeLinkInput,
-  BulkRevokeInput,
 } from "@/lib/validation/links";
 
 // ──────────────────────────────────────────────
@@ -66,14 +61,11 @@ function computeStatus(
 // List all links
 // ──────────────────────────────────────────────
 
-export const listAllLinks = async (): Promise<
-  ActionResponseType<LinksListResult>
-> => {
-  const guard = await requireWorkspacePermission("MANAGE_MEMBERS");
-  if (!guard.ok) return guard.error;
-
-  try {
-    const workspaceId = guard.value.workspace.id;
+export const listAllLinks = defineAction({
+  guard: () => requireWorkspacePermission("MANAGE_MEMBERS"),
+  errors: { fallback: "Failed to load links." },
+  run: async (ctx): Promise<ActionResponseType<LinksListResult>> => {
+    const workspaceId = ctx.workspace.id;
 
     // Team invitations for this workspace
     const teamInvites = await db.teamInvitation.findMany({
@@ -115,7 +107,7 @@ export const listAllLinks = async (): Promise<
       id: inv.id,
       type: "team" as const,
       email: inv.email,
-      contextName: guard.value.workspace.name,
+      contextName: ctx.workspace.name,
       contextId: workspaceId,
       token: inv.token,
       acceptUrl: `${appUrl}/invite/team/${inv.token}`,
@@ -145,36 +137,24 @@ export const listAllLinks = async (): Promise<
       { teamLinks, clientLinks },
       "Links loaded",
     );
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to load links." });
-  }
-};
+  },
+});
 
 // ──────────────────────────────────────────────
 // Revoke a single link
 // ──────────────────────────────────────────────
 
-export const revokeLink = async (
-  data: RevokeLinkInput,
-): Promise<ActionResponseType<{ revoked: boolean }>> => {
-  const validated = revokeLinkSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  const guard = await requireWorkspaceAdmin();
-  if (!guard.ok) return guard.error;
-
-  try {
-    if (validated.data.type === "team") {
+export const revokeLink = defineAction({
+  schema: revokeLinkSchema,
+  guard: requireWorkspaceAdmin,
+  revalidate: true,
+  errors: { fallback: "Failed to revoke link." },
+  run: async (input, ctx): Promise<ActionResponseType<{ revoked: boolean }>> => {
+    if (input.type === "team") {
       const deleted = await db.teamInvitation.deleteMany({
         where: {
-          id: validated.data.id,
-          workspaceId: guard.value.workspace.id,
+          id: input.id,
+          workspaceId: ctx.workspace.id,
           acceptedAt: null, // Only revoke pending invites
         },
       });
@@ -187,7 +167,7 @@ export const revokeLink = async (
     } else {
       // Client link — delete the invitation
       const invite = await db.clientInvitation.findUnique({
-        where: { id: validated.data.id },
+        where: { id: input.id },
         select: {
           id: true,
           email: true,
@@ -195,7 +175,7 @@ export const revokeLink = async (
         },
       });
 
-      if (!invite || invite.project.workspaceId !== guard.value.workspace.id) {
+      if (!invite || invite.project.workspaceId !== ctx.workspace.id) {
         return ActionResponse.failure(
           ERROR_CODES.NOT_FOUND,
           "Invitation not found.",
@@ -209,40 +189,27 @@ export const revokeLink = async (
       ]);
     }
 
-    revalidateDashboard();
     return ActionResponse.success({ revoked: true }, "Link revoked");
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to revoke link." });
-  }
-};
+  },
+});
 
 // ──────────────────────────────────────────────
 // Bulk revoke links
 // ──────────────────────────────────────────────
 
-export const bulkRevokeLinks = async (
-  data: BulkRevokeInput,
-): Promise<ActionResponseType<{ revoked: number }>> => {
-  const validated = bulkRevokeSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  const guard = await requireWorkspaceAdmin();
-  if (!guard.ok) return guard.error;
-
-  try {
+export const bulkRevokeLinks = defineAction({
+  schema: bulkRevokeSchema,
+  guard: requireWorkspaceAdmin,
+  revalidate: true,
+  errors: { fallback: "Failed to revoke links." },
+  run: async (input, ctx): Promise<ActionResponseType<{ revoked: number }>> => {
     let revoked = 0;
 
-    if (validated.data.type === "team") {
+    if (input.type === "team") {
       const result = await db.teamInvitation.deleteMany({
         where: {
-          id: { in: validated.data.ids },
-          workspaceId: guard.value.workspace.id,
+          id: { in: input.ids },
+          workspaceId: ctx.workspace.id,
           acceptedAt: null,
         },
       });
@@ -251,8 +218,8 @@ export const bulkRevokeLinks = async (
       // Client links — find invitations, delete them, revoke sessions
       const invites = await db.clientInvitation.findMany({
         where: {
-          id: { in: validated.data.ids },
-          project: { workspaceId: guard.value.workspace.id },
+          id: { in: input.ids },
+          project: { workspaceId: ctx.workspace.id },
         },
         select: { id: true, email: true },
       });
@@ -270,12 +237,9 @@ export const bulkRevokeLinks = async (
       }
     }
 
-    revalidateDashboard();
     return ActionResponse.success(
       { revoked },
       `${revoked} link(s) revoked`,
     );
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to revoke links." });
-  }
-};
+  },
+});

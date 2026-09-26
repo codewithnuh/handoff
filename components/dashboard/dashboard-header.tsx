@@ -17,14 +17,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { toast } from "@/components/ui/toast";
 import { createProject } from "@/lib/actions/project";
 import { createClient } from "@/lib/actions/client";
-import { ActionTimeoutError, withTimeout } from "@/lib/utils/with-timeout";
+import { useServerAction } from "@/hooks/use-server-action";
+import { ActionTimeoutError } from "@/lib/utils/with-timeout";
 import { cn } from "@/lib/utils";
 import { ClientCombobox, type ClientOption } from "./create-client";
-
-const ACTION_TIMEOUT_MS = 15_000;
 
 type DashboardHeaderProps = {
   userName: string;
@@ -48,6 +46,59 @@ export function DashboardHeader({
   const clientNameRef = useRef<HTMLInputElement | null>(null);
 
   // ── Create Project Form ──
+  const createProjectAction = useServerAction(createProject, {
+    success: "Project created",
+    successDescription: (data) => `"${data.name}" is ready to go.`,
+    failure: "Couldn't create project",
+    thrown: (error) =>
+      error instanceof ActionTimeoutError
+        ? "Request timed out"
+        : "Something went wrong",
+    refresh: false,
+    onSuccess: () => {
+      projectForm.reset();
+      setProjectOpen(false);
+      setClientCreationOpen(false);
+    },
+    onError: (error) => {
+      projectForm.setFieldMeta("projectName", (meta) => ({
+        ...meta,
+        errorMap: {
+          onSubmit:
+            error.fieldErrors?.name?.join(", ") ?? meta.errorMap.onSubmit,
+        },
+      }));
+      projectForm.setFieldMeta("projectDescription", (meta) => ({
+        ...meta,
+        errorMap: {
+          onSubmit:
+            error.fieldErrors?.description?.join(", ") ?? meta.errorMap.onSubmit,
+        },
+      }));
+      projectForm.setFieldMeta("clientId", (meta) => ({
+        ...meta,
+        errorMap: {
+          onSubmit:
+            error.fieldErrors?.clientId?.join(", ") ?? meta.errorMap.onSubmit,
+        },
+      }));
+      projectForm.setFieldMeta("startDate", (meta) => ({
+        ...meta,
+        errorMap: {
+          onSubmit:
+            error.fieldErrors?.startDate?.join(", ") ?? meta.errorMap.onSubmit,
+        },
+      }));
+      projectForm.setFieldMeta("endDate", (meta) => ({
+        ...meta,
+        errorMap: {
+          onSubmit:
+            error.fieldErrors?.dueDate?.join(", ") ?? meta.errorMap.onSubmit,
+        },
+      }));
+    },
+  });
+
   const projectForm = useForm({
     defaultValues: {
       projectName: "",
@@ -57,98 +108,33 @@ export function DashboardHeader({
       endDate: "",
     },
     onSubmit: async ({ value }) => {
-      try {
-        const result = await withTimeout(
-          createProject({
-            name: value.projectName,
-            description: value.projectDescription.trim() || null,
-            clientId: value.clientId,
-            startDate: value.startDate ? new Date(value.startDate) : null,
-            dueDate: value.endDate ? new Date(value.endDate) : null,
-          }),
-          ACTION_TIMEOUT_MS,
-        );
-
-        if (!result.success) {
-          projectForm.setFieldMeta("projectName", (meta) => ({
-            ...meta,
-            errorMap: {
-              onSubmit:
-                result.error.fieldErrors?.name?.join(", ") ??
-                meta.errorMap.onSubmit,
-            },
-          }));
-          projectForm.setFieldMeta("projectDescription", (meta) => ({
-            ...meta,
-            errorMap: {
-              onSubmit:
-                result.error.fieldErrors?.description?.join(", ") ??
-                meta.errorMap.onSubmit,
-            },
-          }));
-          projectForm.setFieldMeta("clientId", (meta) => ({
-            ...meta,
-            errorMap: {
-              onSubmit:
-                result.error.fieldErrors?.clientId?.join(", ") ??
-                meta.errorMap.onSubmit,
-            },
-          }));
-          projectForm.setFieldMeta("startDate", (meta) => ({
-            ...meta,
-            errorMap: {
-              onSubmit:
-                result.error.fieldErrors?.startDate?.join(", ") ??
-                meta.errorMap.onSubmit,
-            },
-          }));
-          projectForm.setFieldMeta("endDate", (meta) => ({
-            ...meta,
-            errorMap: {
-              onSubmit:
-                result.error.fieldErrors?.dueDate?.join(", ") ??
-                meta.errorMap.onSubmit,
-            },
-          }));
-
-          toast.add({
-            type: "error",
-            title: "Couldn't create project",
-            description: result.message,
-          });
-          return;
-        }
-
-        toast.add({
-          type: "success",
-          title: "Project created",
-          description: `"${result.data.name}" is ready to go.`,
-        });
-
-        projectForm.reset();
-        setProjectOpen(false);
-        setClientCreationOpen(false);
-      } catch (error) {
-        if (error instanceof ActionTimeoutError) {
-          toast.add({
-            type: "error",
-            title: "Request timed out",
-            description: error.message,
-          });
-          return;
-        }
-
-        toast.add({
-          type: "error",
-          title: "Something went wrong",
-          description:
-            error instanceof Error ? error.message : "Please try again.",
-        });
-      }
+      await createProjectAction.run({
+        name: value.projectName,
+        description: value.projectDescription.trim() || null,
+        clientId: value.clientId,
+        startDate: value.startDate ? new Date(value.startDate) : null,
+        dueDate: value.endDate ? new Date(value.endDate) : null,
+      });
     },
   });
 
   // ── Create Client Form ──
+  const createClientAction = useServerAction(createClient, {
+    success: "Client created",
+    successDescription: (data) =>
+      `"${data.name}" has been added to your workspace.`,
+    failure: "Couldn't create client",
+    thrown: (error) =>
+      error instanceof ActionTimeoutError
+        ? "Request timed out"
+        : "Something went wrong",
+    refresh: false,
+    onSuccess: () => {
+      clientForm.reset();
+      setClientOpen(false);
+    },
+  });
+
   const clientForm = useForm({
     defaultValues: {
       clientName: "",
@@ -156,50 +142,11 @@ export function DashboardHeader({
       clientCompany: "",
     },
     onSubmit: async ({ value }) => {
-      try {
-        const result = await withTimeout(
-          createClient({
-            name: value.clientName,
-            email: value.clientEmail,
-            company: value.clientCompany.trim() || null,
-          }),
-          ACTION_TIMEOUT_MS,
-        );
-
-        if (!result.success) {
-          toast.add({
-            type: "error",
-            title: "Couldn't create client",
-            description: result.message,
-          });
-          return;
-        }
-
-        toast.add({
-          type: "success",
-          title: "Client created",
-          description: `"${result.data.name}" has been added to your workspace.`,
-        });
-
-        clientForm.reset();
-        setClientOpen(false);
-      } catch (error) {
-        if (error instanceof ActionTimeoutError) {
-          toast.add({
-            type: "error",
-            title: "Request timed out",
-            description: error.message,
-          });
-          return;
-        }
-
-        toast.add({
-          type: "error",
-          title: "Something went wrong",
-          description:
-            error instanceof Error ? error.message : "Please try again.",
-        });
-      }
+      await createClientAction.run({
+        name: value.clientName,
+        email: value.clientEmail,
+        company: value.clientCompany.trim() || null,
+      });
     },
   });
 

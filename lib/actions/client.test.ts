@@ -31,23 +31,8 @@ vi.mock("@/lib/auth", () => ({
   },
 }));
 
-vi.mock("@/lib/prisma", () => ({
-  db: {
-    user: { findUnique: vi.fn(), update: vi.fn() },
-    workspace: { findFirst: vi.fn(), findUnique: vi.fn() },
-    workspaceMember: { findUnique: vi.fn(), findFirst: vi.fn() },
-    client: {
-      findMany: vi.fn(),
-      findFirst: vi.fn(),
-      create: vi.fn(),
-      updateMany: vi.fn(),
-      deleteMany: vi.fn(),
-      findUnique: vi.fn(),
-    },
-    project: { findFirst: vi.fn() },
-    activity: { create: vi.fn() },
-    subscription: { findUnique: vi.fn() },
-  },
+vi.mock("@/lib/prisma", async () => ({
+  db: (await import("@/lib/test/fake-db")).fakeDb,
 }));
 
 vi.mock("next/cache", () => ({

@@ -10,11 +10,10 @@ const f = createUploadthing();
  */
 export const ourFileRouter = {
   deliverableFile: f({
-    "image/*": { maxFileSize: "16MB" },
+    image: { maxFileSize: "16MB" },
     "application/pdf": { maxFileSize: "32MB" },
-    "text/*": { maxFileSize: "8MB" },
+    text: { maxFileSize: "8MB" },
     "application/zip": { maxFileSize: "32MB" },
-    "application/x-zip-compressed": { maxFileSize: "32MB" },
     "application/msword": { maxFileSize: "16MB" },
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
       maxFileSize: "16MB",
@@ -28,7 +27,6 @@ export const ourFileRouter = {
       maxFileSize: "16MB",
     },
     "application/postscript": { maxFileSize: "16MB" },
-    "application/illustrator": { maxFileSize: "16MB" },
   })
     .middleware(async () => {
       // In production, verify auth here:

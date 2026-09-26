@@ -45,11 +45,8 @@ vi.mock("@/lib/auth", () => ({
   },
 }));
 
-vi.mock("@/lib/prisma", () => ({
-  db: {
-    $transaction: vi.fn(),
-    user: { delete: vi.fn() },
-  },
+vi.mock("@/lib/prisma", async () => ({
+  db: (await import("@/lib/test/fake-db")).fakeDb,
 }));
 
 import { db } from "@/lib/prisma";

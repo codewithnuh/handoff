@@ -2,7 +2,7 @@ import { Clock, DollarSign, Folder, MessageSquare } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getDashboardOverview } from "@/lib/queries/project";
+import { getDashboardOverview } from "@/lib/queries/dashboard";
 import { ProjectOverviewError } from "./project-overview-error";
 
 // ──────────────────────────────────────────────
