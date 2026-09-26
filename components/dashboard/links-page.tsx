@@ -7,7 +7,6 @@
  */
 
 import { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import {
   Link2,
   Copy,
@@ -47,23 +46,13 @@ import {
   type TrackedLink,
   type LinkStatus,
 } from "@/lib/actions/links";
+import { useServerAction } from "@/hooks/use-server-action";
+import { formatDate } from "@/lib/presentational/format";
+import { LINK_STATUS_CONFIG as STATUS_CONFIG } from "@/lib/presentational/status";
 
 // ──────────────────────────────────────────────
 // Constants
 // ──────────────────────────────────────────────
-
-const STATUS_CONFIG: Record<
-  LinkStatus,
-  {
-    label: string;
-    variant: "default" | "secondary" | "destructive" | "outline";
-  }
-> = {
-  ACTIVE: { label: "Active", variant: "default" },
-  EXPIRED: { label: "Expired", variant: "secondary" },
-  ACCEPTED: { label: "Accepted", variant: "outline" },
-  REVOKED: { label: "Revoked", variant: "destructive" },
-};
 
 const TYPE_CONFIG = {
   team: { label: "Team", icon: Users, color: "text-blue-500" },
@@ -98,15 +87,36 @@ interface LinksPageProps {
 }
 
 export function LinksPage({ teamLinks, clientLinks }: LinksPageProps) {
-  const router = useRouter();
   const [filter, setFilter] = useState<"all" | "team" | "client">("all");
   const [statusFilter, setStatusFilter] = useState<LinkStatus | "all">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [revokeConfirmId, setRevokeConfirmId] = useState<string | null>(null);
   const [bulkRevokeConfirm, setBulkRevokeConfirm] = useState(false);
-  const [isRevoking, setIsRevoking] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const revoke = useServerAction(revokeLink, {
+    success: (_d, m) => m,
+    failure: (_e, m) => m,
+    failureDescription: () => "",
+    thrown: "Failed to revoke link",
+    thrownDescription: () => "",
+    onSuccess: () => setRevokeConfirmId(null),
+  });
+
+  const bulkRevoke = useServerAction(bulkRevokeLinks, {
+    success: (_d, m) => m,
+    failure: (_e, m) => m,
+    failureDescription: () => "",
+    thrown: "Failed to revoke links",
+    thrownDescription: () => "",
+    onSuccess: () => {
+      setSelectedIds(new Set());
+      setBulkRevokeConfirm(false);
+    },
+  });
+
+  const isRevoking = revoke.pending || bulkRevoke.pending;
 
   const allLinks = useMemo(
     () => [...teamLinks, ...clientLinks],
@@ -152,47 +162,17 @@ export function LinksPage({ teamLinks, clientLinks }: LinksPageProps) {
   };
 
   // ── Revoke single ──
-  const handleRevoke = async (id: string, type: "team" | "client") => {
-    setIsRevoking(true);
-    try {
-      const result = await revokeLink({ id, type });
-      if (result.success) {
-        toast.add({ type: "success", title: result.message });
-        setRevokeConfirmId(null);
-        router.refresh();
-      } else {
-        toast.add({ type: "error", title: result.message });
-      }
-    } catch {
-      toast.add({ type: "error", title: "Failed to revoke link" });
-    } finally {
-      setIsRevoking(false);
-    }
+  const handleRevoke = (id: string, type: "team" | "client") => {
+    revoke.run({ id, type });
   };
 
   // ── Bulk revoke ──
-  const handleBulkRevoke = async () => {
+  const handleBulkRevoke = () => {
     if (selectedIds.size === 0) return;
-    setIsRevoking(true);
-    try {
-      const ids = Array.from(selectedIds);
-      const result = await bulkRevokeLinks({
-        ids,
-        type: filter === "team" ? "team" : "client",
-      });
-      if (result.success) {
-        toast.add({ type: "success", title: result.message });
-        setSelectedIds(new Set());
-        setBulkRevokeConfirm(false);
-        router.refresh();
-      } else {
-        toast.add({ type: "error", title: result.message });
-      }
-    } catch {
-      toast.add({ type: "error", title: "Failed to revoke links" });
-    } finally {
-      setIsRevoking(false);
-    }
+    bulkRevoke.run({
+      ids: Array.from(selectedIds),
+      type: filter === "team" ? "team" : "client",
+    });
   };
 
   // ── Select ──
@@ -212,13 +192,6 @@ export function LinksPage({ teamLinks, clientLinks }: LinksPageProps) {
       setSelectedIds(new Set(filteredLinks.map((l) => l.id)));
     }
   };
-
-  const formatDate = (d: Date) =>
-    new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    }).format(new Date(d));
 
   return (
     <div className="flex flex-col gap-6 p-4 md:p-6">

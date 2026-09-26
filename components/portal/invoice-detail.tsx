@@ -11,6 +11,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
+import { EmptyState } from "@/components/presentational/empty-state";
+import { formatDate, formatCurrency } from "@/lib/presentational/format";
+import { INVOICE_STATUS_CONFIG_PORTAL } from "@/lib/presentational/status";
 
 type PortalInvoice = {
   id: string;
@@ -34,32 +37,6 @@ type PortalInvoice = {
   }[];
 };
 
-const INVOICE_STATUS: Record<
-  string,
-  { label: string; variant: "default" | "secondary" | "outline" | "destructive" }
-> = {
-  PAID: { label: "Paid", variant: "outline" },
-  SENT: { label: "Pending", variant: "default" },
-  OVERDUE: { label: "Overdue", variant: "destructive" },
-  DRAFT: { label: "Draft", variant: "secondary" },
-  CANCELLED: { label: "Cancelled", variant: "destructive" },
-};
-
-function formatDate(date: Date | null): string {
-  if (!date) return "N/A";
-  return new Date(date).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function formatCurrency(amount: string, currency: string): string {
-  const num = parseFloat(amount);
-  if (isNaN(num)) return `${amount} ${currency}`;
-  return `$${num.toLocaleString("en-US", { minimumFractionDigits: 2 })} ${currency}`;
-}
-
 export function PortalInvoiceSection({
   invoices,
 }: {
@@ -72,15 +49,11 @@ export function PortalInvoiceSection({
           <Receipt className="size-5 text-muted-foreground" />
           Invoices
         </h2>
-        <div className="rounded-lg border border-dashed border-muted-foreground/25 bg-muted/25 p-12 text-center">
-          <div className="mx-auto flex size-10 items-center justify-center rounded-full bg-muted">
-            <Receipt className="size-5 text-muted-foreground" />
-          </div>
-          <h3 className="mt-3 text-sm font-semibold">No invoices yet</h3>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Invoices for this project will appear here.
-          </p>
-        </div>
+        <EmptyState
+          icon={<Receipt className="size-5 text-muted-foreground" />}
+          title="No invoices yet"
+          description="Invoices for this project will appear here."
+        />
       </section>
     );
   }
@@ -98,7 +71,8 @@ export function PortalInvoiceSection({
       <div className="space-y-4">
         {invoices.map((invoice) => {
           const statusConfig =
-            INVOICE_STATUS[invoice.status] ?? INVOICE_STATUS.DRAFT;
+            INVOICE_STATUS_CONFIG_PORTAL[invoice.status] ??
+            INVOICE_STATUS_CONFIG_PORTAL.DRAFT;
 
           return (
             <Card key={invoice.id} className="shadow-xs">

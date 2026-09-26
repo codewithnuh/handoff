@@ -6,7 +6,6 @@
  */
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -21,13 +20,14 @@ import {
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
 import type { TeamMemberListResult } from "@/lib/actions/team";
-import type { TeamAssignmentProject } from "@/lib/queries/project";
+import type { TeamAssignmentProject } from "@/lib/queries/team";
 import {
   updateProjectMemberRole,
   removeProjectMember,
   listProjectMembers,
 } from "@/lib/actions/team";
-import { PROJECT_ROLE_LABEL } from "@/components/dashboard/team/constants";
+import { useServerAction } from "@/hooks/use-server-action";
+import { PROJECT_ROLE_LABEL } from "@/lib/presentational/status";
 
 type Member = TeamMemberListResult["items"][number];
 
@@ -40,7 +40,6 @@ export function AssignmentsSection({
   projects,
   members,
 }: AssignmentsSectionProps) {
-  const router = useRouter();
   const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
   const [rows, setRows] = useState<
     { userId: string; name: string; email: string; role: string }[] | null
@@ -66,6 +65,29 @@ export function AssignmentsSection({
     }
   };
 
+  const assign = useServerAction(updateProjectMemberRole, {
+    success: "Assignment saved",
+    failure: "Couldn't assign",
+    onSuccess: () => {
+      setAssignUser("");
+      setAssignRole("CONTRIBUTOR");
+      void loadRows(projectId);
+    },
+  });
+
+  const roleChange = useServerAction(updateProjectMemberRole, {
+    failure: "Couldn't update",
+    onSuccess: () => void loadRows(projectId),
+  });
+
+  const removeMember = useServerAction(removeProjectMember, {
+    failure: "Couldn't remove",
+    onSuccess: () => void loadRows(projectId),
+  });
+
+  const pending =
+    loading || assign.pending || roleChange.pending || removeMember.pending;
+
   // Load rows when the project changes. State updates happen after the
   // await (never synchronously inside the effect).
   useEffect(() => {
@@ -88,71 +110,23 @@ export function AssignmentsSection({
 
   const handleAssign = async () => {
     if (!projectId || !assignUser) return;
-    setLoading(true);
-    try {
-      const result = await updateProjectMemberRole({
-        projectId,
-        userId: assignUser,
-        role: assignRole as "LEAD" | "CONTRIBUTOR" | "OBSERVER",
-      });
-      if (!result.success) {
-        toast.add({
-          type: "error",
-          title: "Couldn't assign",
-          description: result.message,
-        });
-        return;
-      }
-      toast.add({ type: "success", title: "Assignment saved" });
-      setAssignUser("");
-      setAssignRole("CONTRIBUTOR");
-      await loadRows(projectId);
-      router.refresh();
-    } finally {
-      setLoading(false);
-    }
+    await assign.run({
+      projectId,
+      userId: assignUser,
+      role: assignRole as "LEAD" | "CONTRIBUTOR" | "OBSERVER",
+    });
   };
 
   const handleRoleChange = async (userId: string, role: string) => {
-    setLoading(true);
-    try {
-      const result = await updateProjectMemberRole({
-        projectId,
-        userId,
-        role: role as "LEAD" | "CONTRIBUTOR" | "OBSERVER",
-      });
-      if (!result.success) {
-        toast.add({
-          type: "error",
-          title: "Couldn't update",
-          description: result.message,
-        });
-        return;
-      }
-      await loadRows(projectId);
-      router.refresh();
-    } finally {
-      setLoading(false);
-    }
+    await roleChange.run({
+      projectId,
+      userId,
+      role: role as "LEAD" | "CONTRIBUTOR" | "OBSERVER",
+    });
   };
 
   const handleRemove = async (userId: string) => {
-    setLoading(true);
-    try {
-      const result = await removeProjectMember({ projectId, userId });
-      if (!result.success) {
-        toast.add({
-          type: "error",
-          title: "Couldn't remove",
-          description: result.message,
-        });
-        return;
-      }
-      await loadRows(projectId);
-      router.refresh();
-    } finally {
-      setLoading(false);
-    }
+    await removeMember.run({ projectId, userId });
   };
 
   const memberName = (userId: string) =>
@@ -187,9 +161,9 @@ export function AssignmentsSection({
 
         <div
           className="rounded-md border border-border min-h-[80px]"
-          data-loading={loading}
+          data-loading={pending}
         >
-          {rows === null || loading ? (
+          {rows === null || pending ? (
             <p className="text-xs text-muted-foreground p-4 text-center">
               Loading…
             </p>
@@ -216,7 +190,7 @@ export function AssignmentsSection({
                     <Select
                       value={r.role}
                       onValueChange={(v) => v && handleRoleChange(r.userId, v)}
-                      disabled={loading}
+                      disabled={pending}
                     >
                       <SelectTrigger className="w-[120px] h-7 text-xs">
                         <SelectValue />
@@ -236,7 +210,7 @@ export function AssignmentsSection({
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      disabled={loading}
+                      disabled={pending}
                       onClick={() => handleRemove(r.userId)}
                     >
                       <X className="size-3.5 text-destructive" />
@@ -286,7 +260,7 @@ export function AssignmentsSection({
           <Button
             size="sm"
             onClick={handleAssign}
-            disabled={!assignUser || !projectId || loading}
+            disabled={!assignUser || !projectId || pending}
           >
             Assign
           </Button>

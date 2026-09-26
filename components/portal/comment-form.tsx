@@ -6,12 +6,11 @@
  */
 
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Send, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "@/components/ui/toast";
 import { clientAddComment } from "@/lib/actions/portal-actions";
+import { useServerAction } from "@/hooks/use-server-action";
 
 interface CommentFormProps {
   targetType: "deliverable" | "request";
@@ -20,36 +19,19 @@ interface CommentFormProps {
 
 export function CommentForm({ targetType, targetId }: CommentFormProps) {
   const [content, setContent] = useState("");
-  const [loading, setLoading] = useState(false);
-  const router = useRouter();
+  const addComment = useServerAction(clientAddComment, {
+    success: "Comment added",
+    failure: "Error",
+    thrown: "Error",
+    thrownDescription: () => "Failed to add comment",
+    onSuccess: () => setContent(""),
+  });
 
   async function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault();
-    if (!content.trim() || loading) return;
+    if (!content.trim() || addComment.pending) return;
 
-    setLoading(true);
-    try {
-      const result = await clientAddComment(targetType, targetId, content);
-      if (result.ok) {
-        setContent("");
-        toast.add({ type: "success", title: "Comment added" });
-        router.refresh();
-      } else {
-        toast.add({
-          type: "error",
-          title: "Error",
-          description: result.error,
-        });
-      }
-    } catch {
-      toast.add({
-        type: "error",
-        title: "Error",
-        description: "Failed to add comment",
-      });
-    } finally {
-      setLoading(false);
-    }
+    await addComment.run({ targetType, targetId, content });
   }
 
   return (
@@ -71,10 +53,10 @@ export function CommentForm({ targetType, targetId }: CommentFormProps) {
         type="submit"
         size="sm"
         variant="outline"
-        disabled={!content.trim() || loading}
+        disabled={!content.trim() || addComment.pending}
         className="shrink-0 self-end"
       >
-        {loading ? (
+        {addComment.pending ? (
           <RefreshCw className="size-3.5 animate-spin" />
         ) : (
           <Send className="size-3.5" />

@@ -13,12 +13,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import type { ProjectDetailData } from "@/lib/queries/project";
+import type { ProjectDetailData } from "@/lib/queries/project-detail";
 import type { ViewerPermissions } from "./types";
 import { InvoiceStatusBadge } from "./status-badges";
 import { activityLabel } from "@/lib/constants/activity";
-import { formatDate, formatDateTime, formatCurrency } from "./format";
-import { EmptyTab } from "./empty-tab";
+import {
+  formatDate,
+  formatDateTime,
+  formatCurrency,
+} from "@/lib/presentational/format";
+import { EmptyState } from "@/components/presentational/empty-state";
 import { CreateInvoiceDialog } from "./create-invoice-dialog";
 import { InvoiceDetailDialog } from "./invoice-detail-dialog";
 import { InvoiceActions } from "./invoice-actions";
@@ -90,7 +94,8 @@ export function InvoicesTab({
             />
           </div>
         )}
-        <EmptyTab
+        <EmptyState
+          className="space-y-4"
           icon={<Receipt className="text-muted-foreground size-5" />}
           title="No invoices yet"
           description="Create your first invoice for this project."
@@ -192,7 +197,8 @@ export function ActivityTab({
 }) {
   if (activities.length === 0) {
     return (
-      <EmptyTab
+      <EmptyState
+        className="space-y-4"
         icon={<ActivityIcon className="size-5 text-muted-foreground" />}
         title="No activity yet"
         description="Activity for this project will appear here."

@@ -11,6 +11,18 @@ type RecordActivityInput = {
   meta?: Prisma.InputJsonValue;
 };
 
+type ActivityActor = {
+  id: string;
+  email: string;
+  name?: string | null;
+};
+
+export const actorOf = (user: ActivityActor) => ({
+  actorUserId: user.id,
+  actorEmail: user.email,
+  actorName: user.name ?? null,
+});
+
 /**
  * Inserts a row into the activity timeline. Failures are logged but never
  * allowed to break the primary mutation — the user's action already succeeded.

@@ -5,19 +5,15 @@ import { revalidatePath } from "next/cache";
 import type { ClientInvitation } from "@/app/generated/prisma/client";
 import { db } from "@/lib/prisma";
 import { env } from "@/env";
-import { recordActivity } from "@/lib/actions/activity";
-import { toActionError } from "@/lib/actions/helpers";
-import { resolveProjectAccess } from "@/lib/actions/guards";
+import { actorOf, recordActivity } from "@/lib/actions/activity";
+import { can, defineAction } from "@/lib/actions/define";
+import { resolveProjectAccess } from "@/lib/access";
 import { ERROR_CODES } from "@/lib/constants/errors";
 import type { ActionResponseType } from "@/lib/types/action";
 import { ActionResponse } from "@/lib/utils/action-response";
 import {
   inviteClientSchema,
   revokeAccessSchema,
-} from "@/lib/validation/invitation";
-import type {
-  InviteClientInput,
-  RevokeAccessInput,
 } from "@/lib/validation/invitation";
 
 // ──────────────────────────────────────────────
@@ -43,25 +39,29 @@ const revalidatePortalPages = () => {
  * invalidated so exactly one live link exists at a time.
  */
 async function createInvitation(projectId: string, email: string) {
-  await db.clientInvitation.updateMany({
-    where: {
-      projectId,
-      email,
-      acceptedAt: null,
-    },
-    data: {
-      // Set expiry to now so old tokens are immediately invalid
-      expiresAt: new Date(),
-    },
-  });
+  // Invalidate-then-create is one unit: a half-applied run would leave
+  // either two live links or none.
+  return db.$transaction(async (tx) => {
+    await tx.clientInvitation.updateMany({
+      where: {
+        projectId,
+        email,
+        acceptedAt: null,
+      },
+      data: {
+        // Set expiry to now so old tokens are immediately invalid
+        expiresAt: new Date(),
+      },
+    });
 
-  return db.clientInvitation.create({
-    data: {
-      projectId,
-      email,
-      token: randomBytes(32).toString("hex"),
-      expiresAt: new Date(Date.now() + INVITE_TTL_MS),
-    },
+    return tx.clientInvitation.create({
+      data: {
+        projectId,
+        email,
+        token: randomBytes(32).toString("hex"),
+        expiresAt: new Date(Date.now() + INVITE_TTL_MS),
+      },
+    });
   });
 }
 
@@ -69,42 +69,23 @@ async function createInvitation(projectId: string, email: string) {
 // Server Actions
 // ──────────────────────────────────────────────
 
-export const inviteClient = async (
-  data: InviteClientInput,
-): Promise<ActionResponseType<ClientInvitationResult>> => {
-  const validated = inviteClientSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
+export const inviteClient = defineAction({
+  schema: inviteClientSchema,
+  guard: (input) => resolveProjectAccess(input.projectId),
   // Client-facing actions are lead-level (quality gate): inviting,
   // re-inviting, and revoking portal access push work to the client.
-  const access = await resolveProjectAccess(validated.data.projectId);
-  if (!access.ok) return access.error;
-
-  if (!access.value.canSubmitForReview) {
-    return ActionResponse.failure(
-      ERROR_CODES.FORBIDDEN,
-      "Only a project lead can manage client access.",
-    );
-  }
-
-  try {
-    const invitation = await createInvitation(
-      validated.data.projectId,
-      validated.data.email,
-    );
+  check: can(
+    "canSubmitForReview",
+    "Only a project lead can manage client access.",
+  ),
+  errors: { fallback: "Failed to create invitation." },
+  run: async (input, ctx): Promise<ActionResponseType<ClientInvitationResult>> => {
+    const invitation = await createInvitation(input.projectId, input.email);
 
     await recordActivity({
-      projectId: validated.data.projectId,
+      projectId: input.projectId,
       type: "CLIENT_INVITED",
-      actorUserId: access.value.user.id,
-      actorEmail: access.value.user.email,
-      actorName: access.value.user.name,
+      ...actorOf(ctx.user),
       meta: { email: invitation.email },
     });
 
@@ -116,10 +97,8 @@ export const inviteClient = async (
       { ...invitation, acceptUrl },
       "Invitation link generated. Copy and share it with your client.",
     );
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to create invitation." });
-  }
-};
+  },
+});
 
 // ──────────────────────────────────────────────
 // Revoke client access
@@ -130,36 +109,22 @@ export const inviteClient = async (
  * Deletes the ProjectAccess row AND all ClientSessions for that email,
  * so the client immediately loses portal access on next request.
  */
-export const revokeClientAccess = async (
-  data: RevokeAccessInput,
-): Promise<ActionResponseType<RevokeAccessResult>> => {
-  const validated = revokeAccessSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
+export const revokeClientAccess = defineAction({
+  schema: revokeAccessSchema,
+  guard: (input) => resolveProjectAccess(input.projectId),
   // Client-facing actions are lead-level (quality gate): inviting,
   // re-inviting, and revoking portal access push work to the client.
-  const access = await resolveProjectAccess(validated.data.projectId);
-  if (!access.ok) return access.error;
-
-  if (!access.value.canSubmitForReview) {
-    return ActionResponse.failure(
-      ERROR_CODES.FORBIDDEN,
-      "Only a project lead can manage client access.",
-    );
-  }
-
-  try {
+  check: can(
+    "canSubmitForReview",
+    "Only a project lead can manage client access.",
+  ),
+  errors: { fallback: "Failed to revoke client access." },
+  run: async (input): Promise<ActionResponseType<RevokeAccessResult>> => {
     // 1. Delete ProjectAccess
     const result = await db.projectAccess.deleteMany({
       where: {
-        projectId: validated.data.projectId,
-        email: validated.data.email,
+        projectId: input.projectId,
+        email: input.email,
       },
     });
 
@@ -172,24 +137,20 @@ export const revokeClientAccess = async (
 
     // 2. Immediately revoke all active sessions for this email
     await db.clientSession.deleteMany({
-      where: { email: validated.data.email },
+      where: { email: input.email },
     });
 
     revalidatePortalPages();
     return ActionResponse.success(
       {
         revoked: true,
-        email: validated.data.email,
-        projectId: validated.data.projectId,
+        email: input.email,
+        projectId: input.projectId,
       },
       "Client access revoked successfully",
     );
-  } catch (error) {
-    return toActionError(error, {
-      fallback: "Failed to revoke client access.",
-    });
-  }
-};
+  },
+});
 
 // ──────────────────────────────────────────────
 // Re-invite client
@@ -200,36 +161,19 @@ export const revokeClientAccess = async (
  * Invalidates any previous unaccepted invitations for this email+project.
  * No email is sent — the freelancer copies and shares the link manually.
  */
-export const resendInvitation = async (
-  data: InviteClientInput,
-): Promise<ActionResponseType<ResendInvitationResult>> => {
-  const validated = inviteClientSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
+export const resendInvitation = defineAction({
+  schema: inviteClientSchema,
+  guard: (input) => resolveProjectAccess(input.projectId),
   // Client-facing actions are lead-level (quality gate): inviting,
   // re-inviting, and revoking portal access push work to the client.
-  const access = await resolveProjectAccess(validated.data.projectId);
-  if (!access.ok) return access.error;
-
-  if (!access.value.canSubmitForReview) {
-    return ActionResponse.failure(
-      ERROR_CODES.FORBIDDEN,
-      "Only a project lead can manage client access.",
-    );
-  }
-
-  try {
+  check: can(
+    "canSubmitForReview",
+    "Only a project lead can manage client access.",
+  ),
+  errors: { fallback: "Failed to generate new invitation." },
+  run: async (input): Promise<ActionResponseType<ResendInvitationResult>> => {
     // Invalidate old links + create a fresh invitation
-    const invitation = await createInvitation(
-      validated.data.projectId,
-      validated.data.email,
-    );
+    const invitation = await createInvitation(input.projectId, input.email);
 
     const acceptUrl = `${env.NEXT_PUBLIC_APP_URL}/api/portal/accept?token=${invitation.token}`;
 
@@ -238,9 +182,5 @@ export const resendInvitation = async (
       { ...invitation, acceptUrl },
       "New invitation link generated. Copy and share it with your client.",
     );
-  } catch (error) {
-    return toActionError(error, {
-      fallback: "Failed to generate new invitation.",
-    });
-  }
-};
+  },
+});

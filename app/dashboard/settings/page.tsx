@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/prisma";
-import { requireWorkspacePermission } from "@/lib/actions/guards";
+import { requireWorkspacePermission } from "@/lib/access";
 import { SettingsForm } from "@/components/dashboard/settings-form";
 
 export const metadata = { title: "Settings — Handoff" };

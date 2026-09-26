@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { WorkspaceUsageData } from "@/lib/queries/project";
+import type { WorkspaceUsageData } from "@/lib/queries/usage";
 
 // ──────────────────────────────────────────────
 // Usage Banner — shows workspace & project limits separately

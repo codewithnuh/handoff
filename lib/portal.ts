@@ -174,46 +174,5 @@ export async function revokeClientSession(sessionId: string): Promise<void> {
   }).catch(() => {});
 }
 
-// ──────────────────────────────────────────────
-// Guards
-// ──────────────────────────────────────────────
-
-export type PortalGuardResult =
-  | { ok: true; email: string; sessionId: string }
-  | { ok: false };
-
-/**
- * Requires a valid client portal session.
- */
-export async function requireClientSession(): Promise<PortalGuardResult> {
-  const session = await getClientPortalSession();
-  if (!session) return { ok: false };
-  return { ok: true, email: session.email, sessionId: session.sessionId };
-}
-
-// ──────────────────────────────────────────────
-// Project access
-// ──────────────────────────────────────────────
-
-export type ProjectAccessResult =
-  | { ok: true }
-  | { ok: false; error: { status: 403 } };
-
-/**
- * Verifies the client has access to the specified project.
- */
-export async function requireProjectAccess(
-  email: string,
-  projectId: string,
-): Promise<ProjectAccessResult> {
-  const access = await db.projectAccess.findUnique({
-    where: { projectId_email: { projectId, email } },
-    select: { id: true },
-  });
-
-  if (!access) {
-    return { ok: false, error: { status: 403 } };
-  }
-
-  return { ok: true };
-}
+// Access decisions built on these primitives live in lib/access/portal.ts —
+// the single place actions, pages and route handlers ask "may they in?".

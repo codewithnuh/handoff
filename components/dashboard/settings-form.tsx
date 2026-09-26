@@ -6,7 +6,6 @@
  */
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +16,7 @@ import {
   changePassword,
   updateProfile,
 } from "@/lib/actions/account";
+import { useServerAction } from "@/hooks/use-server-action";
 
 interface SettingsFormProps {
   name: string;
@@ -32,33 +32,36 @@ export function SettingsForm({
   workspaceRole,
   workspaceName,
 }: SettingsFormProps) {
-  const router = useRouter();
   const [name, setName] = useState(initialName);
-  const [savingName, setSavingName] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [savingPassword, setSavingPassword] = useState(false);
+
+  const save = useServerAction(updateProfile, {
+    success: "Profile updated",
+    failure: "Couldn't save",
+  });
+
+  const password = useServerAction(changePassword, {
+    success: "Password updated",
+    successDescription: () => "Other devices were signed out.",
+    failure: "Couldn't update password",
+    refresh: false,
+    onSuccess: () => {
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    },
+  });
 
   const handleSaveProfile = async () => {
-    if (!name.trim() || savingName) return;
-    setSavingName(true);
-    try {
-      const result = await updateProfile({ name: name.trim() });
-      if (!result.success) {
-        toast.add({ type: "error", title: "Couldn't save", description: result.message });
-        return;
-      }
-      toast.add({ type: "success", title: "Profile updated" });
-      router.refresh();
-    } finally {
-      setSavingName(false);
-    }
+    if (!name.trim() || save.pending) return;
+    await save.run({ name: name.trim() });
   };
 
   const handleChangePassword = async () => {
-    if (savingPassword) return;
+    if (password.pending) return;
     if (newPassword.length < 8) {
       toast.add({
         type: "error",
@@ -71,24 +74,7 @@ export function SettingsForm({
       toast.add({ type: "error", title: "Passwords don't match" });
       return;
     }
-    setSavingPassword(true);
-    try {
-      const result = await changePassword({ currentPassword, newPassword });
-      if (!result.success) {
-        toast.add({ type: "error", title: "Couldn't update password", description: result.message });
-        return;
-      }
-      toast.add({
-        type: "success",
-        title: "Password updated",
-        description: "Other devices were signed out.",
-      });
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-    } finally {
-      setSavingPassword(false);
-    }
+    await password.run({ currentPassword, newPassword });
   };
 
   return (
@@ -135,9 +121,9 @@ export function SettingsForm({
             </div>
             <Button
               onClick={handleSaveProfile}
-              disabled={savingName || !name.trim() || name === initialName}
+              disabled={save.pending || !name.trim() || name === initialName}
             >
-              {savingName ? "Saving…" : "Save"}
+              {save.pending ? "Saving…" : "Save"}
             </Button>
           </div>
 
@@ -206,13 +192,13 @@ export function SettingsForm({
               variant="outline"
               className="w-fit"
               disabled={
-                savingPassword ||
+                password.pending ||
                 !currentPassword ||
                 !newPassword ||
                 !confirmPassword
               }
             >
-              {savingPassword ? "Updating…" : "Update password"}
+              {password.pending ? "Updating…" : "Update password"}
             </Button>
           </form>
         </CardContent>

@@ -2,12 +2,12 @@
 
 import type { Workspace } from "@/app/generated/prisma/client";
 import { db } from "@/lib/prisma";
-import { revalidateDashboard } from "@/lib/actions/revalidate";
-import { toActionError } from "@/lib/actions/helpers";
+import { defineAction, ensure } from "@/lib/actions/define";
 import {
   requireAuth,
   requireWorkspaceAdmin,
-} from "@/lib/actions/guards";
+  resolveWorkspace,
+} from "@/lib/access";
 import { ERROR_CODES } from "@/lib/constants/errors";
 import { assertCanCreateWorkspace } from "@/lib/services/plan-limits";
 import type { ActionResponseType } from "@/lib/types/action";
@@ -16,11 +16,6 @@ import {
   createWorkspaceSchema,
   updateWorkspaceSchema,
   workspaceIdSchema,
-} from "@/lib/validation/workspace";
-import type {
-  CreateWorkspaceInput,
-  UpdateWorkspaceInput,
-  WorkspaceIdInput,
 } from "@/lib/validation/workspace";
 
 // ──────────────────────────────────────────────
@@ -42,10 +37,6 @@ export type WorkspaceListResult = { items: WorkspaceListItem[] };
 export type DeleteWorkspaceResult = { deleted: boolean };
 export type SwitchWorkspaceResult = { workspace: Workspace };
 
-const revalidateAll = () => {
-  revalidateDashboard();
-};
-
 // ──────────────────────────────────────────────
 // Server Actions
 // ──────────────────────────────────────────────
@@ -53,79 +44,28 @@ const revalidateAll = () => {
 /**
  * Get the current user's active workspace (null when none exists yet).
  */
-export const getCurrentWorkspace = async (): Promise<
-  ActionResponseType<WorkspaceResult | null>
-> => {
-  const guard = await requireAuth();
-  if (!guard.ok) return guard.error;
-
-  try {
-    const userId = guard.value.id;
-
-    const user = await db.user.findUnique({
-      where: { id: userId },
-      select: { activeWorkspaceId: true },
-    });
-
-    let workspace = null;
-
-    if (user?.activeWorkspaceId) {
-      workspace = await db.workspace.findFirst({
-        where: {
-          id: user.activeWorkspaceId,
-          OR: [{ ownerId: userId }, { members: { some: { userId } } }],
-        },
-      });
-    }
-
-    // Fallback: if active workspace is inaccessible, pick the first owned,
-    // then the first membership
-    if (!workspace) {
-      workspace = await db.workspace.findFirst({
-        where: { ownerId: userId },
-        orderBy: { createdAt: "asc" },
-      });
-    }
-
-    if (!workspace) {
-      const membership = await db.workspaceMember.findFirst({
-        where: { userId },
-        orderBy: { createdAt: "asc" },
-        include: { workspace: {  } },
-      });
-      workspace = membership?.workspace ?? null;
-    }
-
-    if (workspace) {
-      await db.user.update({
-        where: { id: userId },
-        data: { activeWorkspaceId: workspace.id },
-      }).catch(() => {});
-    }
+export const getCurrentWorkspace = defineAction({
+  guard: requireAuth,
+  errors: { fallback: "Failed to load the workspace." },
+  run: async (ctx): Promise<ActionResponseType<WorkspaceResult | null>> => {
+    const workspace = await resolveWorkspace(ctx.id);
 
     return ActionResponse.success(
       workspace,
       workspace ? "Workspace loaded" : "No workspace found",
     );
-  } catch (error) {
-    return toActionError(error, {
-      fallback: "Failed to load the workspace.",
-    });
-  }
-};
+  },
+});
 
 /**
  * List all workspaces the current user owns or is a member of,
  * with the active one flagged.
  */
-export const listWorkspaces = async (): Promise<
-  ActionResponseType<WorkspaceListResult>
-> => {
-  const guard = await requireAuth();
-  if (!guard.ok) return guard.error;
-
-  try {
-    const userId = guard.value.id;
+export const listWorkspaces = defineAction({
+  guard: requireAuth,
+  errors: { fallback: "Failed to load workspaces." },
+  run: async (ctx): Promise<ActionResponseType<WorkspaceListResult>> => {
+    const userId = ctx.id;
 
     const user = await db.user.findUnique({
       where: { id: userId },
@@ -173,44 +113,28 @@ export const listWorkspaces = async (): Promise<
     ];
 
     return ActionResponse.success({ items }, "Workspaces loaded");
-  } catch (error) {
-    return toActionError(error, {
-      fallback: "Failed to load workspaces.",
-    });
-  }
-};
+  },
+});
 
 /**
  * Create a new workspace for the current user.
  * Enforces plan-based workspace count limits.
  */
-export const createWorkspace = async (
-  data: CreateWorkspaceInput,
-): Promise<ActionResponseType<WorkspaceResult>> => {
-  const validated = createWorkspaceSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  const guard = await requireAuth();
-  if (!guard.ok) return guard.error;
-
-  try {
-    const userId = guard.value.id;
-
-    // 1. Enforce plan-based workspace count limit
-    const limitCheck = await assertCanCreateWorkspace(userId);
-    if (!limitCheck.ok) return limitCheck.error;
+export const createWorkspace = defineAction({
+  schema: createWorkspaceSchema,
+  guard: requireAuth,
+  // 1. Enforce plan-based workspace count limit
+  check: ensure((ctx) => assertCanCreateWorkspace(ctx.id)),
+  revalidate: true,
+  errors: { fallback: "Failed to create the workspace." },
+  run: async (input, ctx): Promise<ActionResponseType<WorkspaceResult>> => {
+    const userId = ctx.id;
 
     // 2. Create workspace in a transaction
     const workspace = await db.$transaction(async (tx) => {
       const ws = await tx.workspace.create({
         data: {
-          name: validated.data.name,
+          name: input.name,
           ownerId: userId,
         },
       });
@@ -224,42 +148,30 @@ export const createWorkspace = async (
       return ws;
     });
 
-    revalidateAll();
     return ActionResponse.success(workspace, "Workspace created successfully");
-  } catch (error) {
-    return toActionError(error, {
-      fallback: "Failed to create the workspace.",
-    });
-  }
-};
+  },
+});
 
 /**
  * Switch the user's active workspace.
  * Validates the caller owns the workspace OR is a member — no cross-tenant
  * switching.
  */
-export const switchWorkspace = async (
-  data: WorkspaceIdInput,
-): Promise<ActionResponseType<SwitchWorkspaceResult>> => {
-  const validated = workspaceIdSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  const guard = await requireAuth();
-  if (!guard.ok) return guard.error;
-
-  try {
-    const userId = guard.value.id;
+export const switchWorkspace = defineAction({
+  schema: workspaceIdSchema,
+  guard: requireAuth,
+  revalidate: true,
+  errors: { fallback: "Failed to switch workspace." },
+  run: async (
+    input,
+    ctx,
+  ): Promise<ActionResponseType<SwitchWorkspaceResult>> => {
+    const userId = ctx.id;
 
     // Verify access: owner OR active membership
     const workspace = await db.workspace.findFirst({
       where: {
-        id: validated.data.id,
+        id: input.id,
         OR: [{ ownerId: userId }, { members: { some: { userId } } }],
       },
     });
@@ -277,75 +189,48 @@ export const switchWorkspace = async (
       data: { activeWorkspaceId: workspace.id },
     });
 
-    revalidateAll();
     return ActionResponse.success(
       { workspace },
       `Switched to "${workspace.name}"`,
     );
-  } catch (error) {
-    return toActionError(error, {
-      fallback: "Failed to switch workspace.",
-    });
-  }
-};
+  },
+});
 
 /**
  * Rename the active workspace (owner or admin only).
  */
-export const updateWorkspace = async (
-  data: UpdateWorkspaceInput,
-): Promise<ActionResponseType<WorkspaceResult>> => {
-  const validated = updateWorkspaceSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  const guard = await requireWorkspaceAdmin();
-  if (!guard.ok) return guard.error;
-
-  try {
+export const updateWorkspace = defineAction({
+  schema: updateWorkspaceSchema,
+  guard: requireWorkspaceAdmin,
+  revalidate: true,
+  errors: { fallback: "Failed to update the workspace." },
+  run: async (input, ctx): Promise<ActionResponseType<WorkspaceResult>> => {
     const workspace = await db.workspace.update({
-      where: { id: guard.value.workspace.id },
-      data: { name: validated.data.name },
+      where: { id: ctx.workspace.id },
+      data: { name: input.name },
     });
-    revalidateAll();
     return ActionResponse.success(workspace, "Workspace updated successfully");
-  } catch (error) {
-    return toActionError(error, {
-      fallback: "Failed to update the workspace.",
-    });
-  }
-};
+  },
+});
 
 /**
  * ⚠️ Destructive: deleting the workspace cascades to ALL owned data
  * (clients, projects, deliverables, invoices, activities, …).
  * Owner only.
  */
-export const deleteWorkspace = async (): Promise<
-  ActionResponseType<DeleteWorkspaceResult>
-> => {
-  const guard = await requireWorkspaceAdmin();
-  if (!guard.ok) return guard.error;
-
-  if (!guard.value.isOwner) {
-    return ActionResponse.failure(
-      ERROR_CODES.FORBIDDEN,
-      "Only the workspace owner can delete the workspace.",
-    );
-  }
-
-  try {
-    await db.workspace.delete({ where: { id: guard.value.workspace.id } });
-    revalidateAll();
+export const deleteWorkspace = defineAction({
+  guard: requireWorkspaceAdmin,
+  check: (ctx) =>
+    ctx.isOwner
+      ? null
+      : ActionResponse.failure(
+          ERROR_CODES.FORBIDDEN,
+          "Only the workspace owner can delete the workspace.",
+        ),
+  revalidate: true,
+  errors: { fallback: "Failed to delete the workspace." },
+  run: async (ctx): Promise<ActionResponseType<DeleteWorkspaceResult>> => {
+    await db.workspace.delete({ where: { id: ctx.workspace.id } });
     return ActionResponse.success({ deleted: true }, "Workspace deleted");
-  } catch (error) {
-    return toActionError(error, {
-      fallback: "Failed to delete the workspace.",
-    });
-  }
-};
+  },
+});

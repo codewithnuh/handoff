@@ -5,7 +5,7 @@ import type { ErrorCode } from "@/lib/constants/errors";
 import type { ActionError } from "@/lib/types/action";
 import { ActionResponse } from "@/lib/utils/action-response";
 
-type ErrorMapOptions = {
+export type ErrorMapOptions = {
   /** Fallback message when the error doesn't match a known code. */
   fallback?: string;
   /** Message used when a unique constraint is violated (Prisma P2002). */

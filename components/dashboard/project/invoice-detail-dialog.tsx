@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Plus, Trash2, DollarSign, Download } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -24,14 +23,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
-import { toast } from "@/components/ui/toast";
 import {
   updateInvoice,
   addLineItem,
   removeLineItem,
 } from "@/lib/actions/invoice";
+import { useServerAction } from "@/hooks/use-server-action";
 import { InvoiceStatusBadge } from "./status-badges";
-import { formatDate, formatCurrency } from "./format";
+import { formatDate, formatCurrency } from "@/lib/presentational/format";
 
 type InvoiceWithLineItems = {
   id: string;
@@ -86,106 +85,55 @@ export function InvoiceDetailDialog({
   const [lineQuantity, setLineQuantity] = useState("1");
   const [lineUnitPrice, setLineUnitPrice] = useState("");
 
-  const [isSaving, setIsSaving] = useState(false);
-  const router = useRouter();
+  const save = useServerAction(updateInvoice, {
+    success: "Invoice updated",
+    failure: "Update failed",
+    onSuccess: () => setIsEditing(false),
+  });
+
+  const addLine = useServerAction(addLineItem, {
+    success: "Line item added",
+    failure: "Failed to add line item",
+    onSuccess: () => {
+      setLineDescription("");
+      setLineQuantity("1");
+      setLineUnitPrice("");
+      setShowAddLineItem(false);
+    },
+  });
+
+  const removeLine = useServerAction(removeLineItem, {
+    success: "Line item removed",
+    failure: "Failed to remove line item",
+  });
+
+  const isSaving = save.pending || addLine.pending || removeLine.pending;
 
   const isDraft = invoice.status === "DRAFT";
 
   const handleSaveDetails = async () => {
-    setIsSaving(true);
-    try {
-      const result = await updateInvoice({
-        id: invoice.id,
-        description: description.trim() || null,
-        dueDate: dueDate ? new Date(dueDate) : null,
-        taxRate: parseFloat(taxRate) || 0,
-        paymentNotes: paymentNotes.trim() || null,
-      });
-
-      if (!result.success) {
-        toast.add({
-          type: "error",
-          title: "Update failed",
-          description: result.message,
-        });
-        return;
-      }
-
-      toast.add({ type: "success", title: "Invoice updated" });
-      setIsEditing(false);
-      router.refresh();
-    } catch {
-      toast.add({
-        type: "error",
-        title: "Something went wrong",
-        description: "Please try again.",
-      });
-    } finally {
-      setIsSaving(false);
-    }
+    await save.run({
+      id: invoice.id,
+      description: description.trim() || null,
+      dueDate: dueDate ? new Date(dueDate) : null,
+      taxRate: parseFloat(taxRate) || 0,
+      paymentNotes: paymentNotes.trim() || null,
+    });
   };
 
   const handleAddLineItem = async () => {
     if (!lineDescription.trim() || !lineUnitPrice) return;
 
-    setIsSaving(true);
-    try {
-      const result = await addLineItem({
-        invoiceId: invoice.id,
-        description: lineDescription.trim(),
-        quantity: parseInt(lineQuantity) || 1,
-        unitPrice: lineUnitPrice,
-      });
-
-      if (!result.success) {
-        toast.add({
-          type: "error",
-          title: "Failed to add line item",
-          description: result.message,
-        });
-        return;
-      }
-
-      toast.add({ type: "success", title: "Line item added" });
-      setLineDescription("");
-      setLineQuantity("1");
-      setLineUnitPrice("");
-      setShowAddLineItem(false);
-      router.refresh();
-    } catch {
-      toast.add({
-        type: "error",
-        title: "Something went wrong",
-        description: "Please try again.",
-      });
-    } finally {
-      setIsSaving(false);
-    }
+    await addLine.run({
+      invoiceId: invoice.id,
+      description: lineDescription.trim(),
+      quantity: parseInt(lineQuantity) || 1,
+      unitPrice: lineUnitPrice,
+    });
   };
 
   const handleRemoveLineItem = async (lineItemId: string) => {
-    setIsSaving(true);
-    try {
-      const result = await removeLineItem({ id: lineItemId });
-      if (!result.success) {
-        toast.add({
-          type: "error",
-          title: "Failed to remove line item",
-          description: result.message,
-        });
-        return;
-      }
-      toast.add({ type: "success", title: "Line item removed" });
-      router.refresh();
-    } catch {
-      toast.add({
-        type: "error",
-        title: "Something went wrong",
-        description: "Please try again.",
-      });
-    } finally {
-      setIsSaving(false);
-    }
+    await removeLine.run({ id: lineItemId });
   };
 
   return (

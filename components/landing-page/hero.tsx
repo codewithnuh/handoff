@@ -121,7 +121,7 @@ export function Hero() {
           >
             <Button
               render={
-                <Link href="/signup">
+                <Link href="/register">
                   Get started free
                   <IconArrowRight
                     aria-hidden="true"

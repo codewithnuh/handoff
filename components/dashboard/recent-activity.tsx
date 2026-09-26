@@ -9,16 +9,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { activityLabel } from "@/lib/constants/activity";
-import type { RecentActivityItem } from "@/lib/queries/project";
-
-function formatDateTime(date: Date): string {
-  return new Date(date).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
+import type { RecentActivityItem } from "@/lib/queries/activity";
+import { formatDateTimeShort } from "@/lib/presentational/format";
 
 /**
  * Workspace-wide activity feed. Client actions (approvals, change
@@ -83,7 +75,7 @@ export function RecentActivity({ items }: { items: RecentActivityItem[] }) {
                   </Badge>
                 )}
                 <span className="text-[11px] text-muted-foreground tabular-nums">
-                  {formatDateTime(item.createdAt)}
+                  {formatDateTimeShort(item.createdAt)}
                 </span>
               </div>
             </Link>

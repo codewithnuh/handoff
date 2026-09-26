@@ -13,11 +13,11 @@ import { useRouter } from "next/navigation";
 import { CheckCircle2, RefreshCw, Send, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "@/components/ui/toast";
 import {
   clientApproveDeliverable,
   clientRequestChanges,
 } from "@/lib/actions/portal-actions";
+import { useServerAction } from "@/hooks/use-server-action";
 
 interface DeliverableActionsProps {
   deliverableId: string;
@@ -32,75 +32,54 @@ export function DeliverableActions({
 }: DeliverableActionsProps) {
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectComment, setRejectComment] = useState("");
-  const [loading, setLoading] = useState<"approve" | "reject" | null>(null);
   const [conflict, setConflict] = useState(false);
   const router = useRouter();
+
+  const approve = useServerAction(clientApproveDeliverable, {
+    success: "Approved",
+    successDescription: (_d, m) => m,
+    failure: (error) => (error.code === "CONFLICT" ? false : "Error"),
+    thrown: "Error",
+    thrownDescription: () => "Something went wrong. Please try again.",
+    onError: (error) => {
+      if (error.code === "CONFLICT") setConflict(true);
+    },
+  });
+
+  const reject = useServerAction(clientRequestChanges, {
+    success: "Changes requested",
+    successDescription: (_d, m) => m,
+    failure: (error) => (error.code === "CONFLICT" ? false : "Error"),
+    thrown: "Error",
+    thrownDescription: () => "Something went wrong. Please try again.",
+    onSuccess: () => {
+      setRejectComment("");
+      setShowRejectForm(false);
+    },
+    onError: (error) => {
+      if (error.code === "CONFLICT") setConflict(true);
+    },
+  });
+
+  const loading = approve.pending || reject.pending;
 
   // Clients act only on submitted work; APPROVED is done,
   // CHANGES_REQUESTED stays actionable so they can re-review new versions.
   const isActionable =
     currentStatus === "IN_REVIEW" || currentStatus === "CHANGES_REQUESTED";
 
-  async function handleApprove() {
-    setLoading("approve");
+  function handleApprove() {
     setConflict(false);
-    try {
-      const result = await clientApproveDeliverable(deliverableId, currentVersion);
-      if (result.ok) {
-        toast.add({ type: "success", title: "Approved", description: result.message });
-        router.refresh();
-      } else if (result.code === "CONFLICT") {
-        setConflict(true);
-      } else {
-        toast.add({
-          type: "error",
-          title: "Error",
-          description: result.error,
-        });
-      }
-    } catch {
-      toast.add({
-        type: "error",
-        title: "Error",
-        description: "Something went wrong. Please try again.",
-      });
-    } finally {
-      setLoading(null);
-    }
+    approve.run({ deliverableId, expectedVersion: currentVersion });
   }
 
-  async function handleReject() {
-    setLoading("reject");
+  function handleReject() {
     setConflict(false);
-    try {
-      const result = await clientRequestChanges(
-        deliverableId,
-        currentVersion,
-        rejectComment || undefined,
-      );
-      if (result.ok) {
-        setRejectComment("");
-        setShowRejectForm(false);
-        toast.add({ type: "success", title: "Changes requested", description: result.message });
-        router.refresh();
-      } else if (result.code === "CONFLICT") {
-        setConflict(true);
-      } else {
-        toast.add({
-          type: "error",
-          title: "Error",
-          description: result.error,
-        });
-      }
-    } catch {
-      toast.add({
-        type: "error",
-        title: "Error",
-        description: "Something went wrong. Please try again.",
-      });
-    } finally {
-      setLoading(null);
-    }
+    reject.run({
+      deliverableId,
+      expectedVersion: currentVersion,
+      comment: rejectComment || undefined,
+    });
   }
 
   if (conflict) {
@@ -137,10 +116,10 @@ export function DeliverableActions({
           size="sm"
           variant="outline"
           onClick={handleApprove}
-          disabled={loading !== null}
+          disabled={loading}
           className="border-green-200 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-300"
         >
-          {loading === "approve" ? (
+          {approve.pending ? (
             <RefreshCw className="size-3.5 mr-1.5 animate-spin" />
           ) : (
             <CheckCircle2 className="size-3.5 mr-1.5" />
@@ -151,7 +130,7 @@ export function DeliverableActions({
           size="sm"
           variant="outline"
           onClick={() => setShowRejectForm(!showRejectForm)}
-          disabled={loading !== null}
+          disabled={loading}
           className="border-red-200 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-300"
         >
           <XCircle className="size-3.5 mr-1.5" />
@@ -172,9 +151,9 @@ export function DeliverableActions({
             <Button
               size="sm"
               onClick={handleReject}
-              disabled={loading !== null}
+              disabled={loading}
             >
-              {loading === "reject" ? (
+              {reject.pending ? (
                 <RefreshCw className="size-3.5 mr-1.5 animate-spin" />
               ) : (
                 <Send className="size-3.5 mr-1.5" />

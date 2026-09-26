@@ -11,24 +11,11 @@ import { ERROR_CODES } from "@/lib/constants/errors";
 // Mocks
 // ──────────────────────────────────────────────
 
-vi.mock("@/lib/prisma", () => ({
-  db: {
-    workspace: {
-      count: vi.fn(),
-      findFirst: vi.fn(),
-      findUnique: vi.fn(),
-    },
-    project: {
-      count: vi.fn(),
-    },
-    subscription: {
-      findUnique: vi.fn(),
-    },
-  },
+vi.mock("@/lib/prisma", async () => ({
+  db: (await import("@/lib/test/fake-db")).fakeDb,
 }));
 
 const workspaceCount = vi.mocked(db.workspace.count);
-const findFirstWorkspace = vi.mocked(db.workspace.findFirst);
 const findWorkspaceUnique = vi.mocked(db.workspace.findUnique);
 const projectCount = vi.mocked(db.project.count);
 const findSubscription = vi.mocked(db.subscription.findUnique);

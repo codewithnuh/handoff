@@ -6,7 +6,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { type ReactNode } from "react";
-import { requireWorkspace } from "@/lib/actions/guards";
+import { requireWorkspace } from "@/lib/access";
 import { listWorkspaces } from "@/lib/actions/workspace";
 import Link from "next/link";
 import Image from "next/image";

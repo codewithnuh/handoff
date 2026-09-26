@@ -21,11 +21,21 @@ import { toast } from "@/components/ui/toast";
 import { FileUpload, type UploadedFile } from "@/components/ui/file-upload";
 import { createDeliverable, addDeliverableVersion } from "@/lib/actions/deliverable";
 import { createFile } from "@/lib/actions/file";
+import { useServerAction } from "@/hooks/use-server-action";
 
 export function CreateDeliverableDialog({ projectId }: { projectId: string }) {
   const [open, setOpen] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
   const router = useRouter();
+
+  const create = useServerAction(createDeliverable, {
+    failure: "Couldn't create deliverable",
+    refresh: false,
+  });
+
+  const attachFile = useServerAction(createFile, { refresh: false });
+
+  const addVersion = useServerAction(addDeliverableVersion, { refresh: false });
 
   const form = useForm({
     defaultValues: {
@@ -34,60 +44,45 @@ export function CreateDeliverableDialog({ projectId }: { projectId: string }) {
       notes: "",
     },
     onSubmit: async ({ value }) => {
-      try {
-        // 1. Create the deliverable
-        const result = await createDeliverable({
-          projectId,
-          title: value.title,
-          description: value.description.trim() || null,
-        });
+      // 1. Create the deliverable
+      const result = await create.run({
+        projectId,
+        title: value.title,
+        description: value.description.trim() || null,
+      });
+      if (!result?.success) return;
 
-        if (!result.success) {
-          toast.add({
-            type: "error",
-            title: "Couldn't create deliverable",
-            description: result.message,
+      // 2. If a file was uploaded, save it and attach as version 1
+      if (uploadedFile) {
+        const fileResult = await attachFile.run({
+          key: uploadedFile.key,
+          filename: uploadedFile.name,
+          mimeType: uploadedFile.type,
+          size: uploadedFile.size,
+        });
+        if (fileResult === null) return;
+
+        if (fileResult.success) {
+          const versionResult = await addVersion.run({
+            deliverableId: result.data.id,
+            versionNumber: 1,
+            fileId: fileResult.data.id,
+            notes: value.notes.trim() || null,
           });
-          return;
+          if (versionResult === null) return;
         }
-
-        // 2. If a file was uploaded, save it and attach as version 1
-        if (uploadedFile) {
-          const fileResult = await createFile({
-            key: uploadedFile.key,
-            filename: uploadedFile.name,
-            mimeType: uploadedFile.type,
-            size: uploadedFile.size,
-          });
-
-          if (fileResult.success) {
-            await addDeliverableVersion({
-              deliverableId: result.data.id,
-              versionNumber: 1,
-              fileId: fileResult.data.id,
-              notes: value.notes.trim() || null,
-            });
-          }
-        }
-
-        toast.add({
-          type: "success",
-          title: "Deliverable created",
-          description: `"${result.data.title}" has been added.`,
-        });
-
-        form.reset();
-        setUploadedFile(null);
-        setOpen(false);
-        router.refresh();
-      } catch (error) {
-        toast.add({
-          type: "error",
-          title: "Something went wrong",
-          description:
-            error instanceof Error ? error.message : "Please try again.",
-        });
       }
+
+      toast.add({
+        type: "success",
+        title: "Deliverable created",
+        description: `"${result.data.title}" has been added.`,
+      });
+
+      form.reset();
+      setUploadedFile(null);
+      setOpen(false);
+      router.refresh();
     },
   });
 

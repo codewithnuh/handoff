@@ -1,20 +1,5 @@
 import type { WorkspacePermission } from "@/app/generated/prisma/client";
 
-export const ROLE_BADGE: Record<
-  string,
-  { label: string; variant: "default" | "secondary" | "outline" }
-> = {
-  OWNER: { label: "Owner", variant: "outline" },
-  ADMIN: { label: "Admin", variant: "default" },
-  MEMBER: { label: "Member", variant: "secondary" },
-};
-
-export const PROJECT_ROLE_LABEL: Record<string, string> = {
-  LEAD: "Lead",
-  CONTRIBUTOR: "Contributor",
-  OBSERVER: "Observer",
-};
-
 export const ALL_PERMISSIONS: {
   value: WorkspacePermission;
   label: string;

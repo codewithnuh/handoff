@@ -5,7 +5,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { getCurrentWorkspace } from "@/lib/actions/workspace";
 import { listClients } from "@/lib/actions/client";
 import { getSession } from "@/lib/actions/auth";
-import { requireWorkspace } from "@/lib/actions/guards";
+import { requireWorkspace } from "@/lib/access";
 import {
   ProjectOverview,
   ProjectOverviewSkeleton,
@@ -16,10 +16,8 @@ import {
   UsageBannerSkeleton,
   ReadOnlyBanner,
 } from "@/components/dashboard/usage-banner";
-import {
-  getWorkspaceUsage,
-  getRecentWorkspaceActivity,
-} from "@/lib/queries/project";
+import { getWorkspaceUsage } from "@/lib/queries/usage";
+import { getRecentWorkspaceActivity } from "@/lib/queries/activity";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
 
 // ──────────────────────────────────────────────

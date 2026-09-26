@@ -1,6 +1,6 @@
 import type { Task } from "@/app/generated/prisma/client";
 import { db } from "@/lib/prisma";
-import { resolveProjectAccess } from "@/lib/actions/guards";
+import { resolveProjectAccess } from "@/lib/access";
 
 /**
  * All tasks for a project, ordered for board rendering (column by status,

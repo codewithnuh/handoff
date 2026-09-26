@@ -12,7 +12,7 @@ Keep clients, projects, deliverables, requests, and invoices organized in one pl
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org)
 
-[Getting Started](#getting-started) · [Features](#features) · [Tech Stack](#tech-stack) · [Screenshots](#screenshots) · [Contributing](#contributing) · [License](#license)
+[Getting Started](#getting-started) · [Features](#features) · [Tech Stack](#tech-stack) · [Project Structure](#project-structure) · [Contributing](#contributing) · [License](#license)
 
 </div>
 
@@ -33,7 +33,6 @@ No vendor lock-in. No per-seat pricing surprises. Your data lives on your own Po
 
 - [Features](#features)
 - [Tech Stack](#tech-stack)
-- [Screenshots](#screenshots)
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
@@ -43,6 +42,7 @@ No vendor lock-in. No per-seat pricing surprises. Your data lives on your own Po
 - [Project Structure](#project-structure)
 - [Architecture](#architecture)
   - [Server Actions](#server-actions)
+  - [Access Control](#access-control)
   - [Authentication](#authentication)
   - [Client Portal](#client-portal)
   - [Role-Based Access Control](#role-based-access-control)
@@ -75,7 +75,7 @@ No vendor lock-in. No per-seat pricing surprises. Your data lives on your own Po
 | **Invoicing** | Create invoices with line items, discounts, tax rates, and auto-generated invoice numbers (INV-001, INV-002…). Convert approved deliverables to invoice line items. Generate PDF invoices. Send, mark paid, or cancel. |
 | **Comments** | Threaded comments on deliverables and requests — both you and your clients can participate. |
 | **Activity Timeline** | Audit trail of every action — who did what, when. Covers project changes, deliverable updates, invoices, and client portal activity. |
-| **Link Tracking** | Centralized view of all invitation links (team + client) with status (Active / Expired / Accepted). Bulk revoke. |
+| **Link Tracking** | Centralized view of all invitation links (team + client) with status (Active / Expired / Accepted / Revoked). Bulk revoke. |
 
 ### Client Portal
 
@@ -208,16 +208,15 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 ```
 handoff/
 ├── app/                          # Next.js App Router
-│   ├── (public)/                 # Public pages (landing, about, etc.)
-│   ├── api/                      # API routes
+│   ├── api/                      # Route handlers
 │   │   ├── auth/[...all]/        # Better Auth catch-all
 │   │   ├── uploadthing/          # File upload handler
 │   │   ├── portal/accept/        # Client portal token acceptance
 │   │   ├── files/[id]/download/  # Secure file downloads
 │   │   └── invoices/[id]/pdf/    # Invoice PDF generation
 │   ├── dashboard/                # Freelancer dashboard
-│   │   ├── clients/              # Client directory
-│   │   ├── projects/             # Project list + detail
+│   │   ├── clients/              # Client directory (+ loading.tsx, error.tsx)
+│   │   ├── projects/             # Project list + [slug] detail
 │   │   ├── portal/               # Client portal management
 │   │   ├── team/                 # Team management
 │   │   ├── settings/             # User settings
@@ -226,9 +225,11 @@ handoff/
 │   ├── portal/                   # Client-facing portal
 │   │   ├── (client)/             # Authenticated portal pages
 │   │   └── expired/              # Session expired page
-│   └── invite/                   # Team invitation acceptance
+│   ├── invite/                   # Team invitation acceptance
+│   └── about/ contact/ cookies/ privacy/ refund/ security/ terms/
+│                                 # Public pages + login/register/reset/verify-email
 ├── components/
-│   ├── ui/                       # shadcn/ui primitives (27 components)
+│   ├── ui/                       # shadcn/ui primitives (27)
 │   ├── auth/                     # Login, register, verify, reset forms
 │   ├── landing-page/             # Landing page sections
 │   ├── dashboard/                # Dashboard components
@@ -236,42 +237,62 @@ handoff/
 │   │   ├── team/                 # Team management UI
 │   │   └── billing/              # Plan cards & usage
 │   ├── portal/                   # Client portal components
+│   ├── presentational/           # Shared shells: EmptyState, ErrorPanel, route skeletons
 │   └── legal/                    # Legal page layouts
+├── hooks/
+│   ├── use-server-action.ts      # One seam for calling server actions from the client
+│   └── use-mobile.ts
 ├── lib/
-│   ├── actions/                  # Server actions (type-safe, validated)
-│   ├── auth.ts                   # Better Auth server config
-│   ├── auth-client.ts            # Better Auth client config
-│   ├── prisma.ts                 # Prisma client singleton
-│   ├── portal.ts                 # Client portal auth utilities
-│   ├── uploadthing.ts            # File upload router
-│   ├── email.ts                  # Email service (Nodemailer)
-│   ├── invoice-pdf.tsx           # PDF invoice renderer
+│   ├── actions/                  # Server actions — one per domain, built with defineAction
+│   │   └── define.ts             # Shared pipeline: validate → guard → checks → run → revalidate
+│   ├── access/                   # Authorization seam: workspace / project / portal access
 │   ├── validation/               # Zod schemas per domain
-│   ├── queries/                  # Database query functions
-│   ├── constants/                # Error codes, plan limits, etc.
-│   ├── services/                 # Business logic (plan limits, etc.)
-│   ├── types/                    # Shared TypeScript types
-│   └── utils/                    # Response helpers
-├── hooks/                        # Custom React hooks
+│   ├── queries/                  # Read models (dashboard, portal, project-detail, …)
+│   ├── presentational/           # format.ts (dates/currency), status.ts (status label maps)
+│   ├── invoice/                  # Pure invoice totals + server money/numbering module
+│   ├── constants/                # Error codes, plan limits, activity labels, TTLs
+│   ├── services/                 # Business rules (plan limits, subscriptions)
+│   ├── types/                    # Action envelope types
+│   ├── utils/                    # ActionResponse helpers
+│   ├── test/fake-db.ts           # Shared fake-Prisma fixture for tests
+│   ├── auth.ts                   # Better Auth server config (+ email-OTP plugin)
+│   ├── prisma.ts                 # Prisma client singleton
+│   ├── portal.ts                 # Client portal session primitives (HMAC cookies)
+│   ├── email.ts                  # Email service (Nodemailer + HTML templates)
+│   ├── uploadthing.ts            # File upload router
+│   ├── invoice-pdf.tsx           # PDF invoice renderer
+│   └── utils.ts                  # cn() class helper
 ├── prisma/                       # Prisma schema & migrations
 ├── scripts/                      # Utility scripts
 ├── public/                       # Static assets
-└── env.ts                        # Environment variable validation
+├── proxy.ts                      # Route protection (no cookie on /dashboard → /login)
+└── env.ts                        # Environment variable validation (Zod)
 ```
 
 ---
 
 ## Architecture
 
+Domain vocabulary (what each term means, and which module owns it) lives in [`CONTEXT.md`](./CONTEXT.md).
+
 ### Server Actions
 
-All business logic lives in **server actions** under `lib/actions/`. Every action follows the same contract:
+All business logic lives in **server actions** under `lib/actions/`, built with one shared pipeline — `defineAction()` in `lib/actions/define.ts`:
 
-1. **Authenticate** — `requireAuth()` verifies the user is signed in.
-2. **Authorize** — `requireWorkspace()` resolves the active workspace and role. Additional guards enforce permissions.
-3. **Validate** — Input is validated with Zod schemas from `lib/validation/`.
-4. **Execute** — Database operations via Prisma.
-5. **Respond** — Returns a standardized `ActionResponseType<T>`:
+```typescript
+export const createProject = defineAction({
+  schema: createProjectSchema,        // 1. Validate with Zod (lib/validation/)
+  guard: requireWorkspace,            // 2. Authorize (default when omitted; null = pre-session actions)
+  check: assertCanCreateProject,      // 3. Extra checks: plan limits, ownership … (one or an array)
+  revalidate: true,                   // 5. Refresh the dashboard cache on success
+  run: async (input, ctx) => {        // 4. Your logic
+    const project = await db.project.create({ ... });
+    return ActionResponse.success({ id: project.id }, "Project created");
+  },
+});
+```
+
+Every action returns the same envelope, `ActionResponseType<T>`:
 
 ```typescript
 // Success
@@ -281,7 +302,18 @@ All business logic lives in **server actions** under `lib/actions/`. Every actio
 { success: false, message: "Validation failed", error: { code: "VALIDATION_ERROR", fieldErrors: {...} } }
 ```
 
-All errors are mapped through `toActionError()` which handles Better Auth errors, Prisma known errors, and unknown errors uniformly.
+Every throw is mapped onto that envelope by `toActionError()` (`lib/actions/helpers.ts`), which handles Better Auth errors, Prisma known errors (P2002→CONFLICT, P2025→NOT_FOUND, …), and unknown errors uniformly. Validation, guarding, checks, error mapping and revalidation are bands of the pipeline — never hand-rolled per action.
+
+### Access Control
+
+Authorization lives behind one seam — `lib/access/`:
+
+- **`getRequestSubject()`** — resolves *who* is calling: a Better Auth dashboard session or a portal token. One entry point for every gated route and action.
+- **`requireWorkspace()`** — the default action guard: active workspace + role + `WorkspacePermission[]`.
+- **Project access** (`lib/access/project.ts`) — need-to-know capabilities (`canEditProject`, `canManageDeliverables`, …) from `ProjectMember` membership, with owner/admin bypass.
+- **Portal access** (`lib/access/portal.ts`) — "can this client see this project?" for portal pages, portal actions, downloads and the PDF route alike.
+
+Three adapters feed the seam: the better-auth session, the portal cookie/token, and injected identities in tests (`lib/access/access.test.ts`).
 
 ### Authentication
 
@@ -293,6 +325,7 @@ Handoff uses **Better Auth** with:
 - **Rate limiting**: 60 req/min general, 5/min sign-in, 3/min sign-up, 5/min password reset
 - **Sessions**: 7-day expiry, refreshes every 24 hours
 - **Secure cookies**: HttpOnly, Secure (production), SameSite=Lax
+- **Route protection**: `proxy.ts` bounces signed-out visitors off `/dashboard` — it never trusts a cookie to redirect signed-in users; real checks happen server-side in `lib/access/`
 
 ### Client Portal
 
@@ -302,7 +335,7 @@ The client portal uses a **separate auth system** (not Better Auth):
 2. Client receives a **magic link** with a unique token.
 3. Token is accepted at `/api/portal/accept` → creates `ProjectAccess` + `ClientSession`.
 4. Client receives a signed `cp_session` cookie (HMAC-SHA256).
-5. Portal pages verify the cookie and scope data to the client's email.
+5. Portal pages verify the cookie and scope data to the client's email through the shared portal access module (`lib/access/portal.ts`).
 6. 7-day session lifetime. Logout clears the cookie.
 
 ### Role-Based Access Control
@@ -352,7 +385,7 @@ Emails are sent via **Nodemailer** with configurable SMTP:
 - **Password Reset** — Link with token
 - **Team Invitation** — Set-password link with project assignments
 
-In development, emails are logged to the console when SMTP is not configured. In production, missing SMTP config throws an error.
+In development, emails are logged to the console when SMTP is not configured, and the email-verification OTP is always printed to the dev console (`🔑 [DEV OTP] Code for …`) so you can verify without an inbox — a failed OTP send in development warns instead of breaking the flow. In production, missing SMTP config throws an error.
 
 ### Plan Limits
 
@@ -515,16 +548,20 @@ pnpm dev
 - **Branch from `master`** — `feat/my-change`, `fix/my-bug`
 - **No `any`** — strict TypeScript always
 - **Test your changes** — `pnpm test`
-- **Lint passes** — `pnpm lint && npx tsc --noEmit`
+- **All checks pass** — `pnpm lint && pnpm exec tsc --noEmit && pnpm test` (CI runs lint → typecheck → test → build)
 - **Conventional commits** — `feat:`, `fix:`, `docs:`, `chore:`
-- **Server actions**: auth guard → workspace guard → validate → execute → return `ActionResponseType`
+- **Server actions**: build every action with `defineAction({ schema, guard, check, revalidate, run })` — one envelope, one error mapper, no hand-rolled try/catch
+- **Client calls**: invoke server actions through `useServerAction` (`hooks/use-server-action.ts`) — timeout, rollback, refresh and toasts live there, not in components
 
 ### Project Conventions
 
 - **Validation schemas** live in `lib/validation/*.ts`
-- **Server actions** live in `lib/actions/*.ts`
-- **Tests** live next to actions: `lib/actions/*.test.ts`
-- **Components** are organized by domain in `components/dashboard/`
+- **Server actions** live in `lib/actions/*.ts`, one file per domain, built on `lib/actions/define.ts`
+- **Authorization** lives in `lib/access/` (workspace / project / portal) — never inline permission checks
+- **Tests** are colocated and run against `lib/test/fake-db.ts`: `lib/actions/*.test.ts`, `lib/access/access.test.ts`, `lib/invoice/money.test.ts`, `hooks/use-server-action.test.tsx`
+- **Status labels & formatting** live in `lib/presentational/` — one label map for every enum, dates/currency in `format.ts`
+- **Shared UI shells** (empty states, error cards, route skeletons) live in `components/presentational/`; route `error.tsx` files render through `ErrorPanel`, skeletons through `loading.tsx`
+- **Components** are organized by domain under `components/dashboard/` and `components/portal/`
 - **Error handling** uses a single `toActionError()` function
 - **Constants** live in `lib/constants/`
 

@@ -4,13 +4,16 @@ import type {
   Invoice,
   InvoiceLineItem,
 } from "@/app/generated/prisma/client";
-import { Prisma } from "@/app/generated/prisma/client";
 import { db } from "@/lib/prisma";
-import { recordActivity } from "@/lib/actions/activity";
-import { revalidateDashboard } from "@/lib/actions/revalidate";
-import { toActionError } from "@/lib/actions/helpers";
-import { resolveProjectAccess } from "@/lib/actions/guards";
+import { actorOf, recordActivity } from "@/lib/actions/activity";
+import { can, defineAction, writable } from "@/lib/actions/define";
+import { resolveProjectAccess } from "@/lib/access";
 import { ERROR_CODES } from "@/lib/constants/errors";
+import {
+  createInvoiceWithNumber,
+  recalculateInvoice,
+  toDecimal,
+} from "@/lib/invoice/money";
 import { assertWorkspaceWritable } from "@/lib/services/plan-limits";
 import type { ActionResponseType } from "@/lib/types/action";
 import { ActionResponse } from "@/lib/utils/action-response";
@@ -22,14 +25,6 @@ import {
   removeLineItemSchema,
   convertDeliverablesSchema,
 } from "@/lib/validation/invoice";
-import type {
-  CreateInvoiceInput,
-  UpdateInvoiceInput,
-  InvoiceIdInput,
-  AddLineItemInput,
-  RemoveLineItemInput,
-  ConvertDeliverablesInput,
-} from "@/lib/validation/invoice";
 
 // ──────────────────────────────────────────────
 // Result types
@@ -40,163 +35,66 @@ export type InvoiceLineItemResult = InvoiceLineItem;
 export type DeleteResult = { deleted: boolean };
 
 // ──────────────────────────────────────────────
-// Helpers
-// ──────────────────────────────────────────────
-
-/** Recalculate invoice subtotal, tax, and total from line items. */
-async function recalculateInvoice(invoiceId: string) {
-  const lineItems = await db.invoiceLineItem.findMany({
-    where: { invoiceId },
-    select: { amount: true },
-  });
-
-  const invoice = await db.invoice.findUnique({
-    where: { id: invoiceId },
-    select: { taxRate: true, discount: true },
-  });
-
-  if (!invoice) return;
-
-  const subtotal = lineItems.reduce((sum, item) => sum + Number(item.amount), 0);
-  const discount = Number(invoice.discount);
-  const taxableAmount = Math.max(0, subtotal - discount);
-  const taxAmount = taxableAmount * (Number(invoice.taxRate) / 100);
-  const total = taxableAmount + taxAmount;
-
-  await db.invoice.update({
-    where: { id: invoiceId },
-    data: {
-      subtotal: new Prisma.Decimal(subtotal.toFixed(2)),
-      taxAmount: new Prisma.Decimal(taxAmount.toFixed(2)),
-      amount: new Prisma.Decimal(total.toFixed(2)),
-    },
-  });
-}
-
-/** Generate the next invoice number for a project (INV-001, INV-002, ...). */
-async function generateInvoiceNumber(projectId: string): Promise<string> {
-  const lastInvoice = await db.invoice.findFirst({
-    where: { projectId },
-    orderBy: { createdAt: "desc" },
-    select: { invoiceNumber: true },
-  });
-
-  if (!lastInvoice) return "INV-001";
-
-  const match = lastInvoice.invoiceNumber.match(/INV-(\d+)/);
-  if (!match) return "INV-001";
-
-  const next = parseInt(match[1], 10) + 1;
-  return `INV-${String(next).padStart(3, "0")}`;
-}
-
-// ──────────────────────────────────────────────
 // Invoice CRUD Actions
 // ──────────────────────────────────────────────
 
-export const createInvoice = async (
-  data: CreateInvoiceInput,
-): Promise<ActionResponseType<InvoiceResult>> => {
-  const validated = createInvoiceSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  const access = await resolveProjectAccess(validated.data.projectId);
-  if (!access.ok) return access.error;
-  if (!access.value.canManageDeliverables) {
-    return ActionResponse.failure(
-      ERROR_CODES.FORBIDDEN,
+export const createInvoice = defineAction({
+  schema: createInvoiceSchema,
+  guard: (input) => resolveProjectAccess(input.projectId),
+  check: [
+    can(
+      "canManageDeliverables",
       "You don't have permission to create invoices.",
-    );
-  }
-
-  const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
-  if (readOnlyError) return readOnlyError;
-
-  try {
-    const invoiceNumber = await generateInvoiceNumber(validated.data.projectId);
-
-    // Build sender/client address JSON if provided
-    const senderAddress = validated.data.senderAddress
-      ? validated.data.senderAddress
-      : undefined;
-    const clientAddress = validated.data.clientAddress
-      ? validated.data.clientAddress
-      : undefined;
-
-    const invoice = await db.invoice.create({
-      data: {
-        projectId: validated.data.projectId,
-        invoiceNumber,
-        description: validated.data.description ?? null,
-        currency: validated.data.currency ?? "USD",
-        taxRate: validated.data.taxRate ?? 0,
-        discount: validated.data.discount ?? 0,
-        dueDate: validated.data.dueDate ?? null,
-        paymentNotes: validated.data.paymentNotes ?? null,
-        senderName: validated.data.senderName ?? null,
-        senderEmail: validated.data.senderEmail ?? null,
-        senderAddress: senderAddress ?? undefined,
-        senderTaxId: validated.data.senderTaxId ?? null,
-        clientName: validated.data.clientName ?? null,
-        clientEmail: validated.data.clientEmail ?? null,
-        clientAddress: clientAddress ?? undefined,
-        clientTaxId: validated.data.clientTaxId ?? null,
+    ),
+    writable,
+  ],
+  revalidate: true,
+  errors: { fallback: "Failed to create invoice." },
+  run: async (input, ctx): Promise<ActionResponseType<InvoiceResult>> => {
+    const invoice = await createInvoiceWithNumber(
+      input.projectId,
+      {
+        description: input.description ?? null,
+        currency: input.currency ?? "USD",
+        taxRate: input.taxRate ?? 0,
+        discount: input.discount ?? 0,
+        dueDate: input.dueDate ?? null,
+        paymentNotes: input.paymentNotes ?? null,
+        senderName: input.senderName ?? null,
+        senderEmail: input.senderEmail ?? null,
+        senderAddress: input.senderAddress ?? undefined,
+        senderTaxId: input.senderTaxId ?? null,
+        clientName: input.clientName ?? null,
+        clientEmail: input.clientEmail ?? null,
+        clientAddress: input.clientAddress ?? undefined,
+        clientTaxId: input.clientTaxId ?? null,
       },
-    });
-
-    // Create inline line items if provided
-    if (validated.data.lineItems && validated.data.lineItems.length > 0) {
-      await db.invoiceLineItem.createMany({
-        data: validated.data.lineItems.map((item) => ({
-          invoiceId: invoice.id,
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: new Prisma.Decimal(item.unitPrice.toFixed(2)),
-          amount: new Prisma.Decimal((item.quantity * item.unitPrice).toFixed(2)),
-        })),
-      });
-
-      // Recalculate totals from line items
-      await recalculateInvoice(invoice.id);
-    }
+      input.lineItems?.map((item) => ({
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+      })) ?? [],
+    );
 
     await recordActivity({
-      projectId: validated.data.projectId,
+      projectId: input.projectId,
       type: "INVOICE_CREATED",
-      actorUserId: access.value.user.id,
-      actorEmail: access.value.user.email,
-      actorName: access.value.user.name,
-      meta: { invoiceNumber, invoiceId: invoice.id },
+      ...actorOf(ctx.user),
+      meta: { invoiceNumber: invoice.invoiceNumber, invoiceId: invoice.id },
     });
 
-    revalidateDashboard();
     return ActionResponse.success(invoice, "Invoice created");
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to create invoice." });
-  }
-};
+  },
+});
 
-export const updateInvoice = async (
-  data: UpdateInvoiceInput,
-): Promise<ActionResponseType<InvoiceResult>> => {
-  const validated = updateInvoiceSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  try {
+export const updateInvoice = defineAction({
+  schema: updateInvoiceSchema,
+  guard: null,
+  revalidate: true,
+  errors: { fallback: "Failed to update invoice." },
+  run: async (input): Promise<ActionResponseType<InvoiceResult>> => {
     const existing = await db.invoice.findUnique({
-      where: { id: validated.data.id },
+      where: { id: input.id },
       select: { id: true, projectId: true, status: true },
     });
     if (!existing) {
@@ -223,55 +121,45 @@ export const updateInvoice = async (
     if (readOnlyError) return readOnlyError;
 
     const patch: Record<string, unknown> = {};
-    if (validated.data.description !== undefined)
-      patch.description = validated.data.description;
-    if (validated.data.dueDate !== undefined)
-      patch.dueDate = validated.data.dueDate;
-    if (validated.data.paymentNotes !== undefined)
-      patch.paymentNotes = validated.data.paymentNotes;
+    if (input.description !== undefined)
+      patch.description = input.description;
+    if (input.dueDate !== undefined)
+      patch.dueDate = input.dueDate;
+    if (input.paymentNotes !== undefined)
+      patch.paymentNotes = input.paymentNotes;
 
-    const taxRateChanged = validated.data.taxRate !== undefined;
+    const taxRateChanged = input.taxRate !== undefined;
     if (taxRateChanged) {
-      patch.taxRate = validated.data.taxRate;
+      patch.taxRate = input.taxRate;
     }
 
-    const discountChanged = validated.data.discount !== undefined;
+    const discountChanged = input.discount !== undefined;
     if (discountChanged) {
-      patch.discount = validated.data.discount;
+      patch.discount = input.discount;
     }
 
     const invoice = await db.invoice.update({
-      where: { id: validated.data.id },
+      where: { id: input.id },
       data: patch,
     });
 
     // Recalculate if tax rate or discount changed
     if (taxRateChanged || discountChanged) {
-      await recalculateInvoice(validated.data.id);
+      await recalculateInvoice(input.id);
     }
 
-    revalidateDashboard();
     return ActionResponse.success(invoice, "Invoice updated");
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to update invoice." });
-  }
-};
+  },
+});
 
-export const deleteInvoice = async (
-  data: InvoiceIdInput,
-): Promise<ActionResponseType<DeleteResult>> => {
-  const validated = invoiceIdSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  try {
+export const deleteInvoice = defineAction({
+  schema: invoiceIdSchema,
+  guard: null,
+  revalidate: true,
+  errors: { fallback: "Failed to delete invoice." },
+  run: async (input): Promise<ActionResponseType<DeleteResult>> => {
     const existing = await db.invoice.findUnique({
-      where: { id: validated.data.id },
+      where: { id: input.id },
       select: { id: true, projectId: true, status: true },
     });
     if (!existing) {
@@ -297,33 +185,23 @@ export const deleteInvoice = async (
     const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
     if (readOnlyError) return readOnlyError;
 
-    await db.invoice.delete({ where: { id: validated.data.id } });
-    revalidateDashboard();
+    await db.invoice.delete({ where: { id: input.id } });
     return ActionResponse.success({ deleted: true }, "Invoice deleted");
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to delete invoice." });
-  }
-};
+  },
+});
 
 // ──────────────────────────────────────────────
 // Invoice Status Transitions
 // ──────────────────────────────────────────────
 
-export const sendInvoice = async (
-  data: InvoiceIdInput,
-): Promise<ActionResponseType<InvoiceResult>> => {
-  const validated = invoiceIdSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  try {
+export const sendInvoice = defineAction({
+  schema: invoiceIdSchema,
+  guard: null,
+  revalidate: true,
+  errors: { fallback: "Failed to send invoice." },
+  run: async (input): Promise<ActionResponseType<InvoiceResult>> => {
     const existing = await db.invoice.findUnique({
-      where: { id: validated.data.id },
+      where: { id: input.id },
       select: { id: true, projectId: true, status: true },
     });
     if (!existing) {
@@ -350,41 +228,29 @@ export const sendInvoice = async (
     if (readOnlyError) return readOnlyError;
 
     const invoice = await db.invoice.update({
-      where: { id: validated.data.id },
+      where: { id: input.id },
       data: { status: "SENT" },
     });
 
     await recordActivity({
       projectId: existing.projectId,
       type: "INVOICE_SENT",
-      actorUserId: access.value.user.id,
-      actorEmail: access.value.user.email,
-      actorName: access.value.user.name,
+      ...actorOf(access.value.user),
       meta: { invoiceNumber: invoice.invoiceNumber },
     });
 
-    revalidateDashboard();
     return ActionResponse.success(invoice, "Invoice sent");
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to send invoice." });
-  }
-};
+  },
+});
 
-export const markInvoicePaid = async (
-  data: InvoiceIdInput,
-): Promise<ActionResponseType<InvoiceResult>> => {
-  const validated = invoiceIdSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  try {
+export const markInvoicePaid = defineAction({
+  schema: invoiceIdSchema,
+  guard: null,
+  revalidate: true,
+  errors: { fallback: "Failed to mark invoice as paid." },
+  run: async (input): Promise<ActionResponseType<InvoiceResult>> => {
     const existing = await db.invoice.findUnique({
-      where: { id: validated.data.id },
+      where: { id: input.id },
       select: { id: true, projectId: true, status: true },
     });
     if (!existing) {
@@ -411,43 +277,29 @@ export const markInvoicePaid = async (
     if (readOnlyError) return readOnlyError;
 
     const invoice = await db.invoice.update({
-      where: { id: validated.data.id },
+      where: { id: input.id },
       data: { status: "PAID", paidAt: new Date() },
     });
 
     await recordActivity({
       projectId: existing.projectId,
       type: "INVOICE_PAID",
-      actorUserId: access.value.user.id,
-      actorEmail: access.value.user.email,
-      actorName: access.value.user.name,
+      ...actorOf(access.value.user),
       meta: { invoiceNumber: invoice.invoiceNumber },
     });
 
-    revalidateDashboard();
     return ActionResponse.success(invoice, "Invoice marked as paid");
-  } catch (error) {
-    return toActionError(error, {
-      fallback: "Failed to mark invoice as paid.",
-    });
-  }
-};
+  },
+});
 
-export const cancelInvoice = async (
-  data: InvoiceIdInput,
-): Promise<ActionResponseType<InvoiceResult>> => {
-  const validated = invoiceIdSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  try {
+export const cancelInvoice = defineAction({
+  schema: invoiceIdSchema,
+  guard: null,
+  revalidate: true,
+  errors: { fallback: "Failed to cancel invoice." },
+  run: async (input): Promise<ActionResponseType<InvoiceResult>> => {
     const existing = await db.invoice.findUnique({
-      where: { id: validated.data.id },
+      where: { id: input.id },
       select: { id: true, projectId: true, status: true },
     });
     if (!existing) {
@@ -474,36 +326,26 @@ export const cancelInvoice = async (
     if (readOnlyError) return readOnlyError;
 
     const invoice = await db.invoice.update({
-      where: { id: validated.data.id },
+      where: { id: input.id },
       data: { status: "CANCELLED" },
     });
 
-    revalidateDashboard();
     return ActionResponse.success(invoice, "Invoice cancelled");
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to cancel invoice." });
-  }
-};
+  },
+});
 
 // ──────────────────────────────────────────────
 // Line Item Actions
 // ──────────────────────────────────────────────
 
-export const addLineItem = async (
-  data: AddLineItemInput,
-): Promise<ActionResponseType<InvoiceLineItemResult>> => {
-  const validated = addLineItemSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  try {
+export const addLineItem = defineAction({
+  schema: addLineItemSchema,
+  guard: null,
+  revalidate: true,
+  errors: { fallback: "Failed to add line item." },
+  run: async (input): Promise<ActionResponseType<InvoiceLineItemResult>> => {
     const invoice = await db.invoice.findUnique({
-      where: { id: validated.data.invoiceId },
+      where: { id: input.invoiceId },
       select: { id: true, projectId: true, status: true },
     });
     if (!invoice) {
@@ -529,46 +371,36 @@ export const addLineItem = async (
     const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
     if (readOnlyError) return readOnlyError;
 
-    const quantity = validated.data.quantity ?? 1;
-    const unitPrice = parseFloat(validated.data.unitPrice);
+    const quantity = input.quantity ?? 1;
+    const unitPrice = parseFloat(input.unitPrice);
     const amount = quantity * unitPrice;
 
     const lineItem = await db.invoiceLineItem.create({
       data: {
-        invoiceId: validated.data.invoiceId,
-        description: validated.data.description,
+        invoiceId: input.invoiceId,
+        description: input.description,
         quantity,
-        unitPrice: new Prisma.Decimal(unitPrice.toFixed(2)),
-        amount: new Prisma.Decimal(amount.toFixed(2)),
-        deliverableId: validated.data.deliverableId ?? null,
+        unitPrice: toDecimal(unitPrice),
+        amount: toDecimal(amount),
+        deliverableId: input.deliverableId ?? null,
       },
     });
 
     // Recalculate invoice totals
-    await recalculateInvoice(validated.data.invoiceId);
+    await recalculateInvoice(input.invoiceId);
 
-    revalidateDashboard();
     return ActionResponse.success(lineItem, "Line item added");
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to add line item." });
-  }
-};
+  },
+});
 
-export const removeLineItem = async (
-  data: RemoveLineItemInput,
-): Promise<ActionResponseType<DeleteResult>> => {
-  const validated = removeLineItemSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  try {
+export const removeLineItem = defineAction({
+  schema: removeLineItemSchema,
+  guard: null,
+  revalidate: true,
+  errors: { fallback: "Failed to remove line item." },
+  run: async (input): Promise<ActionResponseType<DeleteResult>> => {
     const existing = await db.invoiceLineItem.findUnique({
-      where: { id: validated.data.id },
+      where: { id: input.id },
       select: { id: true, invoiceId: true },
     });
     if (!existing) {
@@ -605,44 +437,34 @@ export const removeLineItem = async (
     const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
     if (readOnlyError) return readOnlyError;
 
-    await db.invoiceLineItem.delete({ where: { id: validated.data.id } });
+    await db.invoiceLineItem.delete({ where: { id: input.id } });
 
     // Recalculate invoice totals
     await recalculateInvoice(existing.invoiceId);
 
-    revalidateDashboard();
     return ActionResponse.success({ deleted: true }, "Line item removed");
-  } catch (error) {
-    return toActionError(error, { fallback: "Failed to remove line item." });
-  }
-};
+  },
+});
 
 // ──────────────────────────────────────────────
 // Convert Approved Deliverables to Line Items
 // ──────────────────────────────────────────────
 
-export const convertDeliverablesToLineItems = async (
-  data: ConvertDeliverablesInput,
-): Promise<ActionResponseType<{ converted: number }>> => {
-  const validated = convertDeliverablesSchema.safeParse(data);
-  if (!validated.success) {
-    return ActionResponse.failure(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid input",
-      validated.error.flatten().fieldErrors,
-    );
-  }
-
-  try {
+export const convertDeliverablesToLineItems = defineAction({
+  schema: convertDeliverablesSchema,
+  guard: null,
+  revalidate: true,
+  errors: { fallback: "Failed to convert deliverables." },
+  run: async (input): Promise<ActionResponseType<{ converted: number }>> => {
     const invoice = await db.invoice.findUnique({
-      where: { id: validated.data.invoiceId },
+      where: { id: input.invoiceId },
       select: { id: true, projectId: true, status: true },
     });
     if (!invoice) {
       return ActionResponse.failure(ERROR_CODES.NOT_FOUND, "Invoice not found.");
     }
 
-    if (invoice.projectId !== validated.data.projectId) {
+    if (invoice.projectId !== input.projectId) {
       return ActionResponse.failure(
         ERROR_CODES.FORBIDDEN,
         "Invoice does not belong to this project.",
@@ -656,7 +478,7 @@ export const convertDeliverablesToLineItems = async (
       );
     }
 
-    const access = await resolveProjectAccess(validated.data.projectId);
+    const access = await resolveProjectAccess(input.projectId);
     if (!access.ok) return access.error;
     if (!access.value.canManageDeliverables) {
       return ActionResponse.failure(
@@ -671,8 +493,8 @@ export const convertDeliverablesToLineItems = async (
     // Find approved deliverables that aren't already linked to a line item
     const deliverables = await db.deliverable.findMany({
       where: {
-        id: { in: validated.data.deliverableIds },
-        projectId: validated.data.projectId,
+        id: { in: input.deliverableIds },
+        projectId: input.projectId,
         status: "APPROVED",
       },
       select: {
@@ -692,7 +514,7 @@ export const convertDeliverablesToLineItems = async (
     // Check which deliverables already have line items on this invoice
     const existingLinks = await db.invoiceLineItem.findMany({
       where: {
-        invoiceId: validated.data.invoiceId,
+        invoiceId: input.invoiceId,
         deliverableId: { in: deliverables.map((d) => d.id) },
       },
       select: { deliverableId: true },
@@ -713,26 +535,21 @@ export const convertDeliverablesToLineItems = async (
     // Create line items for unlinked deliverables
     await db.invoiceLineItem.createMany({
       data: unlinkedDeliverables.map((d) => ({
-        invoiceId: validated.data.invoiceId,
+        invoiceId: input.invoiceId,
         description: d.title + (d.description ? ` — ${d.description}` : ""),
         quantity: 1,
-        unitPrice: new Prisma.Decimal("0.00"),
-        amount: new Prisma.Decimal("0.00"),
+        unitPrice: toDecimal(0),
+        amount: toDecimal(0),
         deliverableId: d.id,
       })),
     });
 
     // Recalculate invoice totals
-    await recalculateInvoice(validated.data.invoiceId);
+    await recalculateInvoice(input.invoiceId);
 
-    revalidateDashboard();
     return ActionResponse.success(
       { converted: unlinkedDeliverables.length },
       `${unlinkedDeliverables.length} deliverable(s) converted to line items`,
     );
-  } catch (error) {
-    return toActionError(error, {
-      fallback: "Failed to convert deliverables.",
-    });
-  }
-};
+  },
+});

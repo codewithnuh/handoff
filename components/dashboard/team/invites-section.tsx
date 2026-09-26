@@ -6,7 +6,6 @@
  */
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   UserPlus,
   Copy,
@@ -39,12 +38,15 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/components/ui/toast";
 import type { TeamInviteListResult } from "@/lib/actions/team";
-import type { TeamAssignmentProject } from "@/lib/queries/project";
+import type { TeamAssignmentProject } from "@/lib/queries/team";
 import {
   inviteTeammate,
   revokeTeamInvite,
 } from "@/lib/actions/team";
+import { useServerAction } from "@/hooks/use-server-action";
 import type { WorkspacePermission } from "@/app/generated/prisma/client";
+import { teamInviteStatus } from "@/lib/presentational/status";
+import { ALL_PERMISSIONS } from "@/components/dashboard/team/constants";
 
 type Invite = TeamInviteListResult["items"][number];
 
@@ -57,15 +59,25 @@ export function InvitesSection({
   invites,
   projects,
 }: InvitesSectionProps) {
-  const router = useRouter();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [inviteRole, setInviteRole] = useState("MEMBER");
   const [invitePermissions, setInvitePermissions] = useState<string[]>([]);
-  const [submitting, setSubmitting] = useState(false);
   const [link, setLink] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const invite = useServerAction(inviteTeammate, {
+    success: "Invite created",
+    successDescription: () => "Copy the link and share it.",
+    failure: "Couldn't create invite",
+    onSuccess: (data) => setLink(data.acceptUrl),
+  });
+
+  const revoke = useServerAction(revokeTeamInvite, {
+    success: "Invite revoked",
+    failure: "Couldn't revoke",
+  });
 
   const copy = async (id: string, url: string) => {
     try {
@@ -96,48 +108,16 @@ export function InvitesSection({
 
   const handleInvite = async () => {
     if (!email.trim()) return;
-    setSubmitting(true);
-    try {
-      const result = await inviteTeammate({
-        email: email.trim(),
-        projectIds: selectedProjects,
-        role: inviteRole as "ADMIN" | "MEMBER",
-        permissions: invitePermissions as WorkspacePermission[],
-      });
-      if (!result.success) {
-        toast.add({
-          type: "error",
-          title: "Couldn't create invite",
-          description: result.message,
-        });
-        return;
-      }
-      setLink(result.data.acceptUrl);
-      toast.add({
-        type: "success",
-        title: "Invite created",
-        description: "Copy the link and share it.",
-      });
-      router.refresh();
-    } catch {
-      toast.add({ type: "error", title: "Something went wrong" });
-    } finally {
-      setSubmitting(false);
-    }
+    await invite.run({
+      email: email.trim(),
+      projectIds: selectedProjects,
+      role: inviteRole as "ADMIN" | "MEMBER",
+      permissions: invitePermissions as WorkspacePermission[],
+    });
   };
 
   const handleRevoke = async (id: string) => {
-    const result = await revokeTeamInvite({ id });
-    if (!result.success) {
-      toast.add({
-        type: "error",
-        title: "Couldn't revoke",
-        description: result.message,
-      });
-      return;
-    }
-    toast.add({ type: "success", title: "Invite revoked" });
-    router.refresh();
+    await revoke.run({ id });
   };
 
   const closeDialog = (open: boolean) => {
@@ -175,20 +155,10 @@ export function InvitesSection({
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium truncate">{inv.email}</p>
                   <Badge
-                    variant={
-                      inv.status === "ACCEPTED"
-                        ? "outline"
-                        : inv.status === "PENDING"
-                          ? "secondary"
-                          : "destructive"
-                    }
+                    variant={teamInviteStatus(inv.status).variant}
                     className="text-[10px]"
                   >
-                    {inv.status === "ACCEPTED"
-                      ? "Accepted ✓"
-                      : inv.status === "PENDING"
-                        ? "Pending"
-                        : "Expired"}
+                    {teamInviteStatus(inv.status).label}
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -308,15 +278,7 @@ export function InvitesSection({
                 <div className="space-y-1.5">
                   <Label>Permissions</Label>
                   <div className="border-border divide-border max-h-40 divide-y overflow-y-auto rounded-md border">
-                    {[
-                      { value: "MANAGE_WORKSPACE", label: "Manage workspace", description: "Rename workspace and change settings" },
-                      { value: "MANAGE_MEMBERS", label: "Manage members", description: "Invite, remove, and change member roles" },
-                      { value: "MANAGE_CLIENTS", label: "Manage clients", description: "Create, edit, and delete clients" },
-                      { value: "MANAGE_PROJECTS", label: "Manage projects", description: "Edit project details and settings" },
-                      { value: "CREATE_PROJECTS", label: "Create projects", description: "Create new projects in the workspace" },
-                      { value: "VIEW_ALL_PROJECTS", label: "View all projects", description: "See all projects, not just assigned ones" },
-                      { value: "MANAGE_BILLING", label: "Manage billing", description: "Access billing and subscription settings" },
-                    ].map((perm) => (
+                    {ALL_PERMISSIONS.map((perm) => (
                       <label
                         key={perm.value}
                         className="hover:bg-muted/50 flex cursor-pointer items-start gap-2.5 px-3 py-2 text-xs"
@@ -375,9 +337,9 @@ export function InvitesSection({
             {!link && (
               <Button
                 onClick={handleInvite}
-                disabled={submitting || !email.trim()}
+                disabled={invite.pending || !email.trim()}
               >
-                {submitting ? "Creating..." : "Create Invite"}
+                {invite.pending ? "Creating..." : "Create Invite"}
               </Button>
             )}
           </DialogFooter>

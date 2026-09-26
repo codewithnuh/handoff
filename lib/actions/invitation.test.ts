@@ -18,26 +18,19 @@ vi.mock("@/lib/auth", () => ({
   },
 }));
 
-vi.mock("@/lib/prisma", () => ({
-  db: {
-    user: { findUnique: vi.fn(), update: vi.fn() },
-    workspace: { findFirst: vi.fn() },
-    project: { findFirst: vi.fn() },
-    clientInvitation: {
-      findUnique: vi.fn(),
-      findMany: vi.fn(),
-      create: vi.fn(),
-      update: vi.fn(),
-      updateMany: vi.fn(),
-    },
-    projectAccess: {
-      deleteMany: vi.fn(),
-      upsert: vi.fn(),
-    },
-    clientSession: {
-      deleteMany: vi.fn(),
-    },
-    activity: { create: vi.fn() },
+vi.mock("@/lib/prisma", async () => ({
+  db: (await import("@/lib/test/fake-db")).fakeDb,
+}));
+
+vi.mock("@/env", () => ({
+  env: {
+    DATABASE_URL: "postgresql://user:password@localhost:5432/handoff",
+    AUTH_SECRET: "test-auth-secret-at-least-32-characters-long",
+    BETTER_AUTH_SECRET: "test-auth-secret-at-least-32-characters-long",
+    BETTER_AUTH_URL: "http://localhost:3000",
+    NEXT_PUBLIC_APP_URL: "http://localhost:3000",
+    NODE_ENV: "test",
+    UPLOADTHING_SECRET: "test-uploadthing-secret",
   },
 }));
 
@@ -81,6 +74,10 @@ const signedIn = async () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // createInvitation runs inside one interactive transaction
+  vi.mocked(db.$transaction).mockImplementation(async (fn) => {
+    return fn(db as never);
+  });
 });
 
 // ──────────────────────────────────────────────

@@ -1,9 +1,8 @@
 import { Suspense } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { db } from "@/lib/prisma";
-import { getVisibleProjectIds, requireWorkspacePermission } from "@/lib/actions/guards";
+import { getVisibleProjectIds, requireWorkspacePermission } from "@/lib/access";
 import { ClientList } from "@/components/dashboard/client-list";
+import { ClientsPageSkeleton } from "@/components/presentational/route-skeletons";
 
 // ──────────────────────────────────────────────
 // Server-side data fetch (streams inside Suspense)
@@ -44,31 +43,6 @@ async function ClientsData() {
         _count: c._count,
       }))}
     />
-  );
-}
-
-// ──────────────────────────────────────────────
-// Loading Skeleton
-// ──────────────────────────────────────────────
-
-function ClientsPageSkeleton() {
-  return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {Array.from({ length: 3 }).map((_, i) => (
-        <Card className="shadow-xs" key={i}>
-          <CardHeader className="space-y-0 pb-2">
-            <Skeleton className="h-4 w-32" />
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Skeleton className="h-3 w-48" />
-            <Skeleton className="h-3 w-36" />
-            <div className="border-border border-t pt-3">
-              <Skeleton className="h-3 w-24" />
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
   );
 }
 

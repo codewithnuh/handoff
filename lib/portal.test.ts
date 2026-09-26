@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { ERROR_CODES } from "@/lib/constants/errors";
 
 // ──────────────────────────────────────────────
 // Mocks
@@ -15,27 +16,8 @@ vi.mock("next/headers", () => ({
   }),
 }));
 
-vi.mock("@/lib/prisma", () => ({
-  db: {
-    $transaction: vi.fn(),
-    clientSession: {
-      findUnique: vi.fn(),
-      delete: vi.fn(),
-      create: vi.fn(),
-      deleteMany: vi.fn(),
-    },
-    projectAccess: {
-      findUnique: vi.fn(),
-      upsert: vi.fn(),
-      deleteMany: vi.fn(),
-    },
-    clientInvitation: {
-      findUnique: vi.fn(),
-      update: vi.fn(),
-      updateMany: vi.fn(),
-      create: vi.fn(),
-    },
-  },
+vi.mock("@/lib/prisma", async () => ({
+  db: (await import("@/lib/test/fake-db")).fakeDb,
 }));
 
 vi.mock("@/env", () => ({
@@ -277,12 +259,12 @@ describe("project access control", () => {
   it("denies access when no ProjectAccess row exists", async () => {
     vi.mocked(db.projectAccess.findUnique).mockResolvedValue(null);
 
-    const { requireProjectAccess } = await import("@/lib/portal");
-    const result = await requireProjectAccess("client-a@test.com", "proj-1");
+    const { requirePortalProjectAccess } = await import("@/lib/access");
+    const result = await requirePortalProjectAccess("client-a@test.com", "proj-1");
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error.status).toBe(403);
+      expect(result.error.error.code).toBe(ERROR_CODES.FORBIDDEN);
     }
   });
 
@@ -294,8 +276,8 @@ describe("project access control", () => {
       createdAt: new Date(),
     } as never);
 
-    const { requireProjectAccess } = await import("@/lib/portal");
-    const result = await requireProjectAccess("client-a@test.com", "proj-1");
+    const { requirePortalProjectAccess } = await import("@/lib/access");
+    const result = await requirePortalProjectAccess("client-a@test.com", "proj-1");
 
     expect(result.ok).toBe(true);
   });
@@ -309,22 +291,22 @@ describe("project access control", () => {
       createdAt: new Date(),
     } as never);
 
-    const { requireProjectAccess } = await import("@/lib/portal");
+    const { requirePortalProjectAccess } = await import("@/lib/access");
 
     // Client A accessing their own project — should succeed
-    const ownResult = await requireProjectAccess("client-a@test.com", "proj-1");
+    const ownResult = await requirePortalProjectAccess("client-a@test.com", "proj-1");
     expect(ownResult.ok).toBe(true);
 
     // Client A trying to guess proj-2 — mock returns null for this query
     vi.mocked(db.projectAccess.findUnique).mockResolvedValue(null);
 
-    const otherResult = await requireProjectAccess(
+    const otherResult = await requirePortalProjectAccess(
       "client-a@test.com",
       "proj-2",
     );
     expect(otherResult.ok).toBe(false);
     if (!otherResult.ok) {
-      expect(otherResult.error.status).toBe(403);
+      expect(otherResult.error.error.code).toBe(ERROR_CODES.FORBIDDEN);
     }
   });
 });

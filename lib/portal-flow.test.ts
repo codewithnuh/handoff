@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { ERROR_CODES } from "@/lib/constants/errors";
 
 // ──────────────────────────────────────────────
 // Mocks
@@ -16,47 +17,8 @@ vi.mock("next/headers", () => ({
   headers: vi.fn().mockResolvedValue(new Headers()),
 }));
 
-vi.mock("@/lib/prisma", () => ({
-  db: {
-    $transaction: vi.fn(),
-    clientSession: {
-      findUnique: vi.fn(),
-      create: vi.fn(),
-      delete: vi.fn(),
-      deleteMany: vi.fn(),
-    },
-    projectAccess: {
-      findUnique: vi.fn(),
-      findMany: vi.fn(),
-      upsert: vi.fn(),
-      deleteMany: vi.fn(),
-    },
-    clientInvitation: {
-      findUnique: vi.fn(),
-      findMany: vi.fn(),
-      create: vi.fn(),
-      update: vi.fn(),
-      updateMany: vi.fn(),
-    },
-    project: {
-      findMany: vi.fn(),
-      findUnique: vi.fn(),
-      findFirst: vi.fn(),
-    },
-    deliverable: {
-      findMany: vi.fn(),
-    },
-    request: {
-      findMany: vi.fn(),
-    },
-    activity: {
-      findMany: vi.fn(),
-    },
-    user: { findUnique: vi.fn(), update: vi.fn() },
-    workspace: { findFirst: vi.fn() },
-    subscription: { findUnique: vi.fn() },
-    invoice: { findMany: vi.fn() },
-  },
+vi.mock("@/lib/prisma", async () => ({
+  db: (await import("@/lib/test/fake-db")).fakeDb,
 }));
 
 vi.mock("@/env", () => ({
@@ -78,10 +40,8 @@ vi.mock("@/lib/email", () => ({
 import { cookies } from "next/headers";
 import { NextRequest } from "next/server";
 import { db } from "@/lib/prisma";
-import {
-  getClientPortalSession,
-  requireProjectAccess,
-} from "@/lib/portal";
+import { getClientPortalSession } from "@/lib/portal";
+import { requirePortalProjectAccess } from "@/lib/access";
 import { createHmac } from "node:crypto";
 
 // ──────────────────────────────────────────────
@@ -224,7 +184,7 @@ describe("Full invitation flow: invite → accept → portal access", () => {
       createdAt: new Date(),
     } as never);
 
-    const result = await requireProjectAccess(CLIENT_A_EMAIL, PROJECT_ID);
+    const result = await requirePortalProjectAccess(CLIENT_A_EMAIL, PROJECT_ID);
     expect(result.ok).toBe(true);
   });
 });
@@ -245,19 +205,19 @@ describe("Cross-tenant access control: client A cannot access client B's project
       } as never)
       .mockResolvedValueOnce(null); // proj-2 returns null
 
-    const ownResult = await requireProjectAccess(
+    const ownResult = await requirePortalProjectAccess(
       CLIENT_A_EMAIL,
       PROJECT_ID,
     );
     expect(ownResult.ok).toBe(true);
 
-    const otherResult = await requireProjectAccess(
+    const otherResult = await requirePortalProjectAccess(
       CLIENT_A_EMAIL,
       PROJECT_ID_2,
     );
     expect(otherResult.ok).toBe(false);
     if (!otherResult.ok) {
-      expect(otherResult.error.status).toBe(403);
+      expect(otherResult.error.error.code).toBe(ERROR_CODES.FORBIDDEN);
     }
   });
 
@@ -265,10 +225,10 @@ describe("Cross-tenant access control: client A cannot access client B's project
     // Mock: client B has NO access to proj-1
     vi.mocked(db.projectAccess.findUnique).mockResolvedValue(null);
 
-    const result = await requireProjectAccess(CLIENT_B_EMAIL, PROJECT_ID);
+    const result = await requirePortalProjectAccess(CLIENT_B_EMAIL, PROJECT_ID);
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error.status).toBe(403);
+      expect(result.error.error.code).toBe(ERROR_CODES.FORBIDDEN);
     }
   });
 
@@ -289,10 +249,10 @@ describe("Cross-tenant access control: client A cannot access client B's project
     // But client B has no access to proj-1
     vi.mocked(db.projectAccess.findUnique).mockResolvedValue(null);
 
-    const access = await requireProjectAccess(session!.email, PROJECT_ID);
+    const access = await requirePortalProjectAccess(session!.email, PROJECT_ID);
     expect(access.ok).toBe(false);
     if (!access.ok) {
-      expect(access.error.status).toBe(403);
+      expect(access.error.error.code).toBe(ERROR_CODES.FORBIDDEN);
     }
   });
 });
@@ -400,10 +360,10 @@ describe("Revocation: client loses portal access immediately", () => {
     expect(session!.email).toBe(CLIENT_A_EMAIL);
 
     // But access check fails
-    const access = await requireProjectAccess(session!.email, PROJECT_ID);
+    const access = await requirePortalProjectAccess(session!.email, PROJECT_ID);
     expect(access.ok).toBe(false);
     if (!access.ok) {
-      expect(access.error.status).toBe(403);
+      expect(access.error.error.code).toBe(ERROR_CODES.FORBIDDEN);
     }
   });
 
@@ -505,7 +465,7 @@ describe("Portal queries: data is scoped to client access", () => {
       },
     ] as never);
 
-    const { getPortalHomeProjects } = await import("@/lib/queries/project");
+    const { getPortalHomeProjects } = await import("@/lib/queries/portal");
     const projects = await getPortalHomeProjects(CLIENT_A_EMAIL);
 
     expect(projects).toHaveLength(2);
@@ -523,7 +483,7 @@ describe("Portal queries: data is scoped to client access", () => {
   it("getPortalHomeProjects returns empty array when client has no access", async () => {
     vi.mocked(db.projectAccess.findMany).mockResolvedValue([]);
 
-    const { getPortalHomeProjects } = await import("@/lib/queries/project");
+    const { getPortalHomeProjects } = await import("@/lib/queries/portal");
     const projects = await getPortalHomeProjects(CLIENT_B_EMAIL);
 
     expect(projects).toHaveLength(0);
@@ -535,13 +495,13 @@ describe("Portal queries: data is scoped to client access", () => {
     vi.mocked(db.projectAccess.findUnique).mockResolvedValue(null);
 
     const { getPortalProjectDetail } = await import(
-      "@/lib/queries/project"
+      "@/lib/queries/project-detail"
     );
     const result = await getPortalProjectDetail(PROJECT_ID, CLIENT_B_EMAIL);
 
     expect(result).toBeNull();
     // Should not query project data
-    expect(db.project.findUnique).not.toHaveBeenCalled();
+    expect(db.project.findFirst).not.toHaveBeenCalled();
   });
 
   it("getPortalProjectDetail returns full data when client has access", async () => {
@@ -552,7 +512,7 @@ describe("Portal queries: data is scoped to client access", () => {
       createdAt: new Date(),
     } as never);
 
-    vi.mocked(db.project.findUnique).mockResolvedValue({
+    vi.mocked(db.project.findFirst).mockResolvedValue({
       id: PROJECT_ID,
       name: "Rebrand",
       description: "Update the brand",
@@ -594,7 +554,7 @@ describe("Portal queries: data is scoped to client access", () => {
     vi.mocked(db.invoice.findMany).mockResolvedValue([]);
 
     const { getPortalProjectDetail } = await import(
-      "@/lib/queries/project"
+      "@/lib/queries/project-detail"
     );
     const result = await getPortalProjectDetail(PROJECT_ID, CLIENT_A_EMAIL);
 

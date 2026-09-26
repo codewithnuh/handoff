@@ -9,7 +9,7 @@
  */
 
 import type { TeamMemberListResult, TeamInviteListResult } from "@/lib/actions/team";
-import type { TeamAssignmentProject } from "@/lib/queries/project";
+import type { TeamAssignmentProject } from "@/lib/queries/team";
 import type { WorkspacePermission } from "@/app/generated/prisma/client";
 import { MembersSection } from "@/components/dashboard/team/members-section";
 import { InvitesSection } from "@/components/dashboard/team/invites-section";

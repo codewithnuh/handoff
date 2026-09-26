@@ -8,7 +8,7 @@
  * the drag-and-drop; every settled drop persists through `reorderTasks`.
  */
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -31,9 +31,9 @@ import { Check, GripVertical, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { toast } from "@/components/ui/toast";
 import type { Task } from "@/app/generated/prisma/client";
 import { createTask, deleteTask, reorderTasks } from "@/lib/actions/task";
+import { useServerAction } from "@/hooks/use-server-action";
 
 type Status = "TODO" | "IN_PROGRESS" | "DONE";
 
@@ -73,6 +73,33 @@ export function TasksTab({
     IN_PROGRESS: "",
     DONE: "",
   });
+  const preDeleteColumns = useRef<Columns>(columns);
+  const preReorderColumns = useRef<Columns>(columns);
+
+  const add = useServerAction(createTask, {
+    failure: "Couldn't add task",
+    refresh: false,
+    onSuccess: (task) => {
+      // New tasks land at the bottom of the column they were added to
+      setColumns((prev) => ({
+        ...prev,
+        [task.status]: [...prev[task.status], task],
+      }));
+      setNewTitles((prev) => ({ ...prev, [task.status]: "" }));
+    },
+  });
+
+  const remove = useServerAction(deleteTask, {
+    failure: "Couldn't delete task",
+    refresh: false,
+    rollback: () => setColumns(preDeleteColumns.current),
+  });
+
+  const reorder = useServerAction(reorderTasks, {
+    failure: "Couldn't save the board",
+    refresh: false,
+    rollback: () => setColumns(preReorderColumns.current),
+  });
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -84,44 +111,18 @@ export function TasksTab({
   async function handleAdd(status: Status) {
     const title = newTitles[status].trim();
     if (!title || !canManage) return;
-    try {
-      const result = await createTask({ projectId, title, status });
-      if (!result.success) {
-        toast.add({
-          type: "error",
-          title: "Couldn't add task",
-          description: result.message,
-        });
-        return;
-      }
-      // New tasks land at the bottom of the column they were added to
-      setColumns((prev) => ({
-        ...prev,
-        [status]: [...prev[status], result.data],
-      }));
-      setNewTitles((prev) => ({ ...prev, [status]: "" }));
-    } catch {
-      toast.add({ type: "error", title: "Something went wrong" });
-    }
+    await add.run({ projectId, title, status });
   }
 
   async function handleDelete(taskId: string) {
     if (!canManage) return;
-    const prev = columns;
+    preDeleteColumns.current = columns;
     setColumns((cols) => ({
       TODO: cols.TODO.filter((t) => t.id !== taskId),
       IN_PROGRESS: cols.IN_PROGRESS.filter((t) => t.id !== taskId),
       DONE: cols.DONE.filter((t) => t.id !== taskId),
     }));
-    const result = await deleteTask({ id: taskId });
-    if (!result.success) {
-      setColumns(prev);
-      toast.add({
-        type: "error",
-        title: "Couldn't delete task",
-        description: result.message,
-      });
-    }
+    await remove.run({ id: taskId });
   }
 
   /** Quick toggle without dragging — freelancer speed matters. */
@@ -132,7 +133,7 @@ export function TasksTab({
   }
 
   function persistMove(task: Task, status: Status, position: number) {
-    const before = columns;
+    preReorderColumns.current = columns;
     const sourceStatus = task.status;
 
     // Optimistically move the card and renormalize both columns
@@ -153,34 +154,24 @@ export function TasksTab({
     }
     setColumns(next);
 
-    void (async () => {
-      // Persist the full ordering of every affected column so positions
-      // stay dense (no drifting duplicates over time).
-      const updates = [
-        ...(sourceStatus !== status
-          ? next[sourceStatus].map((t, i) => ({
-              id: t.id,
-              status: sourceStatus,
-              position: i,
-            }))
-          : []),
-        ...next[status].map((t, i) => ({
-          id: t.id,
-          status,
-          position: i,
-        })),
-      ];
+    // Persist the full ordering of every affected column so positions
+    // stay dense (no drifting duplicates over time).
+    const updates = [
+      ...(sourceStatus !== status
+        ? next[sourceStatus].map((t, i) => ({
+            id: t.id,
+            status: sourceStatus,
+            position: i,
+          }))
+        : []),
+      ...next[status].map((t, i) => ({
+        id: t.id,
+        status,
+        position: i,
+      })),
+    ];
 
-      const result = await reorderTasks({ projectId, items: updates });
-      if (!result.success) {
-        setColumns(before);
-        toast.add({
-          type: "error",
-          title: "Couldn't save the board",
-          description: result.message,
-        });
-      }
-    })();
+    void reorder.run({ projectId, items: updates });
   }
 
   function handleDragStart(event: DragStartEvent) {
@@ -246,19 +237,9 @@ export function TasksTab({
         : []),
     ];
 
-    const before = columns;
+    preReorderColumns.current = columns;
     setColumns(next);
-    void (async () => {
-      const result = await reorderTasks({ projectId, items: updates });
-      if (!result.success) {
-        setColumns(before);
-        toast.add({
-          type: "error",
-          title: "Couldn't save the board",
-          description: result.message,
-        });
-      }
-    })();
+    void reorder.run({ projectId, items: updates });
   }
 
   function findStatus(taskId: string): Status | null {

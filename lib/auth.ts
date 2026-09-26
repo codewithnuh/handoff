@@ -93,12 +93,26 @@ export const auth = betterAuth({
       // verify immediately on /verify-email.
       sendVerificationOnSignUp: true,
       sendVerificationOTP: async ({ email, otp }) => {
-        await sendEmail({
-          to: email,
-          subject: "Your Handoff verification code",
-          text: `Your verification code is ${otp}. It expires in 10 minutes.`,
-          html: otpEmailHtml(otp, "verifying your email", 10),
-        });
+        if (env.NODE_ENV === "development") {
+          // No inbox in dev — surface the code where it can actually be read.
+          console.log(
+            `\n🔑 [DEV OTP] Code for ${email}: ${otp} (expires in 10 minutes)\n`,
+          );
+        }
+        try {
+          await sendEmail({
+            to: email,
+            subject: "Your Handoff verification code",
+            text: `Your verification code is ${otp}. It expires in 10 minutes.`,
+            html: otpEmailHtml(otp, "verifying your email", 10),
+          });
+        } catch (error) {
+          if (env.NODE_ENV === "production") throw error;
+          console.warn(
+            "[DEV] OTP email failed to send — use the code logged above.",
+            error,
+          );
+        }
       },
     }),
     // nextCookies must be last so other plugins' Set-Cookie headers are forwarded

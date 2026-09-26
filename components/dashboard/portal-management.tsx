@@ -54,11 +54,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/components/ui/toast";
+import { EmptyState } from "@/components/presentational/empty-state";
 import { revokeClientAccess, inviteClient } from "@/lib/actions/invitation";
-import { withTimeout } from "@/lib/utils/with-timeout";
-import type { PortalClientData } from "@/lib/queries/project";
-
-const ACTION_TIMEOUT_MS = 15_000;
+import { useServerAction } from "@/hooks/use-server-action";
+import type { PortalClientData } from "@/lib/queries/portal";
 
 // ──────────────────────────────────────────────
 // Types
@@ -87,16 +86,27 @@ export function PortalManagement({
   const [revokeTarget, setRevokeTarget] = useState<PortalClientData | null>(
     null,
   );
-  const [isRevoking, setIsRevoking] = useState(false);
 
   // Invite state
   const [inviteTarget, setInviteTarget] = useState<PortalClientData | null>(
     null,
   );
   const [selectedProjectId, setSelectedProjectId] = useState("");
-  const [isInviting, setIsInviting] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  const revoke = useServerAction(revokeClientAccess, {
+    failure: "Couldn't revoke access",
+    refresh: false,
+  });
+
+  const invite = useServerAction(inviteClient, {
+    success: "Invitation created",
+    successDescription: () => "Copy the link and share it with your client.",
+    failure: "Couldn't create invitation",
+    refresh: false,
+    onSuccess: (data) => setInviteLink(data.acceptUrl),
+  });
 
   const filteredClients = portalClients.filter((client) => {
     const q = searchQuery.toLowerCase();
@@ -110,94 +120,41 @@ export function PortalManagement({
 
   const handleRevoke = async () => {
     if (!revokeTarget) return;
-    setIsRevoking(true);
-    try {
-      for (const project of revokeTarget.projects) {
-        const result = await withTimeout(
-          revokeClientAccess({
-            projectId: project.id,
-            email: revokeTarget.email,
-          }),
-          ACTION_TIMEOUT_MS,
-        );
 
-        if (!result.success) {
-          toast.add({
-            type: "error",
-            title: "Couldn't revoke access",
-            description: result.message,
-          });
-          return;
-        }
-      }
+    for (const project of revokeTarget.projects) {
+      const result = await revoke.run({
+        projectId: project.id,
+        email: revokeTarget.email,
+      });
+      if (!result?.success) return;
+    }
 
-      if (revokeTarget.projects.length === 0) {
-        toast.add({
-          type: "info",
-          title: "No portal access to revoke",
-          description: "This client hasn't accepted any invitations yet.",
-        });
-        setRevokeTarget(null);
-        return;
-      }
-
+    if (revokeTarget.projects.length === 0) {
       toast.add({
-        type: "success",
-        title: "Access revoked",
-        description: `${revokeTarget.name ?? revokeTarget.email} has been removed from all projects.`,
+        type: "info",
+        title: "No portal access to revoke",
+        description: "This client hasn't accepted any invitations yet.",
       });
       setRevokeTarget(null);
-    } catch (error) {
-      toast.add({
-        type: "error",
-        title: "Something went wrong",
-        description:
-          error instanceof Error ? error.message : "Please try again.",
-      });
-    } finally {
-      setIsRevoking(false);
+      return;
     }
+
+    toast.add({
+      type: "success",
+      title: "Access revoked",
+      description: `${revokeTarget.name ?? revokeTarget.email} has been removed from all projects.`,
+    });
+    setRevokeTarget(null);
   };
 
   const handleInvite = async () => {
     if (!inviteTarget || !selectedProjectId) return;
-    setIsInviting(true);
     setInviteLink(null);
     setCopied(false);
-    try {
-      const result = await withTimeout(
-        inviteClient({
-          projectId: selectedProjectId,
-          email: inviteTarget.email,
-        }),
-        ACTION_TIMEOUT_MS,
-      );
-
-      if (!result.success) {
-        toast.add({
-          type: "error",
-          title: "Couldn't create invitation",
-          description: result.message,
-        });
-        return;
-      }
-
-      setInviteLink(result.data.acceptUrl);
-      toast.add({
-        type: "success",
-        title: "Invitation created",
-        description: "Copy the link and share it with your client.",
-      });
-    } catch (error) {
-      toast.add({
-        type: "error",
-        title: "Something went wrong",
-        description:
-          error instanceof Error ? error.message : "Please try again.",
-      });
-    } finally {
-      setIsInviting(false);
-    }
+    await invite.run({
+      projectId: selectedProjectId,
+      email: inviteTarget.email,
+    });
   };
 
   const handleCopyLink = async (url: string) => {
@@ -318,14 +275,14 @@ export function PortalManagement({
           )}
 
           {filteredClients.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-muted-foreground/25 bg-muted/25 p-12 text-center">
-              <Users className="mx-auto size-8 text-muted-foreground" />
-              <h3 className="mt-3 text-sm font-semibold">No clients yet</h3>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Add clients from the Clients page, then invite them to projects
-                here.
-              </p>
-            </div>
+            <EmptyState
+              showIconCircle={false}
+              icon={
+                <Users className="mx-auto size-8 text-muted-foreground" />
+              }
+              title="No clients yet"
+              description="Add clients from the Clients page, then invite them to projects here."
+            />
           ) : (
             <div className="divide-y divide-border">
               {filteredClients.map((client) => (
@@ -496,9 +453,9 @@ export function PortalManagement({
               {!inviteLink && (
                 <Button
                   onClick={handleInvite}
-                  disabled={isInviting || !selectedProjectId}
+                  disabled={invite.pending || !selectedProjectId}
                 >
-                  {isInviting ? "Creating..." : "Create Invite Link"}
+                  {invite.pending ? "Creating..." : "Create Invite Link"}
                 </Button>
               )}
             </DialogFooter>
@@ -528,9 +485,9 @@ export function PortalManagement({
             <AlertDialogAction
               variant="destructive"
               onClick={handleRevoke}
-              disabled={isRevoking}
+              disabled={revoke.pending}
             >
-              {isRevoking ? "Revoking..." : "Revoke Access"}
+              {revoke.pending ? "Revoking..." : "Revoke Access"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

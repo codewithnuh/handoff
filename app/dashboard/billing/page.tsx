@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import { requireWorkspacePermission } from "@/lib/actions/guards";
-import { getWorkspaceUsage } from "@/lib/queries/project";
+import { requireWorkspacePermission } from "@/lib/access";
+import { getWorkspaceUsage } from "@/lib/queries/usage";
 import { PlanCards } from "@/components/dashboard/billing/plan-cards";
 
 export const metadata = { title: "Billing — Handoff" };

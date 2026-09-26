@@ -1,12 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Send, CheckCircle, XCircle, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { toast } from "@/components/ui/toast";
 import { sendInvoice, markInvoicePaid, cancelInvoice } from "@/lib/actions/invoice";
+import { useServerAction } from "@/hooks/use-server-action";
 
 interface InvoiceActionsProps {
   invoiceId: string;
@@ -14,95 +12,30 @@ interface InvoiceActionsProps {
 }
 
 export function InvoiceActions({ invoiceId, status }: InvoiceActionsProps) {
-  const [loading, setLoading] = useState<
-    "send" | "paid" | "cancel" | null
-  >(null);
-  const router = useRouter();
+  const send = useServerAction(sendInvoice, {
+    success: "Invoice sent",
+    failure: "Failed to send",
+  });
+  const markPaid = useServerAction(markInvoicePaid, {
+    success: "Invoice marked as paid",
+    failure: "Failed to mark as paid",
+  });
+  const cancel = useServerAction(cancelInvoice, {
+    success: "Invoice cancelled",
+    failure: "Failed to cancel",
+  });
 
-  const handleSend = async () => {
-    setLoading("send");
-    try {
-      const result = await sendInvoice({ id: invoiceId });
-      if (result.success) {
-        toast.add({ type: "success", title: "Invoice sent" });
-        router.refresh();
-      } else {
-        toast.add({
-          type: "error",
-          title: "Failed to send",
-          description: result.message,
-        });
-      }
-    } catch {
-      toast.add({
-        type: "error",
-        title: "Something went wrong",
-        description: "Please try again.",
-      });
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  const handleMarkPaid = async () => {
-    setLoading("paid");
-    try {
-      const result = await markInvoicePaid({ id: invoiceId });
-      if (result.success) {
-        toast.add({ type: "success", title: "Invoice marked as paid" });
-        router.refresh();
-      } else {
-        toast.add({
-          type: "error",
-          title: "Failed to mark as paid",
-          description: result.message,
-        });
-      }
-    } catch {
-      toast.add({
-        type: "error",
-        title: "Something went wrong",
-        description: "Please try again.",
-      });
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  const handleCancel = async () => {
-    setLoading("cancel");
-    try {
-      const result = await cancelInvoice({ id: invoiceId });
-      if (result.success) {
-        toast.add({ type: "success", title: "Invoice cancelled" });
-        router.refresh();
-      } else {
-        toast.add({
-          type: "error",
-          title: "Failed to cancel",
-          description: result.message,
-        });
-      }
-    } catch {
-      toast.add({
-        type: "error",
-        title: "Something went wrong",
-        description: "Please try again.",
-      });
-    } finally {
-      setLoading(null);
-    }
-  };
+  const pending = send.pending || markPaid.pending || cancel.pending;
 
   return (
     <div className="flex items-center gap-2">
       {status === "DRAFT" && (
         <Button
           size="sm"
-          onClick={handleSend}
-          disabled={loading !== null}
+          onClick={() => send.run({ id: invoiceId })}
+          disabled={pending}
         >
-          {loading === "send" ? (
+          {send.pending ? (
             <RefreshCw className="size-3.5 mr-1.5 animate-spin" />
           ) : (
             <Send className="size-3.5 mr-1.5" />
@@ -115,11 +48,11 @@ export function InvoiceActions({ invoiceId, status }: InvoiceActionsProps) {
         <Button
           size="sm"
           variant="outline"
-          onClick={handleMarkPaid}
-          disabled={loading !== null}
+          onClick={() => markPaid.run({ id: invoiceId })}
+          disabled={pending}
           className="border-green-200 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-300"
         >
-          {loading === "paid" ? (
+          {markPaid.pending ? (
             <RefreshCw className="size-3.5 mr-1.5 animate-spin" />
           ) : (
             <CheckCircle className="size-3.5 mr-1.5" />
@@ -132,11 +65,11 @@ export function InvoiceActions({ invoiceId, status }: InvoiceActionsProps) {
         <Button
           size="sm"
           variant="ghost"
-          onClick={handleCancel}
-          disabled={loading !== null}
+          onClick={() => cancel.run({ id: invoiceId })}
+          disabled={pending}
           className="text-destructive hover:text-destructive"
         >
-          {loading === "cancel" ? (
+          {cancel.pending ? (
             <RefreshCw className="size-3.5 mr-1.5 animate-spin" />
           ) : (
             <XCircle className="size-3.5 mr-1.5" />

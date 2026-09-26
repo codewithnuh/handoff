@@ -14,8 +14,8 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { toast } from "@/components/ui/toast";
 import { acceptTeamInvite } from "@/lib/actions/team";
+import { useServerAction } from "@/hooks/use-server-action";
 
 interface AcceptInviteFormProps {
   token: string;
@@ -36,12 +36,18 @@ export function AcceptInviteForm({
   const router = useRouter();
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+
+  const accept = useServerAction(acceptTeamInvite, {
+    success: (_d, m) => m,
+    failure: "Couldn't join",
+    onError: (e) => setFieldErrors(e.fieldErrors ?? {}),
+    onSuccess: () => router.push("/dashboard"),
+  });
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (submitting) return;
+    if (accept.pending) return;
 
     // Wrong account → send to login with a next hop back here
     if (viewerEmail && !emailMatches) return;
@@ -57,34 +63,12 @@ export function AcceptInviteForm({
       return;
     }
 
-    setSubmitting(true);
     setFieldErrors({});
-    try {
-      const result = await acceptTeamInvite({
-        token,
-        name: name.trim() || undefined,
-        password: password || undefined,
-      });
-
-      if (!result.success) {
-        setFieldErrors(result.error.fieldErrors ?? {});
-        toast.add({ type: "error", title: "Couldn't join", description: result.message });
-        return;
-      }
-
-      toast.add({ type: "success", title: result.message });
-      // Session may have just been created by the accept action
-      router.push("/dashboard");
-      router.refresh();
-    } catch {
-      toast.add({
-        type: "error",
-        title: "Something went wrong",
-        description: "Please try again.",
-      });
-    } finally {
-      setSubmitting(false);
-    }
+    await accept.run({
+      token,
+      name: name.trim() || undefined,
+      password: password || undefined,
+    });
   };
 
   if (viewerEmail && !emailMatches) {
@@ -128,8 +112,8 @@ export function AcceptInviteForm({
   if (viewerEmail && emailMatches) {
     return (
       <div className="space-y-4 rounded-lg border border-border bg-card p-6">
-        <Button className="w-full" onClick={() => handleSubmit()} disabled={submitting}>
-          {submitting ? "Joining…" : `Accept invite & open dashboard`}
+        <Button className="w-full" onClick={() => handleSubmit()} disabled={accept.pending}>
+          {accept.pending ? "Joining…" : `Accept invite & open dashboard`}
         </Button>
       </div>
     );
@@ -184,8 +168,8 @@ export function AcceptInviteForm({
         )}
       </div>
 
-      <Button type="submit" className="w-full" disabled={submitting}>
-        {submitting ? "Setting up…" : "Join workspace"}
+      <Button type="submit" className="w-full" disabled={accept.pending}>
+        {accept.pending ? "Setting up…" : "Join workspace"}
       </Button>
 
       <p className="text-xs text-center text-muted-foreground">

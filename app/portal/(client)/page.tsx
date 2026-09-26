@@ -1,9 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import {
-  requireClientSession,
-} from "@/lib/portal";
-import { getPortalHomeProjects } from "@/lib/queries/project";
+import { requirePortalSession } from "@/lib/access";
+import { getPortalHomeProjects } from "@/lib/queries/portal";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -13,33 +11,20 @@ import {
   ChevronRight,
   Inbox,
 } from "lucide-react";
-
-const STATUS_CONFIG: Record<
-  string,
-  { label: string; variant: "default" | "secondary" | "outline" | "destructive" }
-> = {
-  PLANNING: { label: "Planning", variant: "secondary" },
-  IN_PROGRESS: { label: "In Progress", variant: "default" },
-  COMPLETED: { label: "Completed", variant: "outline" },
-  CANCELLED: { label: "Cancelled", variant: "destructive" },
-};
-
-function formatDate(date: Date | null): string {
-  if (!date) return "No due date";
-  return new Date(date).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
+import { formatDate } from "@/lib/presentational/format";
+import { EmptyState } from "@/components/presentational/empty-state";
+import {
+  PROJECT_STATUS_OPTIONS,
+  projectStatusOption,
+} from "@/lib/presentational/status";
 
 export default async function PortalHomePage() {
-  const session = await requireClientSession();
+  const session = await requirePortalSession();
   if (!session.ok) {
     redirect("/portal/expired");
   }
 
-  const projects = await getPortalHomeProjects(session.email);
+  const projects = await getPortalHomeProjects(session.value.email);
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8 space-y-8">
@@ -55,21 +40,17 @@ export default async function PortalHomePage() {
 
       {/* Projects Grid */}
       {projects.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-muted-foreground/25 bg-muted/25 p-16 text-center">
-          <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted">
-            <Inbox className="size-6 text-muted-foreground" />
-          </div>
-          <h3 className="mt-4 text-sm font-semibold">No projects yet</h3>
-          <p className="mt-1 text-xs text-muted-foreground max-w-sm mx-auto">
-            The project owner hasn&apos;t shared any projects with you yet.
-            Check back soon or ask them to send you an invitation link.
-          </p>
-        </div>
+        <EmptyState
+          size="lg"
+          icon={<Inbox className="size-6 text-muted-foreground" />}
+          title="No projects yet"
+          description="The project owner hasn't shared any projects with you yet. Check back soon or ask them to send you an invitation link."
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {projects.map((project) => {
             const statusConfig =
-              STATUS_CONFIG[project.status] ?? STATUS_CONFIG.PLANNING;
+              projectStatusOption(project.status) ?? PROJECT_STATUS_OPTIONS[0];
 
             return (
               <Link
@@ -122,7 +103,7 @@ export default async function PortalHomePage() {
                     <div className="flex items-center gap-4 text-xs text-muted-foreground pt-2 border-t border-border">
                       <span className="flex items-center gap-1">
                         <Calendar className="size-3.5" />
-                        {formatDate(project.dueDate)}
+                        {formatDate(project.dueDate, "No due date")}
                       </span>
                       <span className="flex items-center gap-1">
                         <FileCheck className="size-3.5" />

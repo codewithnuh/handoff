@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/prisma";
-import { getClientPortalSession } from "@/lib/portal";
+import { requirePortalProjectAccess, requirePortalSession } from "@/lib/access";
 
 /**
  * GET /api/files/[id]/download
@@ -19,8 +19,8 @@ export async function GET(
   const { id: fileId } = await params;
 
   // 1. Check client session
-  const session = await getClientPortalSession();
-  if (!session) {
+  const session = await requirePortalSession();
+  if (!session.ok) {
     return NextResponse.json(
       { error: "Unauthorized" },
       { status: 401 },
@@ -59,12 +59,12 @@ export async function GET(
   const projectId = file.versions[0].deliverable.projectId;
 
   // 3. Verify project access
-  const access = await db.projectAccess.findUnique({
-    where: { projectId_email: { projectId, email: session.email } },
-    select: { id: true },
-  });
+  const access = await requirePortalProjectAccess(
+    session.value.email,
+    projectId,
+  );
 
-  if (!access) {
+  if (!access.ok) {
     return NextResponse.json(
       { error: "Forbidden — you don't have access to this file" },
       { status: 403 },

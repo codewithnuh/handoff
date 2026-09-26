@@ -1,8 +1,6 @@
 import { LinksPage } from "@/components/dashboard/links-page";
 import { listAllLinks } from "@/lib/actions/links";
-import { Suspense } from "react";
-import { LinksPageSkeleton } from "@/components/dashboard/links-page";
-import { requireWorkspacePermission } from "@/lib/actions/guards";
+import { requireWorkspacePermission } from "@/lib/access";
 import { redirect } from "next/navigation";
 
 export const metadata = { title: "Links · Handoff" };
@@ -27,11 +25,9 @@ export default async function LinksRoute() {
   }
 
   return (
-    <Suspense fallback={<LinksPageSkeleton />}>
-      <LinksPage
-        teamLinks={result.data.teamLinks}
-        clientLinks={result.data.clientLinks}
-      />
-    </Suspense>
+    <LinksPage
+      teamLinks={result.data.teamLinks}
+      clientLinks={result.data.clientLinks}
+    />
   );
 }

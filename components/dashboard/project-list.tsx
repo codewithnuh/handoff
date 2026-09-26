@@ -8,7 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ProjectListItem } from "@/lib/queries/project";
+import type { ProjectListItem } from "@/lib/queries/dashboard";
+import { EmptyState } from "@/components/presentational/empty-state";
+import {
+  PROJECT_STATUS_OPTIONS,
+  projectStatusOption,
+} from "@/lib/presentational/status";
 import {
   Select,
   SelectValue,
@@ -25,25 +30,9 @@ interface ProjectListProps {
   clients: ClientFilter[];
 }
 
-const statusConfig: Record<
-  string,
-  {
-    label: string;
-    variant: "default" | "secondary" | "outline" | "destructive";
-  }
-> = {
-  PLANNING: { label: "Planning", variant: "secondary" },
-  IN_PROGRESS: { label: "In Progress", variant: "default" },
-  COMPLETED: { label: "Completed", variant: "outline" },
-  CANCELLED: { label: "Cancelled", variant: "destructive" },
-};
-
 const STATUS_OPTIONS = [
   { value: "ALL", label: "All Statuses" },
-  { value: "PLANNING", label: "Planning" },
-  { value: "IN_PROGRESS", label: "In Progress" },
-  { value: "COMPLETED", label: "Completed" },
-  { value: "CANCELLED", label: "Cancelled" },
+  ...PROJECT_STATUS_OPTIONS.map(({ value, label }) => ({ value, label })),
 ];
 
 export function ProjectList({ projects, clients }: ProjectListProps) {
@@ -76,13 +65,14 @@ export function ProjectList({ projects, clients }: ProjectListProps) {
 
   if (projects.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-muted-foreground/25 bg-muted/25 p-12 text-center">
-        <FolderKanban className="mx-auto size-8 text-muted-foreground" />
-        <h3 className="mt-3 text-sm font-semibold">No projects yet</h3>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Create your first project from the dashboard to get started.
-        </p>
-      </div>
+      <EmptyState
+        showIconCircle={false}
+        icon={
+          <FolderKanban className="mx-auto size-8 text-muted-foreground" />
+        }
+        title="No projects yet"
+        description="Create your first project from the dashboard to get started."
+      />
     );
   }
 
@@ -160,7 +150,7 @@ export function ProjectList({ projects, clients }: ProjectListProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredProjects.map((project) => {
             const status =
-              statusConfig[project.status] ?? statusConfig.PLANNING;
+              projectStatusOption(project.status) ?? PROJECT_STATUS_OPTIONS[0];
 
             return (
               <Link
@@ -221,13 +211,14 @@ export function ProjectList({ projects, clients }: ProjectListProps) {
           })}
         </div>
       ) : (
-        <div className="rounded-lg border border-dashed border-muted-foreground/25 bg-muted/25 p-12 text-center">
-          <FolderKanban className="mx-auto size-8 text-muted-foreground" />
-          <h3 className="mt-3 text-sm font-semibold">No projects found</h3>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Try adjusting your search criteria or clear filters to see more
-            results.
-          </p>
+        <EmptyState
+          showIconCircle={false}
+          icon={
+            <FolderKanban className="mx-auto size-8 text-muted-foreground" />
+          }
+          title="No projects found"
+          description="Try adjusting your search criteria or clear filters to see more results."
+        >
           {hasActiveFilters && (
             <Button
               variant="outline"
@@ -242,7 +233,7 @@ export function ProjectList({ projects, clients }: ProjectListProps) {
               Reset all filters
             </Button>
           )}
-        </div>
+        </EmptyState>
       )}
     </div>
   );

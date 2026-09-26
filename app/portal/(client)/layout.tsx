@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { requireClientSession } from "@/lib/portal";
+import { requirePortalSession } from "@/lib/access";
 import { ClientLogoutButton } from "../logout-button";
 import Image from "next/image";
 
@@ -17,7 +17,7 @@ export default async function PortalClientLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await requireClientSession();
+  const session = await requirePortalSession();
 
   if (!session.ok) {
     redirect("/portal/expired");
@@ -58,7 +58,7 @@ export default async function PortalClientLayout({
 
           <div className="flex items-center gap-3">
             <span className="text-xs text-muted-foreground hidden sm:inline">
-              {session.email}
+              {session.value.email}
             </span>
             <ClientLogoutButton />
           </div>

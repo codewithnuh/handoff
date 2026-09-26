@@ -2,8 +2,9 @@
 
 import { FileCheck } from "lucide-react";
 
-import type { ProjectDetailData } from "@/lib/queries/project";
+import type { ProjectDetailData } from "@/lib/queries/project-detail";
 import type { ViewerPermissions } from "./types";
+import { EmptyState } from "@/components/presentational/empty-state";
 import { DeliverableCard } from "./deliverable-card";
 import { CreateDeliverableDialog } from "./create-deliverable-dialog";
 
@@ -20,18 +21,16 @@ export function DeliverablesTab({
 }) {
   if (deliverables.length === 0) {
     return (
-      <div className="rounded-lg space-y-4 border border-dashed border-muted-foreground/25 bg-muted/25 p-12 text-center">
-        <div className="mx-auto flex size-10 items-center justify-center rounded-full bg-muted">
-          <FileCheck className="size-5 text-muted-foreground" />
-        </div>
-        <h3 className="mt-3 text-sm font-semibold">No deliverables yet</h3>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Create your first deliverable to start tracking work.
-        </p>
+      <EmptyState
+        className="space-y-4"
+        icon={<FileCheck className="size-5 text-muted-foreground" />}
+        title="No deliverables yet"
+        description="Create your first deliverable to start tracking work."
+      >
         {permissions.canManageDeliverables && (
           <CreateDeliverableDialog projectId={projectId} />
         )}
-      </div>
+      </EmptyState>
     );
   }
 
