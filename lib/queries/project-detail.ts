@@ -48,7 +48,6 @@ export type ProjectDetailData = {
       createdAt: Date;
       file: {
         id: string;
-        key: string;
         filename: string;
         mimeType: string | null;
         size: number | null;
@@ -169,7 +168,6 @@ async function loadProjectDetail(projectId: string, scope: DetailScope) {
             file: {
               select: {
                 id: true,
-                key: true,
                 filename: true,
                 mimeType: true,
                 size: true,

@@ -20,7 +20,6 @@ import {
 import { toast } from "@/components/ui/toast";
 import { FileUpload, type UploadedFile } from "@/components/ui/file-upload";
 import { createDeliverable, addDeliverableVersion } from "@/lib/actions/deliverable";
-import { createFile } from "@/lib/actions/file";
 import { useServerAction } from "@/hooks/use-server-action";
 
 export function CreateDeliverableDialog({ projectId }: { projectId: string }) {
@@ -32,8 +31,6 @@ export function CreateDeliverableDialog({ projectId }: { projectId: string }) {
     failure: "Couldn't create deliverable",
     refresh: false,
   });
-
-  const attachFile = useServerAction(createFile, { refresh: false });
 
   const addVersion = useServerAction(addDeliverableVersion, { refresh: false });
 
@@ -52,25 +49,15 @@ export function CreateDeliverableDialog({ projectId }: { projectId: string }) {
       });
       if (!result?.success) return;
 
-      // 2. If a file was uploaded, save it and attach as version 1
+      // 2. Attach the server verified file as version 1.
       if (uploadedFile) {
-        const fileResult = await attachFile.run({
-          key: uploadedFile.key,
-          filename: uploadedFile.name,
-          mimeType: uploadedFile.type,
-          size: uploadedFile.size,
+        const versionResult = await addVersion.run({
+          deliverableId: result.data.id,
+          versionNumber: 1,
+          fileId: uploadedFile.fileId,
+          notes: value.notes.trim() || null,
         });
-        if (fileResult === null) return;
-
-        if (fileResult.success) {
-          const versionResult = await addVersion.run({
-            deliverableId: result.data.id,
-            versionNumber: 1,
-            fileId: fileResult.data.id,
-            notes: value.notes.trim() || null,
-          });
-          if (versionResult === null) return;
-        }
+        if (versionResult === null || !versionResult.success) return;
       }
 
       toast.add({
@@ -150,6 +137,7 @@ export function CreateDeliverableDialog({ projectId }: { projectId: string }) {
           <div className="flex flex-col gap-1.5">
             <Label>File (optional)</Label>
             <FileUpload
+              projectId={projectId}
               onUploadComplete={(file) => setUploadedFile(file)}
               onUploadError={(error) =>
                 toast.add({
