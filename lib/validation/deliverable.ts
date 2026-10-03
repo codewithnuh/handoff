@@ -24,8 +24,14 @@ export const updateDeliverableSchema = z.object({
    * Optimistic locking: version the caller loaded. When provided, a
    * mismatch returns CONFLICT instead of overwriting concurrent changes.
    */
-  expectedVersion: z.number().int().positive().optional(),
-});
+  expectedVersion: z.number().int().positive(),
+}).refine(
+  (input) =>
+    input.title !== undefined ||
+    input.description !== undefined ||
+    input.status !== undefined,
+  { message: "Provide at least one deliverable change" },
+);
 export type UpdateDeliverableInput = z.infer<
   typeof updateDeliverableSchema
 >;
@@ -44,6 +50,7 @@ export type ProjectDeliverablesInput = z.infer<
 
 export const createDeliverableVersionSchema = z.object({
   deliverableId: idSchema,
+  expectedVersion: z.number().int().positive(),
   versionNumber: z
     .number()
     .int({ message: "Version number must be a whole number" })
