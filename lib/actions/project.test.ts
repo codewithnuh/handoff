@@ -77,6 +77,7 @@ const signedIn = async () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(db.$transaction).mockImplementation(async (fn) => fn(db as never));
 });
 
 describe("createProject", () => {
