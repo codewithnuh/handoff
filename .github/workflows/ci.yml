@@ -103,6 +103,15 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:generate
       - run: pnpm db:deploy
+      - name: Configure synthetic auth secrets for tests
+        shell: bash
+        run: |
+          auth_secret=$(openssl rand -hex 32)
+          better_auth_secret=$(openssl rand -hex 32)
+          echo "::add-mask::$auth_secret"
+          echo "::add-mask::$better_auth_secret"
+          echo "AUTH_SECRET=$auth_secret" >> "$GITHUB_ENV"
+          echo "BETTER_AUTH_SECRET=$better_auth_secret" >> "$GITHUB_ENV"
       - run: pnpm test:integration:coverage
       - name: Repeat integration and concurrency suite
         run: pnpm test:integration
@@ -209,12 +218,17 @@ jobs:
       - name: Configure synthetic CI environment
         shell: bash
         run: |
-          echo "AUTH_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
-          echo "BETTER_AUTH_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          auth_secret=$(openssl rand -hex 32)
+          better_auth_secret=$(openssl rand -hex 32)
+          echo "::add-mask::$auth_secret"
+          echo "::add-mask::$better_auth_secret"
+          echo "AUTH_SECRET=$auth_secret" >> "$GITHUB_ENV"
+          echo "BETTER_AUTH_SECRET=$better_auth_secret" >> "$GITHUB_ENV"
           echo "SMTP_HOST=smtp.invalid" >> "$GITHUB_ENV"
           echo "SMTP_PORT=587" >> "$GITHUB_ENV"
           echo "EMAIL_FROM=Handoff <ci@example.invalid>" >> "$GITHUB_ENV"
           token=$(printf '{"apiKey":"sk_ci_%s","appId":"handoff-ci","regions":["us-east-1"]}' "$(openssl rand -hex 32)" | base64 -w0)
+          echo "::add-mask::$token"
           echo "UPLOADTHING_TOKEN=$token" >> "$GITHUB_ENV"
       - run: pnpm db:deploy
       - run: pnpm build
