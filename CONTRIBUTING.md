@@ -43,8 +43,10 @@ printed to the console (`🔑 [DEV OTP] Code for …`).
    pnpm lint
    pnpm exec tsc --noEmit
    pnpm test
+   TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/handoff_test pnpm test:integration
    pnpm build # CI's second job; required for changes to routes, env, or config
    ```
+   Create the local `handoff_test` database before the first integration run. In PowerShell, set `$env:TEST_DATABASE_URL` to the same URL before running `pnpm test:integration`. The integration runner refuses remote hosts, any database name other than `handoff_test`, and never falls back to `DATABASE_URL` from `.env`.
 5. Commit with a clear, conventional message (e.g. `feat(project): add due date`).
 6. Open a pull request against `master` using the PR template.
 
@@ -138,7 +140,22 @@ sub-components. Shared status/label maps belong in
 
 ### Tests
 
-Vitest. Tests are colocated with what they cover:
+Vitest has separate unit and PostgreSQL integration commands. `pnpm test` runs unit tests against `lib/test/fake-db.ts`. `pnpm test:integration` applies committed migrations and runs real Prisma queries against a dedicated local PostgreSQL 16 database named `handoff_test`.
+
+From a clean checkout with local PostgreSQL available:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm db:generate
+createdb handoff_test
+TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/handoff_test pnpm test:integration
+```
+
+On PowerShell, set `$env:TEST_DATABASE_URL` to that local URL, then run `pnpm test:integration`. The database must already exist. Use local credentials for your PostgreSQL installation if they differ from the example.
+
+Integration fixtures use reserved `itest_` IDs, fixed timestamps, and cleanup limited to those fixture records. Never point integration tests at a development or production database. The runner requires `TEST_DATABASE_URL`, validates the local host and exact database name before migrating, and sets `DATABASE_URL` only in the child processes it starts. No SMTP credentials, storage credentials, production secrets, or paid services are needed.
+
+Tests are colocated with what they cover:
 
 - actions: `lib/actions/*.test.ts`
 - access: `lib/access/access.test.ts`
@@ -146,7 +163,7 @@ Vitest. Tests are colocated with what they cover:
 - validation: `lib/validation/*.test.ts`
 - client hook: `hooks/use-server-action.test.tsx`
 
-All DB-backed tests run against the shared fake in `lib/test/fake-db.ts`
+Unit DB-backed tests run against the shared fake in `lib/test/fake-db.ts`
 (mocked `@/lib/prisma`), plus mocked `@/lib/auth`, `next/headers`, and
 `next/cache`. The fake's `$transaction` is a bare `vi.fn()` — tests that hit
 transactional code must add

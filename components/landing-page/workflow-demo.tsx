@@ -196,6 +196,7 @@ export function WorkflowDemo() {
   const [datesFilled, setDatesFilled] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [submitHovered, setSubmitHovered] = useState(false);
+  const [cursorPosition, setCursorPosition] = useState({ x: -20, y: -20, opacity: 0 });
   const [projectCount, setProjectCount] = useState(4);
   const [showNewActivity, setShowNewActivity] = useState(false);
 
@@ -294,7 +295,7 @@ export function WorkflowDemo() {
         s(() => setStep("hover-submit"), 600);
         break;
       case "hover-submit":
-        setSubmitHovered(true);
+        s(() => setSubmitHovered(true), 0);
         s(() => setStep("click-submit"), 600);
         break;
       case "click-submit":
@@ -356,45 +357,45 @@ export function WorkflowDemo() {
     return () => clearTimeout(t);
   }, [step, projectDesc]);
 
-  // ── Cursor ──
-  let cx = -20, cy = -20, co = 0;
+  // Measure cursor targets after React commits the step's DOM changes.
+  useEffect(() => {
+    let target: HTMLElement | null = null;
+    let offsetX = 0;
+    let offsetY = 0;
 
-  if (demo === "dashboard") {
-    if (step === "move-to-create" || step === "hover-create" || step === "click-create") {
-      const p = getPos(createBtnRef.current);
-      cx = p.x; cy = p.y; co = 1;
-    } else if (step === "modal-open" || step === "move-to-name" || step === "type-name") {
-      if (modalOpen) {
-        const p = getPos(nameInputRef.current);
-        cx = p.x + projectName.length * 7.2 + 8; cy = p.y; co = 1;
+    if (demo === "dashboard") {
+      if (["move-to-create", "hover-create", "click-create"].includes(step)) {
+        target = createBtnRef.current;
+      } else if (["modal-open", "move-to-name", "type-name"].includes(step) && modalOpen) {
+        target = nameInputRef.current;
+        offsetX = projectName.length * 7.2 + 8;
+      } else if (["move-to-desc", "type-desc"].includes(step) && modalOpen) {
+        target = descInputRef.current;
+        offsetX = Math.min(projectDesc.length, 30) * 6.5 + 8;
+        offsetY = 20;
+      } else if (["move-to-client", "select-client"].includes(step) && modalOpen) {
+        target = clientBtnRef.current;
+      } else if (["move-to-dates", "fill-dates"].includes(step) && modalOpen) {
+        target = submitBtnRef.current;
+        offsetX = -80;
+        offsetY = -30;
+      } else if (["move-to-submit", "hover-submit", "click-submit"].includes(step) && modalOpen) {
+        target = submitBtnRef.current;
       }
-    } else if (step === "move-to-desc" || step === "type-desc") {
-      if (modalOpen) {
-        const p = getPos(descInputRef.current);
-        cx = p.x + Math.min(projectDesc.length, 30) * 6.5 + 8; cy = p.y + 20; co = 1;
-      }
-    } else if (step === "move-to-client" || step === "select-client") {
-      if (modalOpen) {
-        const p = getPos(clientBtnRef.current);
-        cx = p.x; cy = p.y; co = 1;
-      }
-    } else if (step === "move-to-dates" || step === "fill-dates") {
-      if (modalOpen) {
-        const p = getPos(submitBtnRef.current);
-        cx = p.x - 80; cy = p.y - 30; co = 1;
-      }
-    } else if (step === "move-to-submit" || step === "hover-submit" || step === "click-submit") {
-      if (modalOpen) {
-        const p = getPos(submitBtnRef.current);
-        cx = p.x; cy = p.y; co = 1;
-      }
+    } else if (demo === "projects" && ["move-to-create", "hover-create", "click-create", "project-click"].includes(step)) {
+      target = projectCardRef.current;
     }
-  } else if (demo === "projects") {
-    if (step === "move-to-create" || step === "hover-create" || step === "click-create" || step === "project-click") {
-      const p = getPos(projectCardRef.current);
-      cx = p.x; cy = p.y; co = 1;
-    }
-  }
+
+    const frame = requestAnimationFrame(() => {
+      if (!target) {
+        setCursorPosition({ x: -20, y: -20, opacity: 0 });
+        return;
+      }
+      const position = getPos(target);
+      setCursorPosition({ x: position.x + offsetX, y: position.y + offsetY, opacity: 1 });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [demo, getPos, modalOpen, projectDesc, projectName, step]);
 
   return (
     <div className="w-full">
@@ -675,7 +676,7 @@ export function WorkflowDemo() {
 
           {/* Cursor */}
           {demo !== "portal" && (
-            <motion.div animate={{ x: cx, y: cy, opacity: co }} transition={{ type: "spring", visualDuration: 0.4, bounce: 0.05 }} className="pointer-events-none absolute left-0 top-0 z-30" aria-hidden="true">
+            <motion.div animate={{ x: cursorPosition.x, y: cursorPosition.y, opacity: cursorPosition.opacity }} transition={{ type: "spring", visualDuration: 0.4, bounce: 0.05 }} className="pointer-events-none absolute left-0 top-0 z-30" aria-hidden="true">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="#1d1c1d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.15))" }}>
                 <path d="M5 3l14 8-6.5 2L9 20z" />
               </svg>

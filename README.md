@@ -465,6 +465,7 @@ Client ─┬─ Project (1:N)
 | `pnpm start` | Start the production server |
 | `pnpm test` | Run tests with Vitest |
 | `pnpm test:watch` | Run tests in watch mode |
+| `pnpm test:integration` | Apply migrations and run PostgreSQL 16 integration tests against the local `handoff_test` database |
 | `pnpm lint` | Run ESLint |
 | `pnpm db:generate` | Regenerate the Prisma client |
 | `pnpm db:push` | Push schema changes to the database |
@@ -547,8 +548,8 @@ pnpm dev
 
 - **Branch from `master`** — `feat/my-change`, `fix/my-bug`
 - **No `any`** — strict TypeScript always
-- **Test your changes** — `pnpm test`
-- **All checks pass** — `pnpm lint && pnpm exec tsc --noEmit && pnpm test` (CI runs lint → typecheck → test → build)
+- **Test your changes** — `pnpm test`; for database behavior, set `TEST_DATABASE_URL` to local PostgreSQL database `handoff_test` and run `pnpm test:integration`
+- **All checks pass** — `pnpm lint && pnpm exec tsc --noEmit && pnpm test` (CI also runs PostgreSQL integration tests twice and the production build)
 - **Conventional commits** — `feat:`, `fix:`, `docs:`, `chore:`
 - **Server actions**: build every action with `defineAction({ schema, guard, check, revalidate, run })` — one envelope, one error mapper, no hand-rolled try/catch
 - **Client calls**: invoke server actions through `useServerAction` (`hooks/use-server-action.ts`) — timeout, rollback, refresh and toasts live there, not in components
@@ -558,7 +559,7 @@ pnpm dev
 - **Validation schemas** live in `lib/validation/*.ts`
 - **Server actions** live in `lib/actions/*.ts`, one file per domain, built on `lib/actions/define.ts`
 - **Authorization** lives in `lib/access/` (workspace / project / portal) — never inline permission checks
-- **Tests** are colocated and run against `lib/test/fake-db.ts`: `lib/actions/*.test.ts`, `lib/access/access.test.ts`, `lib/invoice/money.test.ts`, `hooks/use-server-action.test.tsx`
+- **Unit tests** are colocated and use `lib/test/fake-db.ts`: `lib/actions/*.test.ts`, `lib/access/access.test.ts`, `lib/invoice/money.test.ts`, `hooks/use-server-action.test.tsx`. Real database tests live in `tests/integration/` and only run through `pnpm test:integration` with local PostgreSQL database `handoff_test`.
 - **Status labels & formatting** live in `lib/presentational/` — one label map for every enum, dates/currency in `format.ts`
 - **Shared UI shells** (empty states, error cards, route skeletons) live in `components/presentational/`; route `error.tsx` files render through `ErrorPanel`, skeletons through `loading.tsx`
 - **Components** are organized by domain under `components/dashboard/` and `components/portal/`
