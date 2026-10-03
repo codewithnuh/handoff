@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { db } from "@/lib/prisma";
 import {
   createClient,
@@ -21,6 +21,10 @@ import { setSubjectAdapters } from "@/lib/access";
 import { getDashboardOverview } from "@/lib/queries/dashboard";
 import { getProjectTasks } from "@/lib/queries/tasks";
 import { fixtureIds, seedIntegrationFixtures } from "./fixtures";
+
+// Server actions use this marker to prevent client imports. Integration tests
+// run them directly in Node, where that Next.js boundary does not apply.
+vi.mock("server-only", () => ({}));
 
 let restoreSubject: (() => void) | undefined;
 
