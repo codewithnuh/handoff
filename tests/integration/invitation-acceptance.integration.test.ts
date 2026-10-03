@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { db } from "@/lib/prisma";
-import { fixtureIds } from "./fixtures";
+import { fixtureIds, seedIntegrationFixtures } from "./fixtures";
 
 vi.mock("@/lib/portal", async (importOriginal) => {
   const portal = await importOriginal<typeof import("@/lib/portal")>();
@@ -19,6 +19,7 @@ const raceToken = "itest_atomic_race_token";
 const raceInvitationId = "itest_atomic_race_invite";
 
 beforeAll(async () => {
+  await seedIntegrationFixtures(db);
   await db.$executeRawUnsafe(`
     CREATE OR REPLACE FUNCTION itest_reject_client_session() RETURNS trigger AS $$
     BEGIN
