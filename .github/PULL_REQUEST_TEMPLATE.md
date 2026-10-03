@@ -11,28 +11,44 @@ Closes #
 - [ ] Documentation
 - [ ] CI / tooling
 
-## How has this been tested?
+## Summary
 
-- [ ] `pnpm test` passes
-- [ ] `npx tsc --noEmit` passes
+<!-- Describe the change and link the issue (for example, Closes COD-89). -->
+
+## Security and access
+
+- [ ] Authentication, authorization, and tenant boundaries reviewed where affected
+- [ ] No production credentials or sensitive data added to workflow logs or artifacts
+
+## Data and rollout
+
+- [ ] No database migration
+- [ ] Database migration included and reviewed for fresh install and populated upgrade
+- [ ] Rollout, backfill, and rollback notes added below when needed
+
+## Validation
+
+<!-- List the exact commands and results; include relevant coverage changes. -->
+
+- [ ] `pnpm test:unit` passes
+- [ ] `pnpm test:integration` passes
+- [ ] `pnpm typecheck` passes
 - [ ] `pnpm lint` passes
 
-## Checklist
+## Code review checklist
 
-- [ ] Code follows the existing conventions and patterns
-- [ ] Inputs are validated with zod and workspace ownership is enforced
-- [ ] Server actions return the standardized `ActionResponseType`
-- [ ] Added/updated tests where appropriate
-- [ ] No `any` or unsafe casts introduced
-- [ ] Updated docs (README) if behavior changed
+- [ ] Existing conventions and patterns are followed
+- [ ] Inputs are validated and workspace ownership is enforced where relevant
+- [ ] Server actions return the standardized `ActionResponseType` where relevant
+- [ ] Tests cover changed behavior
+- [ ] No unsafe casts or production credentials introduced
+- [ ] Docs are updated when behavior changes
 
-## Data change and rollout notes
+## Dependency exceptions
 
-- Baseline commit or migration:
-- Target commit:
-- Data preserved or backfilled:
-- Deployment and recovery notes (forward fix / write-loss decision):
+- [ ] No dependency exception required
+- [ ] Exception documented with package, advisory, scope, owner, expiry, and remediation issue
 
-## Screenshots (if applicable)
+## Screenshots and reviewer notes
 
-## Notes for reviewers
+<!-- Add screenshots or context reviewers need. -->

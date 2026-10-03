@@ -5,213 +5,290 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+  merge_group:
+    types: [checks_requested]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  check:
-    name: Lint, typecheck & test
-    runs-on: ubuntu-latest
-    environment: CI
+  quality:
+    name: Quality / lint and types
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm lint
+      - run: pnpm typecheck
 
+  unit:
+    name: Unit / coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm test:unit
+      - name: Upload unit results and coverage
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: unit-${{ github.sha }}
+          path: |
+            test-results/unit-junit.xml
+            coverage/lcov.info
+            coverage/coverage-summary.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  postgres:
+    name: Postgres / integration and concurrency
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}
           POSTGRES_DB: handoff_test
-        ports:
-          - 5432:5432
+        ports: [5432:5432]
         options: >-
           --health-cmd="pg_isready -U postgres -d handoff_test"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
-
-    strategy:
-      matrix:
-        node-version: [22]
-
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/handoff_test
-      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/handoff_test
+      DATABASE_URL: postgresql://postgres:${{ github.run_id }}-${{ github.run_attempt }}@localhost:5432/handoff_test
+      TEST_DATABASE_URL: postgresql://postgres:${{ github.run_id }}-${{ github.run_attempt }}@localhost:5432/handoff_test
       NODE_ENV: test
       BETTER_AUTH_URL: http://localhost:3000
       NEXT_PUBLIC_APP_URL: http://localhost:3000
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 11.17.0
-
-      - name: Use Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 22
           cache: pnpm
-
-      - name: Configure synthetic CI environment
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm db:deploy
+      - name: Configure synthetic auth secrets for tests
         shell: bash
         run: |
-          echo "AUTH_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
-          echo "BETTER_AUTH_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
-          echo "SMTP_HOST=smtp.invalid" >> "$GITHUB_ENV"
-          echo "SMTP_PORT=587" >> "$GITHUB_ENV"
-          echo "EMAIL_FROM=Handoff <ci@example.invalid>" >> "$GITHUB_ENV"
-          token=$(printf '{"apiKey":"sk_ci_%s","appId":"handoff-ci","regions":["us-east-1"]}' "$(openssl rand -hex 32)" | base64 -w0)
-          echo "UPLOADTHING_TOKEN=$token" >> "$GITHUB_ENV"
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Generate Prisma Client
-        run: pnpm db:generate
-
-      - name: Fresh install and populated upgrade migration tests
-        run: pnpm test:migrations
-
-      - name: Validate environment variables
-        run: |
-          test "$DATABASE_URL" = "postgresql://postgres:postgres@localhost:5432/handoff_test" || {
-            echo "DATABASE_URL must use the disposable CI database"
-            exit 1
-          }
-
-          test "${#AUTH_SECRET}" -ge 32 || {
-            echo "AUTH_SECRET must contain at least 32 characters"
-            exit 1
-          }
-
-          test "${#BETTER_AUTH_SECRET}" -ge 32 || {
-            echo "BETTER_AUTH_SECRET must contain at least 32 characters"
-            exit 1
-          }
-
-          test -n "$UPLOADTHING_TOKEN" || {
-            echo "UPLOADTHING_TOKEN is missing"
-            exit 1
-          }
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Typecheck
-        run: pnpm exec tsc --noEmit
-
-      - name: Test
-        run: pnpm test
-
-      - name: PostgreSQL integration tests
-        run: |
-          pnpm test:integration
-          pnpm test:integration
-
-      - name: Install Chromium for production browser journeys
-        run: pnpm exec playwright install --with-deps chromium
-
-      - name: Prepare production server and test database
-        run: pnpm test:e2e:prepare
-
-      - name: Run production browser journeys
-        run: pnpm test:e2e
-
-      - name: Upload browser journey reports and failure artifacts
+          auth_secret=$(openssl rand -hex 32)
+          better_auth_secret=$(openssl rand -hex 32)
+          echo "::add-mask::$auth_secret"
+          echo "::add-mask::$better_auth_secret"
+          echo "AUTH_SECRET=$auth_secret" >> "$GITHUB_ENV"
+          echo "BETTER_AUTH_SECRET=$better_auth_secret" >> "$GITHUB_ENV"
+      - run: pnpm test:integration:coverage
+      - name: Repeat integration and concurrency suite
+        run: pnpm test:integration
+      - name: Upload PostgreSQL results and coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
-          name: browser-journeys-${{ github.sha }}
-          path: test-results/
+          name: postgres-${{ github.sha }}
+          path: |
+            test-results/integration-junit.xml
+            coverage/integration/lcov.info
+            coverage/integration/coverage-summary.json
           if-no-files-found: ignore
           retention-days: 14
 
-  build:
-    name: Production build
-    runs-on: ubuntu-latest
-    needs: check
-    environment: CI
-
+  migrations:
+    name: Migrations / fresh and populated upgrade
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}
+          POSTGRES_DB: handoff_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd="pg_isready -U postgres -d handoff_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DATABASE_URL: postgresql://postgres:${{ github.run_id }}-${{ github.run_attempt }}@localhost:5432/handoff_test
+      TEST_DATABASE_URL: postgresql://postgres:${{ github.run_id }}-${{ github.run_attempt }}@localhost:5432/handoff_test
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - id: migration-run
+        run: pnpm test:migrations
+      - name: Write sanitized migration summary
+        if: always()
+        env:
+          MIGRATION_OUTCOME: ${{ steps.migration-run.outcome }}
+        run: |
+          mkdir -p reports
+          printf '{"commit":"%s","outcome":"%s"}\n' "$GITHUB_SHA" "$MIGRATION_OUTCOME" > reports/migration-summary.json
+      - name: Upload migration summary
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: migrations-${{ github.sha }}
+          path: reports/migration-summary.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  production:
+    name: Production / build and browser journeys
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}
           POSTGRES_DB: handoff
-        ports:
-          - 5432:5432
+        ports: [5432:5432]
         options: >-
           --health-cmd="pg_isready -U postgres -d handoff"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
-
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/handoff
+      DATABASE_URL: postgresql://postgres:${{ github.run_id }}-${{ github.run_attempt }}@localhost:5432/handoff
+      TEST_DATABASE_URL: postgresql://postgres:${{ github.run_id }}-${{ github.run_attempt }}@localhost:5432/handoff
       NODE_ENV: production
-      BETTER_AUTH_URL: http://localhost:3000
-      NEXT_PUBLIC_APP_URL: http://localhost:3000
-
+      BETTER_AUTH_URL: http://localhost:3100
+      NEXT_PUBLIC_APP_URL: http://localhost:3100
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 11.17.0
-
-      - name: Use Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
           cache: pnpm
-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
       - name: Configure synthetic CI environment
         shell: bash
         run: |
-          echo "AUTH_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
-          echo "BETTER_AUTH_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          auth_secret=$(openssl rand -hex 32)
+          better_auth_secret=$(openssl rand -hex 32)
+          echo "::add-mask::$auth_secret"
+          echo "::add-mask::$better_auth_secret"
+          echo "AUTH_SECRET=$auth_secret" >> "$GITHUB_ENV"
+          echo "BETTER_AUTH_SECRET=$better_auth_secret" >> "$GITHUB_ENV"
           echo "SMTP_HOST=smtp.invalid" >> "$GITHUB_ENV"
           echo "SMTP_PORT=587" >> "$GITHUB_ENV"
           echo "EMAIL_FROM=Handoff <ci@example.invalid>" >> "$GITHUB_ENV"
           token=$(printf '{"apiKey":"sk_ci_%s","appId":"handoff-ci","regions":["us-east-1"]}' "$(openssl rand -hex 32)" | base64 -w0)
+          echo "::add-mask::$token"
           echo "UPLOADTHING_TOKEN=$token" >> "$GITHUB_ENV"
+      - run: pnpm db:deploy
+      - run: pnpm build
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - id: browser-run
+        run: pnpm test:e2e
+      - name: Upload production browser reports and traces
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: production-browser-${{ github.sha }}
+          path: |
+            test-results/e2e-junit.xml
+            test-results/e2e/
+          if-no-files-found: ignore
+          retention-days: 14
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+  dependencies:
+    name: Security / production dependencies
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - id: audit-run
+        run: pnpm audit:prod
+      - name: Upload sanitized dependency audit report
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: dependency-audit-${{ github.sha }}
+          path: reports/dependency-audit.json
+          if-no-files-found: ignore
+          retention-days: 14
 
-      - name: Generate Prisma Client
-        run: pnpm db:generate
-
-      - name: Validate environment variables
-        run: |
-          test "$DATABASE_URL" = "postgresql://postgres:postgres@localhost:5432/handoff" || {
-            echo "DATABASE_URL must use the disposable CI database"
-            exit 1
-          }
-
-          test "${#AUTH_SECRET}" -ge 32 || {
-            echo "AUTH_SECRET must contain at least 32 characters"
-            exit 1
-          }
-
-          test "${#BETTER_AUTH_SECRET}" -ge 32 || {
-            echo "BETTER_AUTH_SECRET must contain at least 32 characters"
-            exit 1
-          }
-
-          test -n "$UPLOADTHING_TOKEN" || {
-            echo "UPLOADTHING_TOKEN is missing"
-            exit 1
-          }
-
-          test -n "$SMTP_HOST" && test -n "$SMTP_PORT" && test -n "$EMAIL_FROM" || {
-            echo "Synthetic SMTP settings are missing"
-            exit 1
-          }
-
-      - name: Build
-        run: pnpm build
+  required:
+    name: Required CI
+    if: always()
+    needs: [quality, unit, postgres, migrations, production, dependencies]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Require every stable job to succeed
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: node scripts/verify-required-checks.mjs
