@@ -6,7 +6,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    exclude: ["**/node_modules/**", "**/tests/integration/**"],
+    exclude: ["**/node_modules/**", "**/tests/integration/**", "**/tests/e2e/**"],
     // Generous budget: first-run module imports (better-auth, bcrypt) can be
     // slow on cold caches / CI, which otherwise trips the 5s default.
     testTimeout: 20_000,
