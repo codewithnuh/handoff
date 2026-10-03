@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { db } from "@/lib/prisma";
 import { getProject } from "@/lib/actions/project";
@@ -14,6 +14,11 @@ import { setSubjectAdapters } from "@/lib/access";
 import { getPortalHomeProjects } from "@/lib/queries/portal";
 import { GET as downloadFile } from "@/app/api/files/[id]/download/route";
 import { fixtureIds, seedIntegrationFixtures } from "./fixtures";
+
+// Server entry points import server-only modules by design. The integration
+// runner exercises them in Node, where Next's client-boundary marker is not
+// meaningful.
+vi.mock("server-only", () => ({}));
 
 let restoreSubject: (() => void) | undefined;
 
