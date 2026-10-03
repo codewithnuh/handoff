@@ -5,15 +5,27 @@ import type {
   InvoiceLineItem,
 } from "@/app/generated/prisma/client";
 import { db } from "@/lib/prisma";
-import { actorOf, recordActivity } from "@/lib/actions/activity";
+import { actorOf } from "@/lib/actions/activity";
 import { can, defineAction, writable } from "@/lib/actions/define";
 import { resolveProjectAccess } from "@/lib/access";
 import { ERROR_CODES } from "@/lib/constants/errors";
 import {
   createInvoiceWithNumber,
-  recalculateInvoice,
+  withDraftInvoice,
+  withLockedInvoice,
+  recalculateInvoiceInTransaction,
   toDecimal,
+  toQuantityDecimal,
 } from "@/lib/invoice/money";
+import {
+  computeLineAmount,
+  computeLineAmountMinor,
+  hasAtMostDecimalPlaces,
+  INVOICE_CURRENCIES,
+  MAX_INVOICE_AMOUNT,
+  toScaledInteger,
+  type InvoiceCurrency,
+} from "@/lib/invoice/totals";
 import { assertWorkspaceWritable } from "@/lib/services/plan-limits";
 import type { ActionResponseType } from "@/lib/types/action";
 import { ActionResponse } from "@/lib/utils/action-response";
@@ -74,14 +86,8 @@ export const createInvoice = defineAction({
         quantity: item.quantity,
         unitPrice: item.unitPrice,
       })) ?? [],
+      actorOf(ctx.user),
     );
-
-    await recordActivity({
-      projectId: input.projectId,
-      type: "INVOICE_CREATED",
-      ...actorOf(ctx.user),
-      meta: { invoiceNumber: invoice.invoiceNumber, invoiceId: invoice.id },
-    });
 
     return ActionResponse.success(invoice, "Invoice created");
   },
@@ -95,7 +101,7 @@ export const updateInvoice = defineAction({
   run: async (input): Promise<ActionResponseType<InvoiceResult>> => {
     const existing = await db.invoice.findUnique({
       where: { id: input.id },
-      select: { id: true, projectId: true, status: true },
+      select: { id: true, projectId: true, status: true, currency: true },
     });
     if (!existing) {
       return ActionResponse.failure(ERROR_CODES.NOT_FOUND, "Invoice not found.");
@@ -103,7 +109,7 @@ export const updateInvoice = defineAction({
 
     if (existing.status !== "DRAFT") {
       return ActionResponse.failure(
-        ERROR_CODES.FORBIDDEN,
+        ERROR_CODES.CONFLICT,
         "Only draft invoices can be edited.",
       );
     }
@@ -138,17 +144,33 @@ export const updateInvoice = defineAction({
       patch.discount = input.discount;
     }
 
-    const invoice = await db.invoice.update({
-      where: { id: input.id },
-      data: patch,
+    const result = await withDraftInvoice(input.id, async (tx, locked) => {
+      const precision = INVOICE_CURRENCIES[locked.currency as InvoiceCurrency];
+      if (precision === undefined && (taxRateChanged || discountChanged)) return "UNSUPPORTED_CURRENCY" as const;
+      if (discountChanged && !hasAtMostDecimalPlaces(input.discount!, precision)) return "CURRENCY_PRECISION" as const;
+      if (taxRateChanged || discountChanged) {
+        const items = await tx.invoiceLineItem.findMany({
+          where: { invoiceId: locked.id }, select: { amount: true },
+        });
+        const subtotal = items.reduce((sum, item) => sum + toScaledInteger(String(item.amount), precision), BigInt(0));
+        const nextDiscount = input.discount ?? Number(locked.discount);
+        if (toScaledInteger(nextDiscount, precision) > subtotal) return "DISCOUNT_EXCEEDS_SUBTOTAL" as const;
+      }
+
+      await tx.invoice.update({ where: { id: locked.id }, data: patch });
+      if (taxRateChanged || discountChanged) {
+        const totalsUpdated = await recalculateInvoiceInTransaction(tx, locked.id);
+        if (!totalsUpdated) throw new Error("Invoice totals could not be recalculated.");
+      }
+      return tx.invoice.findUniqueOrThrow({ where: { id: locked.id } });
     });
 
-    // Recalculate if tax rate or discount changed
-    if (taxRateChanged || discountChanged) {
-      await recalculateInvoice(input.id);
-    }
-
-    return ActionResponse.success(invoice, "Invoice updated");
+    if (result.kind === "MISSING") return ActionResponse.failure(ERROR_CODES.NOT_FOUND, "Invoice not found.");
+    if (result.kind === "NOT_DRAFT") return ActionResponse.failure(ERROR_CODES.CONFLICT, "Invoice is no longer a draft. Refresh and try again.");
+    if (result.value === "UNSUPPORTED_CURRENCY") return ActionResponse.failure(ERROR_CODES.VALIDATION_ERROR, `Currency ${existing.currency} is no longer supported for money changes.`);
+    if (result.value === "CURRENCY_PRECISION") return ActionResponse.failure(ERROR_CODES.VALIDATION_ERROR, `${existing.currency} invoices do not support fractional discounts.`);
+    if (result.value === "DISCOUNT_EXCEEDS_SUBTOTAL") return ActionResponse.failure(ERROR_CODES.VALIDATION_ERROR, "Discount cannot exceed the invoice subtotal.");
+    return ActionResponse.success(result.value, "Invoice updated");
   },
 });
 
@@ -168,7 +190,7 @@ export const deleteInvoice = defineAction({
 
     if (existing.status !== "DRAFT") {
       return ActionResponse.failure(
-        ERROR_CODES.FORBIDDEN,
+        ERROR_CODES.CONFLICT,
         "Only draft invoices can be deleted.",
       );
     }
@@ -185,8 +207,13 @@ export const deleteInvoice = defineAction({
     const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
     if (readOnlyError) return readOnlyError;
 
-    await db.invoice.delete({ where: { id: input.id } });
-    return ActionResponse.success({ deleted: true }, "Invoice deleted");
+    const result = await withDraftInvoice(input.id, async (tx, locked) => {
+      await tx.invoice.delete({ where: { id: locked.id } });
+      return { deleted: true };
+    });
+    if (result.kind === "MISSING") return ActionResponse.failure(ERROR_CODES.NOT_FOUND, "Invoice not found.");
+    if (result.kind === "NOT_DRAFT") return ActionResponse.failure(ERROR_CODES.CONFLICT, "Only draft invoices can be deleted.");
+    return ActionResponse.success(result.value, "Invoice deleted");
   },
 });
 
@@ -210,7 +237,7 @@ export const sendInvoice = defineAction({
 
     if (existing.status !== "DRAFT") {
       return ActionResponse.failure(
-        ERROR_CODES.FORBIDDEN,
+        ERROR_CODES.CONFLICT,
         "Only draft invoices can be sent.",
       );
     }
@@ -227,19 +254,23 @@ export const sendInvoice = defineAction({
     const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
     if (readOnlyError) return readOnlyError;
 
-    const invoice = await db.invoice.update({
-      where: { id: input.id },
-      data: { status: "SENT" },
+    const result = await withLockedInvoice(input.id, async (tx, locked) => {
+      if (!locked) return { kind: "MISSING" as const };
+      if (locked.status !== "DRAFT") return { kind: "INVALID" as const };
+      const invoice = await tx.invoice.update({ where: { id: locked.id }, data: { status: "SENT" } });
+      await tx.activity.create({
+        data: {
+          projectId: locked.projectId,
+          type: "INVOICE_SENT",
+          ...actorOf(access.value.user),
+          meta: { invoiceNumber: invoice.invoiceNumber },
+        },
+      });
+      return { kind: "OK" as const, invoice };
     });
-
-    await recordActivity({
-      projectId: existing.projectId,
-      type: "INVOICE_SENT",
-      ...actorOf(access.value.user),
-      meta: { invoiceNumber: invoice.invoiceNumber },
-    });
-
-    return ActionResponse.success(invoice, "Invoice sent");
+    if (result.kind === "MISSING") return ActionResponse.failure(ERROR_CODES.NOT_FOUND, "Invoice not found.");
+    if (result.kind === "INVALID") return ActionResponse.failure(ERROR_CODES.CONFLICT, "Only a draft invoice can be sent.");
+    return ActionResponse.success(result.invoice, "Invoice sent");
   },
 });
 
@@ -259,7 +290,7 @@ export const markInvoicePaid = defineAction({
 
     if (existing.status !== "SENT" && existing.status !== "OVERDUE") {
       return ActionResponse.failure(
-        ERROR_CODES.FORBIDDEN,
+        ERROR_CODES.CONFLICT,
         "Only sent or overdue invoices can be marked as paid.",
       );
     }
@@ -276,19 +307,25 @@ export const markInvoicePaid = defineAction({
     const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
     if (readOnlyError) return readOnlyError;
 
-    const invoice = await db.invoice.update({
-      where: { id: input.id },
-      data: { status: "PAID", paidAt: new Date() },
+    const result = await withLockedInvoice(input.id, async (tx, locked) => {
+      if (!locked) return { kind: "MISSING" as const };
+      if (locked.status !== "SENT" && locked.status !== "OVERDUE") return { kind: "INVALID" as const };
+      const invoice = await tx.invoice.update({
+        where: { id: locked.id }, data: { status: "PAID", paidAt: new Date() },
+      });
+      await tx.activity.create({
+        data: {
+          projectId: locked.projectId,
+          type: "INVOICE_PAID",
+          ...actorOf(access.value.user),
+          meta: { invoiceNumber: invoice.invoiceNumber },
+        },
+      });
+      return { kind: "OK" as const, invoice };
     });
-
-    await recordActivity({
-      projectId: existing.projectId,
-      type: "INVOICE_PAID",
-      ...actorOf(access.value.user),
-      meta: { invoiceNumber: invoice.invoiceNumber },
-    });
-
-    return ActionResponse.success(invoice, "Invoice marked as paid");
+    if (result.kind === "MISSING") return ActionResponse.failure(ERROR_CODES.NOT_FOUND, "Invoice not found.");
+    if (result.kind === "INVALID") return ActionResponse.failure(ERROR_CODES.CONFLICT, "Only sent or overdue invoices can be marked as paid.");
+    return ActionResponse.success(result.invoice, "Invoice marked as paid");
   },
 });
 
@@ -308,7 +345,7 @@ export const cancelInvoice = defineAction({
 
     if (existing.status === "PAID" || existing.status === "CANCELLED") {
       return ActionResponse.failure(
-        ERROR_CODES.FORBIDDEN,
+        ERROR_CODES.CONFLICT,
         "Paid or cancelled invoices cannot be cancelled.",
       );
     }
@@ -325,12 +362,15 @@ export const cancelInvoice = defineAction({
     const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
     if (readOnlyError) return readOnlyError;
 
-    const invoice = await db.invoice.update({
-      where: { id: input.id },
-      data: { status: "CANCELLED" },
+    const result = await withLockedInvoice(input.id, async (tx, locked) => {
+      if (!locked) return { kind: "MISSING" as const };
+      if (locked.status === "PAID" || locked.status === "CANCELLED") return { kind: "INVALID" as const };
+      const invoice = await tx.invoice.update({ where: { id: locked.id }, data: { status: "CANCELLED" } });
+      return { kind: "OK" as const, invoice };
     });
-
-    return ActionResponse.success(invoice, "Invoice cancelled");
+    if (result.kind === "MISSING") return ActionResponse.failure(ERROR_CODES.NOT_FOUND, "Invoice not found.");
+    if (result.kind === "INVALID") return ActionResponse.failure(ERROR_CODES.CONFLICT, "Paid or cancelled invoices cannot be cancelled.");
+    return ActionResponse.success(result.invoice, "Invoice cancelled");
   },
 });
 
@@ -346,7 +386,7 @@ export const addLineItem = defineAction({
   run: async (input): Promise<ActionResponseType<InvoiceLineItemResult>> => {
     const invoice = await db.invoice.findUnique({
       where: { id: input.invoiceId },
-      select: { id: true, projectId: true, status: true },
+      select: { id: true, projectId: true, status: true, currency: true },
     });
     if (!invoice) {
       return ActionResponse.failure(ERROR_CODES.NOT_FOUND, "Invoice not found.");
@@ -354,7 +394,7 @@ export const addLineItem = defineAction({
 
     if (invoice.status !== "DRAFT") {
       return ActionResponse.failure(
-        ERROR_CODES.FORBIDDEN,
+        ERROR_CODES.CONFLICT,
         "Only draft invoices can have line items added.",
       );
     }
@@ -371,25 +411,44 @@ export const addLineItem = defineAction({
     const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
     if (readOnlyError) return readOnlyError;
 
-    const quantity = input.quantity ?? 1;
-    const unitPrice = parseFloat(input.unitPrice);
-    const amount = quantity * unitPrice;
+    const currency = invoice.currency as InvoiceCurrency;
+    if (INVOICE_CURRENCIES[currency] === undefined) {
+      return ActionResponse.failure(ERROR_CODES.VALIDATION_ERROR, "This invoice uses an unsupported currency.");
+    }
+    if (INVOICE_CURRENCIES[currency] === 0 && !Number.isInteger(Number(input.unitPrice))) {
+      return ActionResponse.failure(ERROR_CODES.VALIDATION_ERROR, `${currency} invoices require whole-unit prices.`);
+    }
+    if (computeLineAmountMinor(input.quantity ?? 1, input.unitPrice, currency) > toScaledInteger(MAX_INVOICE_AMOUNT, INVOICE_CURRENCIES[currency])) {
+      return ActionResponse.failure(ERROR_CODES.VALIDATION_ERROR, "The line item exceeds the supported maximum.");
+    }
 
-    const lineItem = await db.invoiceLineItem.create({
-      data: {
-        invoiceId: input.invoiceId,
-        description: input.description,
-        quantity,
-        unitPrice: toDecimal(unitPrice),
-        amount: toDecimal(amount),
-        deliverableId: input.deliverableId ?? null,
-      },
+    const result = await withDraftInvoice(input.invoiceId, async (tx, locked) => {
+      const quantity = input.quantity ?? 1;
+      if (input.deliverableId) {
+        const deliverable = await tx.deliverable.findUnique({
+          where: { id: input.deliverableId },
+          select: { projectId: true, status: true },
+        });
+        if (!deliverable || deliverable.projectId !== locked.projectId || deliverable.status !== "APPROVED") return "INVALID_DELIVERABLE" as const;
+      }
+      const lineItem = await tx.invoiceLineItem.create({
+        data: {
+          invoiceId: locked.id,
+          description: input.description,
+          quantity: toQuantityDecimal(quantity),
+          unitPrice: toDecimal(input.unitPrice),
+          amount: toDecimal(computeLineAmount(quantity, input.unitPrice, currency)),
+          deliverableId: input.deliverableId ?? null,
+        },
+      });
+      const updated = await recalculateInvoiceInTransaction(tx, locked.id);
+      if (!updated) throw new Error("Invoice totals could not be recalculated.");
+      return lineItem;
     });
-
-    // Recalculate invoice totals
-    await recalculateInvoice(input.invoiceId);
-
-    return ActionResponse.success(lineItem, "Line item added");
+    if (result.kind === "MISSING") return ActionResponse.failure(ERROR_CODES.NOT_FOUND, "Invoice not found.");
+    if (result.kind === "NOT_DRAFT") return ActionResponse.failure(ERROR_CODES.CONFLICT, "Only draft invoices can have line items added.");
+    if (result.value === "INVALID_DELIVERABLE") return ActionResponse.failure(ERROR_CODES.VALIDATION_ERROR, "The deliverable must belong to the invoice project.");
+    return ActionResponse.success(result.value, "Line item added");
   },
 });
 
@@ -412,7 +471,7 @@ export const removeLineItem = defineAction({
 
     const invoice = await db.invoice.findUnique({
       where: { id: existing.invoiceId },
-      select: { id: true, projectId: true, status: true },
+      select: { id: true, projectId: true, status: true, currency: true },
     });
     if (!invoice) {
       return ActionResponse.failure(ERROR_CODES.NOT_FOUND, "Invoice not found.");
@@ -420,7 +479,7 @@ export const removeLineItem = defineAction({
 
     if (invoice.status !== "DRAFT") {
       return ActionResponse.failure(
-        ERROR_CODES.FORBIDDEN,
+        ERROR_CODES.CONFLICT,
         "Only draft invoices can have line items removed.",
       );
     }
@@ -437,12 +496,31 @@ export const removeLineItem = defineAction({
     const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
     if (readOnlyError) return readOnlyError;
 
-    await db.invoiceLineItem.delete({ where: { id: input.id } });
-
-    // Recalculate invoice totals
-    await recalculateInvoice(existing.invoiceId);
-
-    return ActionResponse.success({ deleted: true }, "Line item removed");
+    const result = await withDraftInvoice(existing.invoiceId, async (tx, locked) => {
+      const lineItem = await tx.invoiceLineItem.findFirst({
+        where: { id: input.id, invoiceId: locked.id },
+      });
+      if (!lineItem) return "MISSING_LINE" as const;
+      const currency = locked.currency as InvoiceCurrency;
+      const precision = INVOICE_CURRENCIES[currency];
+      if (precision === undefined) return "UNSUPPORTED_CURRENCY" as const;
+      const remaining = await tx.invoiceLineItem.findMany({
+        where: { invoiceId: locked.id, id: { not: input.id } },
+        select: { amount: true },
+      });
+      const subtotal = remaining.reduce((sum, item) => sum + toScaledInteger(String(item.amount), precision), BigInt(0));
+      if (toScaledInteger(String(locked.discount), precision) > subtotal) return "DISCOUNT_EXCEEDS_SUBTOTAL" as const;
+      await tx.invoiceLineItem.delete({ where: { id: input.id } });
+      const updated = await recalculateInvoiceInTransaction(tx, locked.id);
+      if (!updated) throw new Error("Invoice totals could not be recalculated.");
+      return { deleted: true };
+    });
+    if (result.kind === "MISSING") return ActionResponse.failure(ERROR_CODES.NOT_FOUND, "Invoice not found.");
+    if (result.kind === "NOT_DRAFT") return ActionResponse.failure(ERROR_CODES.CONFLICT, "Only draft invoices can have line items removed.");
+    if (result.value === "MISSING_LINE") return ActionResponse.failure(ERROR_CODES.NOT_FOUND, "Line item not found.");
+    if (result.value === "UNSUPPORTED_CURRENCY") return ActionResponse.failure(ERROR_CODES.VALIDATION_ERROR, `Currency ${invoice.currency} is no longer supported for money changes.`);
+    if (result.value === "DISCOUNT_EXCEEDS_SUBTOTAL") return ActionResponse.failure(ERROR_CODES.VALIDATION_ERROR, "Removing this item would make the discount exceed the subtotal.");
+    return ActionResponse.success(result.value, "Line item removed");
   },
 });
 
@@ -473,7 +551,7 @@ export const convertDeliverablesToLineItems = defineAction({
 
     if (invoice.status !== "DRAFT") {
       return ActionResponse.failure(
-        ERROR_CODES.FORBIDDEN,
+        ERROR_CODES.CONFLICT,
         "Only draft invoices can have deliverables converted.",
       );
     }
@@ -490,66 +568,52 @@ export const convertDeliverablesToLineItems = defineAction({
     const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
     if (readOnlyError) return readOnlyError;
 
-    // Find approved deliverables that aren't already linked to a line item
-    const deliverables = await db.deliverable.findMany({
-      where: {
-        id: { in: input.deliverableIds },
-        projectId: input.projectId,
-        status: "APPROVED",
-      },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-      },
+    const result = await withDraftInvoice(input.invoiceId, async (tx, locked) => {
+      if (locked.projectId !== input.projectId) return { kind: "WRONG_PROJECT" as const };
+      const deliverables = await tx.deliverable.findMany({
+        where: {
+          id: { in: [...new Set(input.deliverableIds)] },
+          projectId: locked.projectId,
+          status: "APPROVED",
+        },
+        select: { id: true, title: true, description: true },
+      });
+      if (deliverables.length === 0) return { kind: "NO_APPROVED" as const };
+
+      const linked = await tx.invoiceLineItem.findMany({
+        where: {
+          invoiceId: locked.id,
+          deliverableId: { in: deliverables.map((item) => item.id) },
+        },
+        select: { deliverableId: true },
+      });
+      const linkedIds = new Set(linked.map((item) => item.deliverableId));
+      const pending = deliverables.filter((item) => !linkedIds.has(item.id));
+      if (pending.length === 0) return { kind: "OK" as const, converted: 0 };
+
+      await tx.invoiceLineItem.createMany({
+        data: pending.map((item) => ({
+          invoiceId: locked.id,
+          description: item.title + (item.description ? ` — ${item.description}` : ""),
+          quantity: toQuantityDecimal(1),
+          unitPrice: toDecimal(0),
+          amount: toDecimal(0),
+          deliverableId: item.id,
+        })),
+      });
+      if (INVOICE_CURRENCIES[locked.currency as InvoiceCurrency] !== undefined) {
+        const totalsUpdated = await recalculateInvoiceInTransaction(tx, locked.id);
+        if (!totalsUpdated) throw new Error("Invoice totals could not be recalculated.");
+      }
+      return { kind: "OK" as const, converted: pending.length };
     });
-
-    if (deliverables.length === 0) {
-      return ActionResponse.failure(
-        ERROR_CODES.VALIDATION_ERROR,
-        "No approved deliverables found to convert.",
-      );
-    }
-
-    // Check which deliverables already have line items on this invoice
-    const existingLinks = await db.invoiceLineItem.findMany({
-      where: {
-        invoiceId: input.invoiceId,
-        deliverableId: { in: deliverables.map((d) => d.id) },
-      },
-      select: { deliverableId: true },
-    });
-    const linkedIds = new Set(existingLinks.map((l) => l.deliverableId));
-
-    const unlinkedDeliverables = deliverables.filter(
-      (d) => !linkedIds.has(d.id),
-    );
-
-    if (unlinkedDeliverables.length === 0) {
-      return ActionResponse.failure(
-        ERROR_CODES.VALIDATION_ERROR,
-        "All selected deliverables are already linked to this invoice.",
-      );
-    }
-
-    // Create line items for unlinked deliverables
-    await db.invoiceLineItem.createMany({
-      data: unlinkedDeliverables.map((d) => ({
-        invoiceId: input.invoiceId,
-        description: d.title + (d.description ? ` — ${d.description}` : ""),
-        quantity: 1,
-        unitPrice: toDecimal(0),
-        amount: toDecimal(0),
-        deliverableId: d.id,
-      })),
-    });
-
-    // Recalculate invoice totals
-    await recalculateInvoice(input.invoiceId);
-
+    if (result.kind === "MISSING") return ActionResponse.failure(ERROR_CODES.NOT_FOUND, "Invoice not found.");
+    if (result.kind === "NOT_DRAFT") return ActionResponse.failure(ERROR_CODES.CONFLICT, "Only draft invoices can have deliverables converted.");
+    if (result.value.kind === "WRONG_PROJECT") return ActionResponse.failure(ERROR_CODES.FORBIDDEN, "Invoice does not belong to this project.");
+    if (result.value.kind === "NO_APPROVED") return ActionResponse.failure(ERROR_CODES.VALIDATION_ERROR, "No approved deliverables found to convert.");
     return ActionResponse.success(
-      { converted: unlinkedDeliverables.length },
-      `${unlinkedDeliverables.length} deliverable(s) converted to line items`,
+      { converted: result.value.converted },
+      `${result.value.converted} deliverable(s) converted to line items`,
     );
   },
 });

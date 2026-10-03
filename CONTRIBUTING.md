@@ -204,3 +204,11 @@ follow the [Security Policy](./.github/SECURITY.md) and report privately.
 ## Code owners
 
 See `.github/CODEOWNERS` for who to request review from for given paths.
+
+## Invoice money and lifecycle
+
+Invoice amounts use two decimal places for USD, EUR, GBP, CAD, AUD, CHF, and INR; JPY uses whole units. Quantities allow up to three fractional digits. Each line amount is rounded half up to the currency's minor unit, subtotal is the sum of stored line amounts, discount is applied before tax, and tax is rounded half up to the same minor unit. Preview, persistence, and PDF all use those persisted values.
+
+Invoice edits and lifecycle transitions lock the invoice row and check its current state in the same transaction. Only drafts can be edited or deleted. Sending is allowed from DRAFT, marking paid from SENT or OVERDUE, and cancellation from any unpaid non-cancelled state. A conversion retry returns zero new rows when its approved deliverables are already linked.
+
+Migration `20261003100000_invoice_decimal_quantity` preserves existing integer quantities as decimals and adds a unique invoice/deliverable link. Before deploying, check for duplicate non-null links with `SELECT "invoiceId", "deliverableId", COUNT(*) FROM "invoice_line_items" WHERE "deliverableId" IS NOT NULL GROUP BY "invoiceId", "deliverableId" HAVING COUNT(*) > 1;`. The migration stops with an explicit error if duplicates need reconciliation; it does not delete invoice data. Roll back by restoring the prior application and database snapshot because quantity precision and the unique index are forward-only changes.

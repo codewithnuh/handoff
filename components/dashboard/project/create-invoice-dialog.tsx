@@ -30,7 +30,11 @@ import {
   convertDeliverablesToLineItems,
 } from "@/lib/actions/invoice";
 import { useServerAction } from "@/hooks/use-server-action";
-import { computeTotals } from "@/lib/invoice/totals";
+import {
+  computeTotals,
+  SUPPORTED_INVOICE_CURRENCIES,
+  type InvoiceCurrency,
+} from "@/lib/invoice/totals";
 import { formatMoney } from "@/lib/presentational/format";
 
 // ──────────────────────────────────────────────
@@ -66,7 +70,10 @@ interface CreateInvoiceDialogProps {
   }[];
 }
 
-const CURRENCIES = ["USD", "EUR", "GBP", "CAD", "AUD", "JPY", "CHF", "INR"];
+const finiteInput = (value: string) => {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
 // ──────────────────────────────────────────────
 // Component
@@ -100,7 +107,7 @@ export function CreateInvoiceDialog({
   const [dueDate, setDueDate] = useState("");
   const [taxRate, setTaxRate] = useState("0");
   const [discount, setDiscount] = useState("0");
-  const [currency, setCurrency] = useState("USD");
+  const [currency, setCurrency] = useState<InvoiceCurrency>("USD");
   const [paymentNotes, setPaymentNotes] = useState("");
 
   // Line items
@@ -112,14 +119,12 @@ export function CreateInvoiceDialog({
   const totals = useMemo(
     () =>
       computeTotals({
-        subtotal: lineItems.reduce(
-          (sum, item) => sum + item.quantity * item.unitPrice,
-          0,
-        ),
-        discount: parseFloat(discount) || 0,
-        taxRate: parseFloat(taxRate) || 0,
+        lineItems,
+        discount: finiteInput(discount),
+        taxRate: finiteInput(taxRate),
+        currency,
       }),
-    [lineItems, taxRate, discount],
+    [lineItems, taxRate, discount, currency],
   );
 
   // ── Line item helpers ──
@@ -194,8 +199,8 @@ export function CreateInvoiceDialog({
       projectId,
       description: description.trim() || null,
       dueDate: dueDate ? new Date(dueDate) : null,
-      taxRate: parseFloat(taxRate) || 0,
-      discount: parseFloat(discount) || 0,
+      taxRate: finiteInput(taxRate),
+      discount: finiteInput(discount),
       currency,
       paymentNotes: paymentNotes.trim() || null,
       lineItems: validLineItems,
@@ -270,12 +275,12 @@ export function CreateInvoiceDialog({
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="inv-currency">Currency</Label>
-              <Select value={currency} onValueChange={(v) => v && setCurrency(v)}>
+              <Select value={currency} onValueChange={(v) => v && setCurrency(v as InvoiceCurrency)}>
                 <SelectTrigger id="inv-currency">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {CURRENCIES.map((c) => (
+                  {SUPPORTED_INVOICE_CURRENCIES.map((c) => (
                     <SelectItem key={c} value={c}>
                       {c}
                     </SelectItem>
@@ -302,7 +307,7 @@ export function CreateInvoiceDialog({
                 id="inv-discount"
                 type="number"
                 min="0"
-                step="0.01"
+                step={currency === "JPY" ? "1" : "0.01"}
                 value={discount}
                 onChange={(e) => setDiscount(e.target.value)}
                 placeholder="0"
@@ -377,16 +382,16 @@ export function CreateInvoiceDialog({
                         Qty
                       </Label>
                     )}
-                    <Input
-                      type="number"
-                      min="0.01"
-                      step="0.5"
+                <Input
+                  type="number"
+                      min="0.001"
+                      step="0.001"
                       value={item.quantity}
                       onChange={(e) =>
                         updateLineItem(
                           index,
                           "quantity",
-                          parseFloat(e.target.value) || 0,
+                          finiteInput(e.target.value),
                         )
                       }
                     />
@@ -397,16 +402,16 @@ export function CreateInvoiceDialog({
                         Unit Price
                       </Label>
                     )}
-                    <Input
-                      type="number"
+                <Input
+                  type="number"
                       min="0"
-                      step="0.01"
+                      step={currency === "JPY" ? "1" : "0.01"}
                       value={item.unitPrice || ""}
                       onChange={(e) =>
                         updateLineItem(
                           index,
                           "unitPrice",
-                          parseFloat(e.target.value) || 0,
+                          finiteInput(e.target.value),
                         )
                       }
                       placeholder="0.00"

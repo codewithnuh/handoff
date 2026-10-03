@@ -17,6 +17,7 @@ export type InvoicePDFData = {
   invoiceNumber: string;
   description: string | null;
   subtotal: string;
+  discount: string;
   taxRate: string;
   taxAmount: string;
   amount: string;
@@ -344,6 +345,14 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
               })}
             </Text>
           </View>
+          {Number(data.discount) > 0 && (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Discount</Text>
+              <Text style={styles.totalValue}>
+                -{formatCurrency(data.discount, data.currency, { showCurrencyCode: false })}
+              </Text>
+            </View>
+          )}
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Tax ({data.taxRate}%)</Text>
             <Text style={styles.totalValue}>
