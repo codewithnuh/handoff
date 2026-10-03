@@ -126,8 +126,8 @@ No vendor lock-in. No per-seat pricing surprises. Your data lives on your own Po
 
 ### Prerequisites
 
-- **Node.js** ≥ 20
-- **pnpm** ≥ 9
+- **Node.js** 22 or newer
+- **pnpm** 11.17.0 (pinned in `package.json`)
 - **PostgreSQL** ≥ 14
 - **SMTP server** (for emails in production; optional in dev)
 - **UploadThing account** (for file uploads)
@@ -155,30 +155,30 @@ Fill in the required variables:
 # Required — PostgreSQL connection string
 DATABASE_URL="postgresql://user:password@localhost:5432/handoff"
 
-# Required — Better Auth secret (generate with: openssl rand -base64 32)
-BETTER_AUTH_SECRET="replace-with-a-long-random-secret-at-least-32-chars"
+# Required — Better Auth secret (generate with: openssl rand -hex 32)
+BETTER_AUTH_SECRET="replace-with-at-least-32-random-characters"
 
 # Required — Public auth base URL
 BETTER_AUTH_URL="http://localhost:3000"
 
-# Required — Legacy auth secret (kept for compatibility)
-AUTH_SECRET="replace-with-a-random-secret"
+# Required — portal cookie signing secret; generate independently with: openssl rand -hex 32
+AUTH_SECRET="replace-with-at-least-32-random-characters"
 
 # Required — Public app URL
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 
-# Required for production — SMTP email config
+# Required in production; optional in development (emails are logged when unset)
 SMTP_HOST=""
-SMTP_PORT="587"
+SMTP_PORT=""
 SMTP_USER=""
 SMTP_PASSWORD=""
 EMAIL_FROM="Handoff <no-reply@yourdomain.com>"
 
-# Required for file uploads — Get from https://uploadthing.com/dashboard
-UPLOADTHING_SECRET="sk_live_your_uploadthing_secret_here"
+# UploadThing v7 server token — required in production and for uploads
+UPLOADTHING_TOKEN=""
 ```
 
-> All environment variables are validated at startup using Zod (`env.ts`). The app will throw immediately if required values are missing or malformed.
+The app validates configuration on the server with Zod. Production requires distinct, randomly generated `AUTH_SECRET` and `BETTER_AUTH_SECRET` values (at least 32 characters), complete SMTP delivery settings, and an UploadThing v7 token. Empty optional SMTP fields are treated as unset. The UploadThing token is a server secret; never prefix it with `NEXT_PUBLIC_`.
 
 ### Database Setup
 
@@ -498,7 +498,7 @@ Client ─┬─ Project (1:N)
 2. Import the repo in [Vercel](https://vercel.com).
 3. Configure environment variables.
 4. Set up a PostgreSQL database (e.g., [Neon](https://neon.tech), [Supabase](https://supabase.com), or [Railway](https://railway.app)).
-5. Add `UPLOADTHING_SECRET` and SMTP credentials.
+5. Add `UPLOADTHING_TOKEN` and SMTP settings (`SMTP_HOST`, `SMTP_PORT`, and `EMAIL_FROM`; include `SMTP_USER` and `SMTP_PASSWORD` when the relay requires authentication).
 6. Deploy.
 
 ### Docker

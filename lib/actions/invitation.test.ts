@@ -30,7 +30,13 @@ vi.mock("@/env", () => ({
     BETTER_AUTH_URL: "http://localhost:3000",
     NEXT_PUBLIC_APP_URL: "http://localhost:3000",
     NODE_ENV: "test",
-    UPLOADTHING_SECRET: "test-uploadthing-secret",
+    UPLOADTHING_TOKEN: Buffer.from(
+      JSON.stringify({
+        apiKey: "sk_test_uploadthing_key",
+        appId: "handoff-test",
+        regions: ["us-east-1"],
+      }),
+    ).toString("base64"),
   },
 }));
 

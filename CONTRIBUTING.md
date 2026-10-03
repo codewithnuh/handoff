@@ -9,7 +9,7 @@ identifier and a term there disagree, the term in CONTEXT.md wins.
 
 ## Getting started
 
-Requirements: Node.js ≥ 20, pnpm, and PostgreSQL.
+Requirements: Node.js 22 or newer, pnpm 11.17.0 (pinned in `package.json`), and PostgreSQL.
 
 ```bash
 # Install dependencies (use pnpm — see packageManager in package.json)
