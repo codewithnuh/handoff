@@ -32,4 +32,5 @@ run([
   "--config",
   "vitest.integration.config.ts",
   "--passWithNoTests=false",
+  ...process.argv.slice(2),
 ]);
