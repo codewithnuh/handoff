@@ -66,8 +66,8 @@ export async function GET(
 
   if (!access.ok) {
     return NextResponse.json(
-      { error: "Forbidden — you don't have access to this file" },
-      { status: 403 },
+      { error: "File not found" },
+      { status: 404 },
     );
   }
 

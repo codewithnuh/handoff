@@ -78,7 +78,7 @@ export async function GET(
       : await resolveProjectAccess(invoice.projectId);
 
   if (!access.ok) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
   }
 
   try {
