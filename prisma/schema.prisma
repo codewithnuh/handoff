@@ -55,6 +55,12 @@ enum WorkspaceRole {
   MEMBER
 }
 
+enum TeamInviteEmailStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
 // Granular workspace-level permissions (assigned to non-owner members).
 // Grouped by scope: workspace, projects, clients, billing.
 enum WorkspacePermission {
@@ -276,8 +282,9 @@ model TeamInvitation {
   projectIds     Json? // string[] of projects to assign on accept
   role           WorkspaceRole @default(MEMBER) // workspace role to assign on accept
   permissions    Json? // WorkspacePermission[] to apply on accept
-  expiresAt      DateTime
-  acceptedAt     DateTime?
+    expiresAt      DateTime
+    acceptedAt     DateTime?
+    emailStatus    TeamInviteEmailStatus @default(PENDING)
   createdAt      DateTime @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

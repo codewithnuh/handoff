@@ -70,24 +70,25 @@ export const addComment = defineAction({
     if (readOnlyError) return readOnlyError;
 
     // Create the comment
-    const comment = await db.comment.create({
-      data: {
-        content,
-        authorUserId: access.value.user.id,
-        authorEmail: access.value.user.email,
-        authorName: access.value.user.name,
-        ...(targetType === "deliverable"
-          ? { deliverableId: targetId }
-          : { requestId: targetId }),
-      },
-    });
-
-    // Record activity
-    await recordActivity({
-      projectId,
-      type: "COMMENT_ADDED",
-      ...actorOf(access.value.user),
-      meta: { targetType, targetId, preview: content.slice(0, 100) },
+    const comment = await db.$transaction(async (tx) => {
+      const created = await tx.comment.create({
+        data: {
+          content,
+          authorUserId: access.value.user.id,
+          authorEmail: access.value.user.email,
+          authorName: access.value.user.name,
+          ...(targetType === "deliverable"
+            ? { deliverableId: targetId }
+            : { requestId: targetId }),
+        },
+      });
+      await recordActivity({
+        projectId,
+        type: "COMMENT_ADDED",
+        ...actorOf(access.value.user),
+        meta: { targetType, targetId, preview: content.slice(0, 100) },
+      }, tx);
+      return created;
     });
 
     return ActionResponse.success(comment, "Comment added");

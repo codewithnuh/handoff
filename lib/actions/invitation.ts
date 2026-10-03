@@ -38,7 +38,11 @@ const revalidatePortalPages = () => {
  * Any previous unaccepted invitations for the same email + project are
  * invalidated so exactly one live link exists at a time.
  */
-async function createInvitation(projectId: string, email: string) {
+async function createInvitation(
+  projectId: string,
+  email: string,
+  actor?: ReturnType<typeof actorOf>,
+) {
   // Invalidate-then-create is one unit: a half-applied run would leave
   // either two live links or none.
   return db.$transaction(async (tx) => {
@@ -54,7 +58,7 @@ async function createInvitation(projectId: string, email: string) {
       },
     });
 
-    return tx.clientInvitation.create({
+    const invitation = await tx.clientInvitation.create({
       data: {
         projectId,
         email,
@@ -62,6 +66,15 @@ async function createInvitation(projectId: string, email: string) {
         expiresAt: new Date(Date.now() + INVITE_TTL_MS),
       },
     });
+    if (actor) {
+      await recordActivity({
+        projectId,
+        type: "CLIENT_INVITED",
+        ...actor,
+        meta: { email: invitation.email },
+      }, tx);
+    }
+    return invitation;
   });
 }
 
@@ -80,14 +93,11 @@ export const inviteClient = defineAction({
   ),
   errors: { fallback: "Failed to create invitation." },
   run: async (input, ctx): Promise<ActionResponseType<ClientInvitationResult>> => {
-    const invitation = await createInvitation(input.projectId, input.email);
-
-    await recordActivity({
-      projectId: input.projectId,
-      type: "CLIENT_INVITED",
-      ...actorOf(ctx.user),
-      meta: { email: invitation.email },
-    });
+    const invitation = await createInvitation(
+      input.projectId,
+      input.email,
+      actorOf(ctx.user),
+    );
 
     // The accept endpoint lives under /api — the old /portal/accept path 404'd
     const acceptUrl = `${env.NEXT_PUBLIC_APP_URL}/api/portal/accept?token=${invitation.token}`;

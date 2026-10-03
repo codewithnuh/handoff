@@ -75,6 +75,53 @@ import { INVITE_TTL_MS } from "@/lib/constants/invitations";
 const teamAcceptUrl = (token: string) =>
   `${env.NEXT_PUBLIC_APP_URL}/invite/team/${token}`;
 
+type InviteEmailOutcome = "SENT" | "FAILED" | "PENDING";
+
+/** SMTP stays outside the database transaction; the invitation token remains
+ * usable in the UI if delivery fails or its outcome cannot be confirmed. */
+async function deliverTeamInviteEmail(invitation: TeamInvitation, workspaceName: string, inviterName: string): Promise<InviteEmailOutcome> {
+  try {
+    await sendEmail({
+      to: invitation.email,
+      subject: `You've been invited to ${workspaceName} on Handoff`,
+      text: `${inviterName} invited you to collaborate in "${workspaceName}". Accept here: ${teamAcceptUrl(invitation.token)}`,
+      html: teamInviteEmailHtml(inviterName, workspaceName, teamAcceptUrl(invitation.token)),
+    });
+  } catch {
+    try {
+      const saved = await db.teamInvitation.updateMany({
+        where: { id: invitation.id, acceptedAt: null },
+        data: { emailStatus: "FAILED" },
+      });
+      console.warn("Team invitation email delivery failed", {
+        invitationId: invitation.id,
+        workspaceId: invitation.workspaceId,
+      });
+      return saved.count === 1 ? "FAILED" : "PENDING";
+    } catch {
+      console.warn("Team invitation email outcome could not be saved", {
+        invitationId: invitation.id,
+        workspaceId: invitation.workspaceId,
+      });
+      return "PENDING";
+    }
+  }
+
+  try {
+    const saved = await db.teamInvitation.updateMany({
+      where: { id: invitation.id, acceptedAt: null },
+      data: { emailStatus: "SENT" },
+    });
+    return saved.count === 1 ? "SENT" : "PENDING";
+  } catch {
+    console.warn("Team invitation email outcome could not be saved", {
+      invitationId: invitation.id,
+      workspaceId: invitation.workspaceId,
+    });
+    return "PENDING";
+  }
+}
+
 // ──────────────────────────────────────────────
 // Internal helpers
 // ──────────────────────────────────────────────
@@ -184,22 +231,6 @@ export const inviteTeammate = defineAction({
     }
 
     // One pending invite per email
-    const pending = await db.teamInvitation.findFirst({
-      where: {
-        workspaceId,
-        email,
-        acceptedAt: null,
-        expiresAt: { gt: new Date() },
-      },
-      select: { id: true },
-    });
-    if (pending) {
-      return ActionResponse.failure(
-        ERROR_CODES.CONFLICT,
-        "There's already a pending invite for this email. Revoke it first to re-invite.",
-      );
-    }
-
     // Whether this email already has a Handoff account — the accept flow
     // must never ask an existing user to "set" a second password.
     const existingUser = await db.user.findUnique({
@@ -216,41 +247,80 @@ export const inviteTeammate = defineAction({
       select: { id: true },
     });
 
-    const invitation = await db.teamInvitation.create({
-      data: {
-        workspaceId,
-        email,
+    const invitation = await db.$transaction(async (tx) => {
+      // Serialize same-recipient submissions so concurrent clicks re-use the
+      // same invitation row and can never create parallel usable tokens.
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`handoff:team-invite:${workspaceId}:${email}`})) IS NULL`;
+      const current = await tx.teamInvitation.findFirst({
+        where: { workspaceId, email, acceptedAt: null },
+        orderBy: { createdAt: "desc" },
+      });
+      if (current && current.expiresAt > new Date()) return current;
+
+      const data = {
         token: randomBytes(32).toString("hex"),
         invitedByEmail: ctx.user.email,
         projectIds: validProjects.map((p) => p.id),
         role: input.role,
         permissions: input.permissions,
         expiresAt: new Date(Date.now() + INVITE_TTL_MS),
-      },
+        emailStatus: "PENDING" as const,
+      };
+      if (current) {
+        return tx.teamInvitation.update({ where: { id: current.id }, data });
+      }
+      return tx.teamInvitation.create({ data: { workspaceId, email, ...data } });
     });
 
-    // Deliver the invite by email. The link also stays copyable in the UI
-    // as a fallback, so a transport failure must not fail the invite.
-    await sendEmail({
-      to: email,
-      subject: `You've been invited to ${ctx.workspace.name} on Handoff`,
-      text:
-        `${ctx.user.name} invited you to collaborate in ` +
-        `"${ctx.workspace.name}". Accept here: ${teamAcceptUrl(invitation.token)}`,
-      html: teamInviteEmailHtml(
-        ctx.user.name,
-        ctx.workspace.name,
-        teamAcceptUrl(invitation.token),
-      ),
-    }).catch((err) => {
-      console.error("Failed to send team invite email:", err);
-    });
+    const emailStatus = await deliverTeamInviteEmail(
+      invitation,
+      ctx.workspace.name,
+      ctx.user.name,
+    );
+    const invitationResult = { ...invitation, emailStatus };
 
     return ActionResponse.success(
-      { ...invitation, acceptUrl: teamAcceptUrl(invitation.token) },
-      existingUser
-        ? "Invite link generated. They already use Handoff, so they'll sign in with their existing password to accept it."
-        : "Invite link generated. Copy and share it with your teammate.",
+      { ...invitationResult, acceptUrl: teamAcceptUrl(invitation.token) },
+      emailStatus === "SENT"
+        ? "Invitation email sent. The same invite link is available to copy if needed."
+        : emailStatus === "FAILED"
+          ? "Invite created, but the email could not be delivered. Retry delivery or copy the link."
+          : existingUser
+            ? "Invite link is ready. They can sign in with their existing password to accept it. Email delivery is unconfirmed."
+            : "Invite link is ready to copy. Email delivery is unconfirmed.",
+    );
+  },
+});
+
+export const retryTeamInviteEmail = defineAction({
+  schema: teamInviteIdSchema,
+  guard: () => requireWorkspacePermission("MANAGE_MEMBERS"),
+  revalidate: true,
+  errors: { fallback: "Failed to retry the invite email." },
+  run: async (input, ctx): Promise<ActionResponseType<TeammateInviteResult>> => {
+    const invitation = await db.teamInvitation.findFirst({
+      where: {
+        id: input.id,
+        workspaceId: ctx.workspace.id,
+        acceptedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+    });
+    if (!invitation) {
+      return ActionResponse.failure(ERROR_CODES.NOT_FOUND, "Pending invite not found.");
+    }
+    const status = await deliverTeamInviteEmail(
+      invitation,
+      ctx.workspace.name,
+      ctx.user.name,
+    );
+    return ActionResponse.success(
+      { ...invitation, emailStatus: status, acceptUrl: teamAcceptUrl(invitation.token) },
+      status === "SENT"
+        ? "Invitation email sent."
+        : status === "FAILED"
+          ? "Email delivery failed. The same invite remains available to retry or copy."
+          : "Email delivery could not be confirmed. The existing invite link remains valid.",
     );
   },
 });

@@ -1,6 +1,5 @@
 import { Prisma } from "@/app/generated/prisma/client";
 import type { ActivityType } from "@/app/generated/prisma/client";
-import { db } from "@/lib/prisma";
 
 type RecordActivityInput = {
   projectId: string;
@@ -23,14 +22,14 @@ export const actorOf = (user: ActivityActor) => ({
   actorName: user.name ?? null,
 });
 
+type ActivityWriter = Pick<Prisma.TransactionClient, "activity">;
+
 /**
- * Inserts a row into the activity timeline. Failures are logged but never
- * allowed to break the primary mutation — the user's action already succeeded.
+ * Writes an activity row through the caller's transaction when the event is
+ * part of a business mutation. Errors deliberately propagate so the
+ * transaction rolls back instead of returning a false failure after commit.
  */
-export const recordActivity = async (input: RecordActivityInput) => {
-  try {
-    await db.activity.create({ data: input });
-  } catch (error) {
-    console.error("Failed to record activity:", error);
-  }
-};
+export const recordActivity = async (
+  input: RecordActivityInput,
+  writer: ActivityWriter,
+) => writer.activity.create({ data: input });
