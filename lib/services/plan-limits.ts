@@ -10,6 +10,7 @@
  */
 
 import { db } from "@/lib/prisma";
+import type { PrismaClient } from "@/app/generated/prisma/client";
 import { ERROR_CODES } from "@/lib/constants/errors";
 import { PLAN_LIMITS, getPlanKey } from "@/lib/constants/plans";
 import type { PlanKey } from "@/lib/constants/plans";
@@ -21,6 +22,8 @@ import { ActionResponse } from "@/lib/utils/action-response";
 // ──────────────────────────────────────────────
 
 export type LimitCheckResult = { ok: true } | { ok: false; error: ActionError };
+
+type PlanLimitDatabase = Pick<PrismaClient, "workspace" | "subscription" | "project">;
 
 /**
  * The plan a user is effectively on right now.
@@ -90,7 +93,14 @@ function resolvePlanFromSubscription(
  * Subscription belongs directly to the user.
  */
 async function resolveEffectivePlan(userId: string): Promise<EffectivePlan> {
-  const subscription = await db.subscription.findUnique({
+  return resolveEffectivePlanWithDatabase(userId, db);
+}
+
+async function resolveEffectivePlanWithDatabase(
+  userId: string,
+  database: PlanLimitDatabase,
+): Promise<EffectivePlan> {
+  const subscription = await database.subscription.findUnique({
     where: { userId },
     select: {
       plan: true,
@@ -115,8 +125,9 @@ async function resolveEffectivePlan(userId: string): Promise<EffectivePlan> {
  */
 async function getWorkspaceOwnerId(
   workspaceId: string,
+  database: PlanLimitDatabase = db,
 ): Promise<string | null> {
-  const workspace = await db.workspace.findUnique({
+  const workspace = await database.workspace.findUnique({
     where: { id: workspaceId },
     select: {
       ownerId: true,
@@ -187,8 +198,9 @@ export async function assertCanCreateWorkspace(
  */
 export async function assertCanCreateProject(
   workspaceId: string,
+  database: PlanLimitDatabase = db,
 ): Promise<LimitCheckResult> {
-  const ownerId = await getWorkspaceOwnerId(workspaceId);
+  const ownerId = await getWorkspaceOwnerId(workspaceId, database);
 
   if (!ownerId) {
     return {
@@ -201,8 +213,8 @@ export async function assertCanCreateProject(
   }
 
   const [effective, projectCount] = await Promise.all([
-    resolveEffectivePlan(ownerId),
-    db.project.count({
+    resolveEffectivePlanWithDatabase(ownerId, database),
+    database.project.count({
       where: {
         workspaceId,
       },
