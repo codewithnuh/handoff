@@ -8,7 +8,7 @@ Use a new PostgreSQL database. Do not seed a hidden operator account or edit dat
 
 1. Install Node.js 22 or newer and pnpm 11.17.0. Install dependencies with `pnpm install --frozen-lockfile`.
 2. Set `DATABASE_URL` to the new database. Set the public `BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL`. Generate separate random values for `AUTH_SECRET` and `BETTER_AUTH_SECRET`, each at least 32 characters.
-3. Set production SMTP delivery values and a private UploadThing v7 token. Use the hosting provider's secret manager. Do not set `DEV_DATABASE_URL` in production.
+3. Set production SMTP delivery values and a private UploadThing v7 token. Resend is the recommended SMTP relay: verify a sending domain, then store its SMTP API key and settings in the hosting provider's secret manager. Use a separate staging configuration for email smoke tests. Do not set `DEV_DATABASE_URL` in production.
 4. Run `pnpm db:generate`, then `pnpm db:deploy`. Confirm the migration command succeeds before starting the app.
 5. Run `pnpm build`, then `pnpm start`. Create the first user through `/register` and verify its address through the configured SMTP inbox.
 

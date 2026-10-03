@@ -176,7 +176,9 @@ AUTH_SECRET="replace-with-at-least-32-random-characters"
 # Required — Public app URL
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 
-# Required in production; optional in development (emails are logged when unset)
+# Required in production; optional in development (emails are logged when unset).
+# Resend SMTP example: smtp.resend.com, port 465, username resend,
+# password is your Resend API key. Verify the sender domain in Resend first.
 SMTP_HOST=""
 SMTP_PORT=""
 SMTP_USER=""
@@ -190,6 +192,25 @@ UPLOADTHING_TOKEN=""
 The app validates configuration on the server with Zod. Production requires distinct, randomly generated `AUTH_SECRET` and `BETTER_AUTH_SECRET` values (at least 32 characters), complete SMTP delivery settings, and an UploadThing v7 token. Empty optional SMTP fields are treated as unset. The UploadThing token is a server secret; never prefix it with `NEXT_PUBLIC_`.
 
 In local development, use `handoff_dev` for both database URLs shown above. `DEV_DATABASE_URL` is only for guarded local schema commands. Those commands reject remote databases and never fall back to `DATABASE_URL`.
+
+### Email delivery with Resend
+
+Handoff uses the same SMTP transport for email verification, password resets, and team invitations. Resend works with the existing Nodemailer integration; no Clerk account or separate auth mail integration is needed.
+
+1. Create a Resend account and add a sending domain you control. A dedicated subdomain such as `mail.example.com` keeps app mail separate from regular mail.
+2. Add the SPF and DKIM DNS records Resend provides, then wait for the domain to verify.
+3. Create an API key and set these values in `.env` for local testing or the hosting provider's secret manager for deployment:
+
+   ```env
+   SMTP_HOST="smtp.resend.com"
+   SMTP_PORT="465"
+   SMTP_USER="resend"
+   SMTP_PASSWORD="<Resend API key>"
+   EMAIL_FROM="Handoff <no-reply@mail.example.com>"
+   ```
+
+   Replace `mail.example.com` with your verified sending domain. Keep the API key private. `SMTP_USER` and `SMTP_PASSWORD` must both be set.
+4. Send a test registration verification code, password reset, and team invitation from staging. Confirm delivery in the destination inbox and the Resend dashboard before production use.
 
 ### Database Setup
 
