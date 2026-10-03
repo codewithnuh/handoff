@@ -109,6 +109,24 @@ jobs:
           pnpm test:integration
           pnpm test:integration
 
+      - name: Install Chromium for production browser journeys
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Prepare production server and test database
+        run: pnpm test:e2e:prepare
+
+      - name: Run production browser journeys
+        run: pnpm test:e2e
+
+      - name: Upload browser journey reports and failure artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-journeys-${{ github.sha }}
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
   build:
     name: Production build
     runs-on: ubuntu-latest

@@ -17,10 +17,9 @@ import {
 const emptySubscribe = () => () => {};
 
 /**
- * Better Auth reset links carry their token in the URL hash
- * (`/reset-password#token=...`), which never reaches the server.
- * This client wrapper inspects the hash after hydration and shows either
- * the request form or the choose-new-password step.
+ * Better Auth redirects reset links back to the configured callback URL with
+ * the one-time token in its query string. Inspect the URL after hydration so
+ * the server-rendered output stays identical on the first client pass.
  */
 export default function ResetPasswordFlow() {
   // Two-pass render: false on the server + first client pass (matching
@@ -33,7 +32,9 @@ export default function ResetPasswordFlow() {
 
   if (!hydrated) return null;
 
-  const token = new URLSearchParams(window.location.hash.slice(1)).get("token");
+  const token =
+    new URLSearchParams(window.location.search).get("token") ??
+    new URLSearchParams(window.location.hash.slice(1)).get("token");
   if (token) return <NewPasswordForm token={token} />;
 
   // Link opened without a token — expired or manually truncated.
