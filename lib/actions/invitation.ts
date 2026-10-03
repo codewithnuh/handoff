@@ -120,25 +120,33 @@ export const revokeClientAccess = defineAction({
   ),
   errors: { fallback: "Failed to revoke client access." },
   run: async (input): Promise<ActionResponseType<RevokeAccessResult>> => {
-    // 1. Delete ProjectAccess
-    const result = await db.projectAccess.deleteMany({
-      where: {
-        projectId: input.projectId,
-        email: input.email,
-      },
+    const revoked = await db.$transaction(async (tx) => {
+      const result = await tx.projectAccess.deleteMany({
+        where: {
+          projectId: input.projectId,
+          email: input.email,
+        },
+      });
+      if (result.count === 0) return false;
+
+      // A pending token must not restore access after revocation.
+      await tx.clientInvitation.deleteMany({
+        where: {
+          projectId: input.projectId,
+          email: input.email,
+          acceptedAt: null,
+        },
+      });
+      await tx.clientSession.deleteMany({ where: { email: input.email } });
+      return true;
     });
 
-    if (result.count === 0) {
+    if (!revoked) {
       return ActionResponse.failure(
         ERROR_CODES.NOT_FOUND,
         "No access record found for this client on this project.",
       );
     }
-
-    // 2. Immediately revoke all active sessions for this email
-    await db.clientSession.deleteMany({
-      where: { email: input.email },
-    });
 
     revalidatePortalPages();
     return ActionResponse.success(

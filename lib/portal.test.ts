@@ -196,34 +196,13 @@ describe("portal token acceptance logic", () => {
     expect(body).toContain("expired");
   });
 
-  it("creates ProjectAccess and issues session for valid token", async () => {
+  it("GET shows a confirmation form without consuming a valid token", async () => {
     vi.mocked(db.clientInvitation.findUnique).mockResolvedValue({
       id: "inv-1",
       projectId: "proj-1",
       email: "client@test.com",
       expiresAt: new Date("2099-12-31"), // far future
       acceptedAt: null,
-    } as never);
-
-    dbTransaction.mockImplementation(async (fn) => {
-      // Minimal transaction-client stub cast to the expected shape
-      const tx = {
-        projectAccess: {
-          upsert: vi.fn().mockResolvedValue({}),
-        },
-        clientInvitation: {
-          update: vi.fn().mockResolvedValue({}),
-        },
-      } as unknown as Parameters<typeof fn>[0];
-      return fn(tx);
-    });
-
-    vi.mocked(db.clientSession.create).mockResolvedValue({
-      id: "new-session",
-      email: "client@test.com",
-      token: "random-token",
-      expiresAt: new Date("2099-12-31"),
-      createdAt: new Date(),
     } as never);
 
     const { GET } = await import("@/app/api/portal/accept/route");
@@ -234,21 +213,79 @@ describe("portal token acceptance logic", () => {
 
     const response = await GET(request);
 
-    // Should redirect to project portal (Next.js 16 returns 307)
-    expect(response.status).toBe(307);
-    expect(response.headers.get("Location")).toContain(
-      "/portal/projects/proj-1",
-    );
-
-    // Should have created a session
-    expect(db.clientSession.create).toHaveBeenCalled();
-
-    // Cookie is set via response headers (not cookies().set()) to avoid
-    // a Next.js redirect + cookie merge issue.
-    const setCookie = response.headers.get("Set-Cookie");
-    expect(setCookie).toBeTruthy();
-    expect(setCookie).toContain("cp_session");
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain('method="post"');
+    expect(dbTransaction).not.toHaveBeenCalled();
+    expect(db.clientSession.create).not.toHaveBeenCalled();
   });
+
+  it("POST claims the invitation, grants access, and sets a session cookie after commit", async () => {
+    vi.mocked(db.$transaction).mockImplementation(async (fn) => {
+      const tx = {
+        clientInvitation: {
+          findUnique: vi.fn().mockResolvedValue({
+            id: "inv-1", projectId: "proj-1", email: "client@test.com",
+            expiresAt: new Date("2099-12-31"), acceptedAt: null,
+          }),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+        projectAccess: { upsert: vi.fn().mockResolvedValue({}) },
+        clientSession: {
+          deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+          create: vi.fn().mockResolvedValue({ id: "new-session" }),
+        },
+      } as unknown as Parameters<typeof fn>[0];
+      return fn(tx);
+    });
+
+    const { POST } = await import("@/app/api/portal/accept/route");
+    const request = new NextRequest("http://localhost:3000/api/portal/accept", {
+      method: "POST",
+      body: new URLSearchParams({ token: "valid-token" }),
+    });
+    const response = await POST(request);
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("Location")).toContain("/portal/projects/proj-1");
+    expect(response.headers.get("Set-Cookie")).toContain("cp_session");
+    expect(db.$transaction).toHaveBeenCalledOnce();
+  });
+
+  it("POST replay cannot issue another session when the atomic claim loses", async () => {
+    const upsert = vi.fn();
+    const createSession = vi.fn();
+    vi.mocked(db.$transaction).mockImplementation(async (fn) => {
+      const tx = {
+        clientInvitation: {
+          findUnique: vi.fn().mockResolvedValue({
+            id: "inv-1", projectId: "proj-1", email: "client@test.com",
+            expiresAt: new Date("2099-12-31"), acceptedAt: null,
+          }),
+          updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+        },
+        projectAccess: { upsert },
+        clientSession: {
+          deleteMany: vi.fn(),
+          create: createSession,
+        },
+      } as unknown as Parameters<typeof fn>[0];
+      return fn(tx);
+    });
+
+    const { POST } = await import("@/app/api/portal/accept/route");
+    const request = new NextRequest("http://localhost:3000/api/portal/accept", {
+      method: "POST",
+      body: new URLSearchParams({ token: "valid-token" }),
+    });
+    const response = await POST(request);
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("Location")).toContain("/portal/expired");
+    expect(response.headers.get("Set-Cookie")).toBeNull();
+    expect(upsert).not.toHaveBeenCalled();
+    expect(createSession).not.toHaveBeenCalled();
+  });
+
 });
 
 // ──────────────────────────────────────────────

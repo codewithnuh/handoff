@@ -165,28 +165,38 @@ export const revokeLink = defineAction({
         );
       }
     } else {
-      // Client link — delete the invitation
-      const invite = await db.clientInvitation.findUnique({
-        where: { id: input.id },
-        select: {
-          id: true,
-          email: true,
-          project: { select: { workspaceId: true } },
-        },
+      // Revoke only an unconsumed token. If acceptance wins the race, keep
+      // its session and access intact.
+      const revoked = await db.$transaction(async (tx) => {
+        const invite = await tx.clientInvitation.findFirst({
+          where: {
+            id: input.id,
+            acceptedAt: null,
+            project: { workspaceId: ctx.workspace.id },
+          },
+          select: { id: true, email: true },
+        });
+        if (!invite) return false;
+
+        const deleted = await tx.clientInvitation.deleteMany({
+          where: {
+            id: invite.id,
+            acceptedAt: null,
+            project: { workspaceId: ctx.workspace.id },
+          },
+        });
+        if (deleted.count !== 1) return false;
+
+        await tx.clientSession.deleteMany({ where: { email: invite.email } });
+        return true;
       });
 
-      if (!invite || invite.project.workspaceId !== ctx.workspace.id) {
+      if (!revoked) {
         return ActionResponse.failure(
           ERROR_CODES.NOT_FOUND,
-          "Invitation not found.",
+          "Pending invitation not found.",
         );
       }
-
-      // Delete the invitation and revoke any active sessions for this email
-      await db.$transaction([
-        db.clientInvitation.delete({ where: { id: invite.id } }),
-        db.clientSession.deleteMany({ where: { email: invite.email } }),
-      ]);
     }
 
     return ActionResponse.success({ revoked: true }, "Link revoked");
@@ -215,26 +225,32 @@ export const bulkRevokeLinks = defineAction({
       });
       revoked = result.count;
     } else {
-      // Client links — find invitations, delete them, revoke sessions
-      const invites = await db.clientInvitation.findMany({
-        where: {
-          id: { in: input.ids },
-          project: { workspaceId: ctx.workspace.id },
-        },
-        select: { id: true, email: true },
+      revoked = await db.$transaction(async (tx) => {
+        const invites = await tx.clientInvitation.findMany({
+          where: {
+            id: { in: input.ids },
+            acceptedAt: null,
+            project: { workspaceId: ctx.workspace.id },
+          },
+          select: { id: true, email: true },
+        });
+
+        let removed = 0;
+        for (const invite of invites) {
+          const deleted = await tx.clientInvitation.deleteMany({
+            where: {
+              id: invite.id,
+              acceptedAt: null,
+              project: { workspaceId: ctx.workspace.id },
+            },
+          });
+          if (deleted.count !== 1) continue;
+
+          await tx.clientSession.deleteMany({ where: { email: invite.email } });
+          removed += 1;
+        }
+        return removed;
       });
-
-      if (invites.length > 0) {
-        const inviteIds = invites.map((i) => i.id);
-        const emails = [...new Set(invites.map((i) => i.email))];
-
-        await db.$transaction([
-          db.clientInvitation.deleteMany({ where: { id: { in: inviteIds } } }),
-          db.clientSession.deleteMany({ where: { email: { in: emails } } }),
-        ]);
-
-        revoked = invites.length;
-      }
     }
 
     return ActionResponse.success(
