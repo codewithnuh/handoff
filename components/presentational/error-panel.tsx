@@ -4,6 +4,7 @@ import { useEffect, type ReactNode } from "react";
 import { IconAlertOctagon } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { safeErrorName } from "@/lib/diagnostics";
 
 export function ErrorPanel({
   error,
@@ -25,7 +26,10 @@ export function ErrorPanel({
   contentClassName?: string;
 }) {
   useEffect(() => {
-    console.error(logLabel, error);
+    console.error(logLabel, {
+      errorName: safeErrorName(error),
+      errorId: error.digest,
+    });
   }, [logLabel, error]);
 
   return (

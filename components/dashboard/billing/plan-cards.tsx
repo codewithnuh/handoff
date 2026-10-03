@@ -1,21 +1,9 @@
 "use client";
 
-/**
- * PlanCards — plan comparison + upgrade CTA.
- *
- * ⚠️ PAYMENTS PLACEHOLDER: upgrade/downgrade buttons are intentionally
- * inert. Wire your provider (Paddle) here:
- *   1. Call your checkout endpoint / Paddle.js overlay with the price ID.
- *   2. On webhook confirmation (paddle_webhook_events → subscriptions),
- *      update the workspace subscription row.
- *   3. Revalidate this page.
- */
-
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { toast } from "@/components/ui/toast";
 import type { WorkspaceUsageData } from "@/lib/queries/usage";
 
 const PLANS = [
@@ -48,25 +36,6 @@ const PLANS = [
 ];
 
 export function PlanCards({ usage }: { usage: WorkspaceUsageData }) {
-  const handleUpgrade = () => {
-    // TODO(payments): open Paddle checkout here.
-    toast.add({
-      type: "info",
-      title: "Payments coming soon",
-      description:
-        "Online checkout isn't connected yet — reach out to upgrade manually.",
-    });
-  };
-
-  const handleDowngrade = () => {
-    // TODO(payments): open the provider's cancellation flow here.
-    toast.add({
-      type: "info",
-      title: "Payments coming soon",
-      description: "Subscription management will be available here.",
-    });
-  };
-
   return (
     <div className="grid gap-4  md:grid-cols-2">
       {PLANS.map((plan) => {
@@ -114,27 +83,22 @@ export function PlanCards({ usage }: { usage: WorkspaceUsageData }) {
 
               {isCurrent ? (
                 plan.key === "PRO" ? null : usage.isDowngraded ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full"
-                    onClick={handleUpgrade}
-                  >
-                    Restore Pro
+                  <Button size="sm" variant="outline" className="w-full" disabled>
+                    Pro unavailable in beta
                   </Button>
                 ) : null
               ) : plan.key === "PRO" ? (
-                <Button size="sm" className="w-full" onClick={handleUpgrade}>
-                  Upgrade to Pro
+                <Button size="sm" className="w-full" disabled>
+                  Pro unavailable in beta
                 </Button>
               ) : (
                 <Button
                   size="sm"
                   variant="outline"
                   className="w-full"
-                  onClick={handleDowngrade}
+                  disabled
                 >
-                  Downgrade to Free
+                  Plan changes unavailable in beta
                 </Button>
               )}
               {isDowngradedToThis && (

@@ -3,7 +3,6 @@
 import { Container } from "@/components/globals/container";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollReveal } from "./scroll-reveal";
 
 const COMPARISON = [
   { feature: "Workspaces", free: "1", pro: "5" },
@@ -52,8 +51,8 @@ export function Pricing() {
           </h2>
 
           <p className="text-sm leading-6 text-muted-foreground sm:text-base">
-            Start free with everything included. Upgrade when you need more
-            workspaces and projects. No per-client fees, no hidden charges.
+            The self-hosted beta uses the Free plan. Paid plans and online
+            checkout are not available yet.
           </p>
         </div>
 
@@ -71,8 +70,8 @@ export function Pricing() {
                   </span>
                 </div>
                 <p className="mt-1.5 text-sm leading-5 text-muted-foreground">
-                  All features, no limits on your team. Host it yourself
-                  or use our cloud.
+                  Core beta features with one workspace and up to three
+                  projects. Run it with your own database and service accounts.
                 </p>
               </div>
 
@@ -146,7 +145,7 @@ export function Pricing() {
 
               <div className="relative z-10 flex h-full flex-col">
                 <Badge className="absolute right-0 top-0 border-0 bg-white/15 text-white hover:bg-white/20">
-                  Most popular
+                  Not available in beta
                 </Badge>
 
                 <div className="pr-28">
@@ -162,7 +161,7 @@ export function Pricing() {
                     <span className="text-4xl font-bold tracking-tight text-white">
                       $12
                     </span>
-                    <span className="text-sm text-white/60">/ month</span>
+                  <span className="text-sm text-white/60">planned / month</span>
                   </div>
                 </div>
 
@@ -191,10 +190,9 @@ export function Pricing() {
                 <Button
                   className="mt-8 w-full bg-white text-primary shadow-sm hover:bg-white/90"
                   size="lg"
-                  nativeButton={false}
-                  render={<a href="/register" />}
+                  disabled
                 >
-                  Start with Pro
+                  Pro unavailable in beta
                 </Button>
               </div>
             </div>
@@ -263,8 +261,8 @@ export function Pricing() {
         </div>
 
         <p className="mx-auto mt-6 max-w-xl text-center text-xs leading-5 text-muted-foreground">
-          Prices are in USD. Online checkout is coming soon. In the meantime,
-          contact us to upgrade to Pro.
+          The Pro price and limits are planned details. They do not enable a
+          paid plan or subscription in this beta.
         </p>
       </Container>
     </section>

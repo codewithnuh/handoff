@@ -9,6 +9,7 @@ import {
 import { InvoicePDF } from "@/lib/invoice-pdf";
 import type { InvoicePDFData } from "@/lib/invoice-pdf";
 import { lineItemMoneyStrings, moneyStrings } from "@/lib/invoice/money";
+import { safeErrorName } from "@/lib/diagnostics";
 
 /**
  * GET /api/invoices/[id]/pdf
@@ -124,7 +125,9 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error("PDF generation error:", error);
+    console.error("PDF generation failed", {
+      errorName: safeErrorName(error),
+    });
     return NextResponse.json(
       { error: "Failed to generate PDF" },
       { status: 500 },

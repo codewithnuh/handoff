@@ -1,4 +1,5 @@
 import { revalidatePath } from "next/cache";
+import { safeErrorName } from "@/lib/diagnostics";
 
 /**
  * Standard set of routes affected by workspace/project mutations.
@@ -21,6 +22,8 @@ export function revalidateDashboard(): void {
       revalidatePath(path, "layout");
     }
   } catch (error) {
-    console.error("Failed to revalidate dashboard:", error);
+    console.error("Failed to revalidate dashboard", {
+      errorName: safeErrorName(error),
+    });
   }
 }

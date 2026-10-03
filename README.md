@@ -25,7 +25,7 @@ Handoff is a **self-hosted, open-source** platform built specifically for freela
 - **You** get a dashboard to manage everything — clients, projects, deliverables, tasks, invoices.
 - **Your clients** get a clean portal where they can track progress, approve deliverables, request changes, leave comments, and download invoices — without needing an account.
 
-No vendor lock-in. No per-seat pricing surprises. Your data lives on your own PostgreSQL database.
+The app stores business records in your PostgreSQL database. Email and file uploads use the SMTP and UploadThing accounts you configure.
 
 ---
 
@@ -120,6 +120,8 @@ No vendor lock-in. No per-seat pricing surprises. Your data lives on your own Po
 | **Testing** | [Vitest](https://vitest.dev) |
 | **Package Manager** | [pnpm](https://pnpm.io) |
 
+This checkout pins Next.js 16.3.8, Prisma 7.9.1, Node.js 22 or newer, and pnpm 11.17.0.
+
 ---
 
 ## Getting Started
@@ -129,8 +131,8 @@ No vendor lock-in. No per-seat pricing surprises. Your data lives on your own Po
 - **Node.js** 22 or newer
 - **pnpm** 11.17.0 (pinned in `package.json`)
 - **PostgreSQL** ≥ 14
-- **SMTP server** (for emails in production; optional in dev)
-- **UploadThing account** (for file uploads)
+- **SMTP server** for production email; optional for local development
+- **UploadThing account** for production uploads; optional for local development
 
 ### Installation
 
@@ -141,6 +143,9 @@ cd handoff
 
 # Install dependencies
 pnpm install
+
+# Create an empty local development database
+createdb handoff_dev
 ```
 
 ### Environment Variables
@@ -171,7 +176,9 @@ AUTH_SECRET="replace-with-at-least-32-random-characters"
 # Required — Public app URL
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 
-# Required in production; optional in development (emails are logged when unset)
+# Required in production; optional in development (emails are logged when unset).
+# Resend SMTP example: smtp.resend.com, port 465, username resend,
+# password is your Resend API key. Verify the sender domain in Resend first.
 SMTP_HOST=""
 SMTP_PORT=""
 SMTP_USER=""
@@ -184,16 +191,37 @@ UPLOADTHING_TOKEN=""
 
 The app validates configuration on the server with Zod. Production requires distinct, randomly generated `AUTH_SECRET` and `BETTER_AUTH_SECRET` values (at least 32 characters), complete SMTP delivery settings, and an UploadThing v7 token. Empty optional SMTP fields are treated as unset. The UploadThing token is a server secret; never prefix it with `NEXT_PUBLIC_`.
 
+In local development, use `handoff_dev` for both database URLs shown above. `DEV_DATABASE_URL` is only for guarded local schema commands. Those commands reject remote databases and never fall back to `DATABASE_URL`.
+
+### Email delivery with Resend
+
+Handoff uses the same SMTP transport for email verification, password resets, and team invitations. Resend works with the existing Nodemailer integration; no Clerk account or separate auth mail integration is needed.
+
+1. Create a Resend account and add a sending domain you control. A dedicated subdomain such as `mail.example.com` keeps app mail separate from regular mail.
+2. Add the SPF and DKIM DNS records Resend provides, then wait for the domain to verify.
+3. Create an API key and set these values in `.env` for local testing or the hosting provider's secret manager for deployment:
+
+   ```env
+   SMTP_HOST="smtp.resend.com"
+   SMTP_PORT="465"
+   SMTP_USER="resend"
+   SMTP_PASSWORD="<Resend API key>"
+   EMAIL_FROM="Handoff <no-reply@mail.example.com>"
+   ```
+
+   Replace `mail.example.com` with your verified sending domain. Keep the API key private. `SMTP_USER` and `SMTP_PASSWORD` must both be set.
+4. Send a test registration verification code, password reset, and team invitation from staging. Confirm delivery in the destination inbox and the Resend dashboard before production use.
+
 ### Database Setup
 
 ```bash
 # Generate the Prisma client
 pnpm db:generate
 
-# Push the schema to your database (dev)
+# Push the current schema to your local development database
 pnpm db:push
 
-# Or run migrations (recommended)
+# Run committed migrations on an existing install
 pnpm db:migrate
 ```
 
@@ -398,7 +426,7 @@ In development, emails are logged to the console when SMTP is not configured, an
 | **FREE** | 1 | 3 | $0/mo |
 | **PRO** | 5 | 100 | $12/mo |
 
-Enforced at creation time. After downgrade, a 7-day grace period keeps existing data accessible in read-only mode.
+Free and existing subscription limits are enforced at creation time. Paid checkout and plan changes are disabled in the beta. After a recorded downgrade, a 7-day grace period keeps existing data accessible in read-only mode. Pro pricing and limits shown below are planned details, not an available purchase.
 
 ---
 
@@ -477,7 +505,7 @@ Client ─┬─ Project (1:N)
 | `pnpm db:seed` | Seed the database |
 | `pnpm db:reset` | Reset local development database (drop all data) |
 | `pnpm db:studio` | Open Prisma Studio (visual DB browser) |
-| `pnpm db:deploy` | Deploy migrations to production |
+| `pnpm db:deploy` | Apply committed migrations to the selected deployment database |
 | `pnpm db:wipe` | Wipe all tables in the guarded local development database |
 
 The `db:push`, `db:migrate`, `db:reset`, and `db:wipe` commands require a local `DEV_DATABASE_URL` pointing to `handoff_dev` or `handoff_test`. They refuse production mode, remote hosts, and inherited `DATABASE_URL` fallbacks. See [beta operations and recovery](./docs/beta-operations.md) before deploying or deleting project data.
@@ -493,34 +521,41 @@ The `db:push`, `db:migrate`, `db:reset`, and `db:wipe` commands require a local 
 | `/api/portal/accept?token=...` | GET | Accept client portal invitation, create session |
 | `/api/files/[id]/download` | GET | Secure file download (verifies portal session) |
 | `/api/invoices/[id]/pdf` | GET | Generate and serve invoice PDF |
+| `/api/health/live` | GET | Process liveness, independent of database availability |
+| `/api/health/ready` | GET | Database readiness; returns 503 without diagnostic details when PostgreSQL is unavailable |
 
 ---
 
 ## Deployment
 
-### Vercel (Recommended)
+The repository has no provider-specific deployment configuration. Choose a hosting provider, PostgreSQL service, SMTP relay, and UploadThing account, then keep their credentials in the provider's secret manager.
 
-1. Push to GitHub.
-2. Import the repo in [Vercel](https://vercel.com).
-3. Configure environment variables.
-4. Set up a PostgreSQL database (e.g., [Neon](https://neon.tech), [Supabase](https://supabase.com), or [Railway](https://railway.app)).
-5. Add `UPLOADTHING_TOKEN` and SMTP settings (`SMTP_HOST`, `SMTP_PORT`, and `EMAIL_FROM`; include `SMTP_USER` and `SMTP_PASSWORD` when the relay requires authentication).
-6. Deploy.
+### Deploying a self-hosted beta
+
+1. Create an empty PostgreSQL database and configure `DATABASE_URL`, `BETTER_AUTH_URL`, `NEXT_PUBLIC_APP_URL`, `AUTH_SECRET`, and `BETTER_AUTH_SECRET` in the hosting provider. Generate separate random secrets. Do not set production `DEV_DATABASE_URL`.
+2. Configure `SMTP_HOST`, `SMTP_PORT`, `EMAIL_FROM`, and SMTP authentication fields when required by the relay. Configure a valid private UploadThing v7 token. Keep each secret server-side.
+3. Take or verify a recent database restore point. Deploy the reviewed build and run `pnpm db:deploy` as a separate step before sending traffic to it.
+4. Start the app with `pnpm start`. Check `/api/health/live` and `/api/health/ready`; the ready endpoint checks PostgreSQL only.
+5. In staging, verify real verification/reset/invitation email delivery, private file upload and authorized download, PDF generation, and expired/revoked links. A CI pass with synthetic SMTP and storage credentials does not replace this check.
+6. Use provider backups and follow [beta recovery](./docs/beta-operations.md). Complete the [release checklist](./docs/beta-release.md) before calling a candidate ready.
 
 ### Docker
 
-A `Dockerfile` is not yet provided. Contributions welcome!
+A `Dockerfile` is not provided.
 
 ### Manual
 
 ```bash
 # Build
 pnpm db:generate
+pnpm db:deploy
 pnpm build
 
 # Start
 pnpm start
 ```
+
+Before routing production traffic, apply and verify migrations against the intended database. Do not use `db:push`, `db:reset`, or `db:wipe` against a hosted database.
 
 ---
 
