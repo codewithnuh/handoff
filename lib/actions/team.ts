@@ -19,6 +19,7 @@ import {
 import { ERROR_CODES } from "@/lib/constants/errors";
 import type { ActionResponseType } from "@/lib/types/action";
 import { ActionResponse } from "@/lib/utils/action-response";
+import { safeErrorName } from "@/lib/diagnostics";
 import {
   acceptTeamInviteSchema,
   inviteTeammateSchema,
@@ -827,7 +828,9 @@ export const acceptTeamInvite = defineAction({
         error instanceof Error && error.message.includes("already registered")
           ? "An account with this email already exists. Sign in to accept the invite."
           : "Couldn't accept the invite. Please try again.";
-      console.error("acceptTeamInvite error:", error);
+      console.error("acceptTeamInvite failed", {
+        errorName: safeErrorName(error),
+      });
       return ActionResponse.failure(ERROR_CODES.INTERNAL_ERROR, message);
     }
 

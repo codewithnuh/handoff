@@ -74,6 +74,9 @@ test("real signup, OTP, password reset, login, and persistent client/project cre
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/dashboard/);
 
+  await page.goto("/dashboard/billing");
+  await expect(page.getByRole("button", { name: "Pro unavailable in beta" })).toBeDisabled();
+
   await page.goto("/dashboard/clients");
   await page.getByRole("button", { name: "Add Client" }).first().click();
   const clientDialog = page.getByRole("dialog", { name: "Add a new client" });
