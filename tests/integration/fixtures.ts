@@ -23,6 +23,7 @@ export const fixtureIds = {
   version: "itest_version",
   request: "itest_request",
   task: "itest_task",
+  taskB: "itest_task_b",
   invoice: "itest_invoice",
 } as const;
 
@@ -92,6 +93,21 @@ export async function seedIntegrationFixtures(db: PrismaClient) {
       { id: fixtureIds.projectB, workspaceId: fixtureIds.workspaceB, clientId: fixtureIds.clientB, name: "Integration Project B", createdAt: FIXTURE_NOW, updatedAt: FIXTURE_NOW },
     ],
     skipDuplicates: true,
+  });
+  await db.projectAccess.upsert({
+    where: {
+      projectId_email: {
+        projectId: fixtureIds.projectA,
+        email: "shared@example.test",
+      },
+    },
+    update: {},
+    create: {
+      id: "itest_project_access_a",
+      projectId: fixtureIds.projectA,
+      email: "shared@example.test",
+      createdAt: FIXTURE_NOW,
+    },
   });
   await db.projectMember.createMany({
     data: [
@@ -168,6 +184,17 @@ export async function seedIntegrationFixtures(db: PrismaClient) {
     where: { id: fixtureIds.task },
     update: {},
     create: { id: fixtureIds.task, projectId: fixtureIds.projectA, title: "Integration task", assigneeId: fixtureIds.member, createdAt: FIXTURE_NOW, updatedAt: FIXTURE_NOW },
+  });
+  await db.task.upsert({
+    where: { id: fixtureIds.taskB },
+    update: {},
+    create: {
+      id: fixtureIds.taskB,
+      projectId: fixtureIds.projectB,
+      title: "Foreign integration task",
+      createdAt: FIXTURE_NOW,
+      updatedAt: FIXTURE_NOW,
+    },
   });
   // The committed initial migration predates the current invoice columns.
   // Keep the invoice fixture compatible with that persisted baseline until
