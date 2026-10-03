@@ -3,7 +3,7 @@ import { useRouter } from "next/navigation";
 
 import { toast } from "@/components/ui/toast";
 import type { ActionError, ActionResponseType } from "@/lib/types/action";
-import { withTimeout } from "@/lib/utils/with-timeout";
+import { ActionTimeoutError, withTimeout } from "@/lib/utils/with-timeout";
 
 /** How long a server action may run before the UI gives up waiting. */
 export const ACTION_TIMEOUT_MS = 15_000;
@@ -74,7 +74,10 @@ export function useServerAction<I, S>(
     successDescription,
     failure,
     failureDescription,
-    thrown = "Something went wrong",
+    thrown = (error: unknown) =>
+      error instanceof ActionTimeoutError
+        ? "Result not confirmed"
+        : "Couldn't confirm the result",
     thrownDescription,
     refresh = true,
     timeout = ACTION_TIMEOUT_MS,
@@ -133,16 +136,18 @@ export function useServerAction<I, S>(
         if (title) {
           const description = thrownDescription
             ? thrownDescription(error)
-            : error instanceof Error && error.message
-              ? error.message
-              : "Please try again.";
+            : error instanceof ActionTimeoutError
+              ? "The action may have completed. Refresh before retrying."
+              : "The action may have completed. Refresh before retrying.";
           toast.add({
             type: "error",
             title,
             ...(description ? { description } : {}),
           });
         }
-        rollback?.();
+        // A rejected network request or UI timeout does not cancel the server
+        // action. Keep optimistic state until the refreshed server state lands.
+        if (refresh) router.refresh();
         onThrown?.(error);
         return null;
       } finally {

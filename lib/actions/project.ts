@@ -110,18 +110,20 @@ export const createProject = defineAction({
           dueDate: input.dueDate ?? null,
         },
       });
+      await recordActivity(
+        {
+          projectId: project.id,
+          type: "PROJECT_CREATED",
+          ...actorOf(ctx.user),
+          meta: { name: project.name },
+        },
+        tx,
+      );
       return { ok: true as const, value: project };
     });
 
     if (!creation.ok) return creation.error;
     const project = creation.value;
-
-    await recordActivity({
-      projectId: project.id,
-      type: "PROJECT_CREATED",
-      ...actorOf(ctx.user),
-      meta: { name: project.name },
-    });
 
     return ActionResponse.success(project, "Project created successfully");
   },
@@ -145,21 +147,6 @@ export const updateProject = defineAction({
   revalidate: true,
   errors: { fallback: "Failed to update the project." },
   run: async (input, ctx): Promise<ActionResponseType<ProjectResult>> => {
-    const existing = await db.project.findFirst({
-      where: { id: input.id, workspaceId: ctx.workspaceId },
-    });
-    if (!existing) {
-      return ActionResponse.failure(
-        ERROR_CODES.NOT_FOUND,
-        "Project not found.",
-      );
-    }
-
-    const statusChanged =
-      input.status !== undefined && input.status !== existing.status;
-    const progressChanged =
-      input.progress !== undefined && input.progress !== existing.progress;
-
     // Partial-update semantics: only touch fields the caller sent so a
     // narrow edit (e.g. rename only) can't wipe description or dates.
     const data: Record<string, unknown> = {};
@@ -171,28 +158,32 @@ export const updateProject = defineAction({
     if (input.startDate !== undefined) data.startDate = input.startDate;
     if (input.dueDate !== undefined) data.dueDate = input.dueDate;
 
-    const project = await db.project.update({
-      where: { id: input.id },
-      data,
+    const project = await db.$transaction(async (tx) => {
+      const existing = await tx.project.findFirst({
+        where: { id: input.id, workspaceId: ctx.workspaceId },
+      });
+      if (!existing) return null;
+      const updated = await tx.project.update({ where: { id: input.id }, data });
+      const actor = actorOf(ctx.user);
+      if (input.status !== undefined && input.status !== existing.status) {
+        await recordActivity({
+          projectId: updated.id,
+          type: "PROJECT_STATUS_CHANGED",
+          ...actor,
+          meta: { from: existing.status, to: updated.status },
+        }, tx);
+      }
+      if (input.progress !== undefined && input.progress !== existing.progress) {
+        await recordActivity({
+          projectId: updated.id,
+          type: "PROJECT_PROGRESS_UPDATED",
+          ...actor,
+          meta: { from: existing.progress, to: updated.progress },
+        }, tx);
+      }
+      return updated;
     });
-
-    const actor = actorOf(ctx.user);
-    if (statusChanged) {
-      await recordActivity({
-        projectId: project.id,
-        type: "PROJECT_STATUS_CHANGED",
-        ...actor,
-        meta: { from: existing.status, to: project.status },
-      });
-    }
-    if (progressChanged) {
-      await recordActivity({
-        projectId: project.id,
-        type: "PROJECT_PROGRESS_UPDATED",
-        ...actor,
-        meta: { from: existing.progress, to: project.progress },
-      });
-    }
+    if (!project) return ActionResponse.failure(ERROR_CODES.NOT_FOUND, "Project not found.");
 
     return ActionResponse.success(project, "Project updated successfully");
   },
@@ -208,27 +199,19 @@ export const updateProjectStatus = defineAction({
   revalidate: true,
   errors: { fallback: "Failed to update the project status." },
   run: async (input, ctx): Promise<ActionResponseType<ProjectResult>> => {
-    const existing = await db.project.findUnique({
-      where: { id: input.id },
+    const project = await db.$transaction(async (tx) => {
+      const existing = await tx.project.findUnique({ where: { id: input.id } });
+      if (!existing) return null;
+      const updated = await tx.project.update({ where: { id: input.id }, data: { status: input.status } });
+      await recordActivity({
+        projectId: updated.id,
+        type: "PROJECT_STATUS_CHANGED",
+        ...actorOf(ctx.user),
+        meta: { from: existing.status, to: updated.status },
+      }, tx);
+      return updated;
     });
-    if (!existing) {
-      return ActionResponse.failure(
-        ERROR_CODES.NOT_FOUND,
-        "Project not found.",
-      );
-    }
-
-    const project = await db.project.update({
-      where: { id: input.id },
-      data: { status: input.status },
-    });
-
-    await recordActivity({
-      projectId: project.id,
-      type: "PROJECT_STATUS_CHANGED",
-      ...actorOf(ctx.user),
-      meta: { from: existing.status, to: project.status },
-    });
+    if (!project) return ActionResponse.failure(ERROR_CODES.NOT_FOUND, "Project not found.");
 
     return ActionResponse.success(
       project,
@@ -247,16 +230,18 @@ export const updateProjectProgress = defineAction({
   revalidate: true,
   errors: { fallback: "Failed to update the project progress." },
   run: async (input, ctx): Promise<ActionResponseType<ProjectResult>> => {
-    const project = await db.project.update({
-      where: { id: input.id },
-      data: { progress: input.progress },
-    });
-
-    await recordActivity({
-      projectId: project.id,
-      type: "PROJECT_PROGRESS_UPDATED",
-      ...actorOf(ctx.user),
-      meta: { progress: project.progress },
+    const project = await db.$transaction(async (tx) => {
+      const updated = await tx.project.update({
+        where: { id: input.id },
+        data: { progress: input.progress },
+      });
+      await recordActivity({
+        projectId: updated.id,
+        type: "PROJECT_PROGRESS_UPDATED",
+        ...actorOf(ctx.user),
+        meta: { progress: updated.progress },
+      }, tx);
+      return updated;
     });
 
     return ActionResponse.success(

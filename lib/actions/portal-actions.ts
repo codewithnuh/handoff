@@ -87,21 +87,23 @@ export const clientApproveDeliverable = defineAction({
     if (deliverable.version !== input.expectedVersion) return conflict();
 
     try {
-      const updated = await db.deliverable.update({
-        where: {
-          id: input.deliverableId,
-          version: input.expectedVersion,
-          status: { in: ["IN_REVIEW", "CHANGES_REQUESTED"] },
-        },
-        data: { status: "APPROVED", version: { increment: 1 } },
-      });
-
-      await recordActivity({
-        projectId: deliverable.projectId,
-        type: "DELIVERABLE_APPROVED",
-        actorEmail: ctx.email,
-        actorName: ctx.email,
-        meta: { from: deliverable.status, to: "APPROVED" },
+      const updated = await db.$transaction(async (tx) => {
+        const row = await tx.deliverable.update({
+          where: {
+            id: input.deliverableId,
+            version: input.expectedVersion,
+            status: { in: ["IN_REVIEW", "CHANGES_REQUESTED"] },
+          },
+          data: { status: "APPROVED", version: { increment: 1 } },
+        });
+        await recordActivity({
+          projectId: deliverable.projectId,
+          type: "DELIVERABLE_APPROVED",
+          actorEmail: ctx.email,
+          actorName: ctx.email,
+          meta: { from: deliverable.status, to: "APPROVED" },
+        }, tx);
+        return row;
       });
 
       revalidatePortal(deliverable.projectId);
@@ -173,15 +175,15 @@ export const clientRequestChanges = defineAction({
           });
         }
 
-        return result;
-      });
+        await recordActivity({
+          projectId: deliverable.projectId,
+          type: "CHANGES_REQUESTED",
+          actorEmail: ctx.email,
+          actorName: ctx.email,
+          meta: { from: deliverable.status, to: "CHANGES_REQUESTED" },
+        }, tx);
 
-      await recordActivity({
-        projectId: deliverable.projectId,
-        type: "CHANGES_REQUESTED",
-        actorEmail: ctx.email,
-        actorName: ctx.email,
-        meta: { from: deliverable.status, to: "CHANGES_REQUESTED" },
+        return result;
       });
 
       revalidatePortal(deliverable.projectId);
@@ -233,27 +235,29 @@ export const clientAddComment = defineAction({
     const access = await requirePortalProjectAccess(ctx.email, projectId);
     if (!access.ok) return access.error;
 
-    const comment = await db.comment.create({
-      data: {
-        content: input.content.trim(),
-        authorEmail: ctx.email,
-        authorName: ctx.email,
-        ...(input.targetType === "deliverable"
-          ? { deliverableId: input.targetId }
-          : { requestId: input.targetId }),
-      },
-    });
-
-    await recordActivity({
-      projectId,
-      type: "COMMENT_ADDED",
-      actorEmail: ctx.email,
-      actorName: ctx.email,
-      meta: {
-        targetType: input.targetType,
-        targetId: input.targetId,
-        preview: input.content.trim().slice(0, 100),
-      },
+    const comment = await db.$transaction(async (tx) => {
+      const created = await tx.comment.create({
+        data: {
+          content: input.content.trim(),
+          authorEmail: ctx.email,
+          authorName: ctx.email,
+          ...(input.targetType === "deliverable"
+            ? { deliverableId: input.targetId }
+            : { requestId: input.targetId }),
+        },
+      });
+      await recordActivity({
+        projectId,
+        type: "COMMENT_ADDED",
+        actorEmail: ctx.email,
+        actorName: ctx.email,
+        meta: {
+          targetType: input.targetType,
+          targetId: input.targetId,
+          preview: input.content.trim().slice(0, 100),
+        },
+      }, tx);
+      return created;
     });
 
     revalidatePath(`/portal/projects/${projectId}`);
@@ -285,20 +289,22 @@ export const clientCreateRequest = defineAction({
     input,
     ctx,
   ): Promise<ActionResponseType<{ requestId: string }>> => {
-    const request = await db.request.create({
-      data: {
+    const request = await db.$transaction(async (tx) => {
+      const created = await tx.request.create({
+        data: {
+          projectId: input.projectId,
+          title: input.title.trim(),
+          description: input.description?.trim() || null,
+        },
+      });
+      await recordActivity({
         projectId: input.projectId,
-        title: input.title.trim(),
-        description: input.description?.trim() || null,
-      },
-    });
-
-    await recordActivity({
-      projectId: input.projectId,
-      type: "REQUEST_CREATED",
-      actorEmail: ctx.email,
-      actorName: ctx.email,
-      meta: { title: request.title },
+        type: "REQUEST_CREATED",
+        actorEmail: ctx.email,
+        actorName: ctx.email,
+        meta: { title: created.title },
+      }, tx);
+      return created;
     });
 
     revalidatePath(`/portal/projects/${input.projectId}`);

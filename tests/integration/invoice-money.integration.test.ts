@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { addLineItem, cancelInvoice, convertDeliverablesToLineItems, createInvoice, markInvoicePaid, removeLineItem, sendInvoice, updateInvoice } from "@/lib/actions/invoice";
+import { recordActivity } from "@/lib/actions/activity";
 import { setSubjectAdapters } from "@/lib/access";
 import { db } from "@/lib/prisma";
 import { fixtureIds, seedIntegrationFixtures } from "./fixtures";
@@ -66,6 +67,23 @@ beforeAll(async () => {
 afterAll(() => restoreSubjects?.());
 
 describe("invoice money and lifecycle against PostgreSQL", () => {
+  it("rolls a business update back when its required activity insert fails", async () => {
+    const before = await db.project.findUniqueOrThrow({ where: { id: fixtureIds.projectA } });
+    await expect(db.$transaction(async (tx) => {
+      await tx.project.update({
+        where: { id: fixtureIds.projectA },
+        data: { description: "This must roll back with activity." },
+      });
+      await recordActivity({
+        projectId: "missing-project-for-failure-injection",
+        type: "COMMENT_ADDED",
+      }, tx);
+    })).rejects.toThrow();
+
+    const after = await db.project.findUniqueOrThrow({ where: { id: fixtureIds.projectA } });
+    expect(after.description).toBe(before.description);
+  });
+
   it("persists fractional quantities and returns the recalculated stored totals", async () => {
     const result = await asOwner(() => createInvoice({
       projectId: fixtureIds.projectA,

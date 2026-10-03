@@ -1,5 +1,5 @@
 export class ActionTimeoutError extends Error {
-  constructor(message = "This action took too long and was cancelled.") {
+  constructor(message = "The result could not be confirmed before the timeout.") {
     super(message);
     this.name = "ActionTimeoutError";
   }

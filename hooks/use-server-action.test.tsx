@@ -123,10 +123,11 @@ describe("useServerAction", () => {
 
     expect(toastAdd).toHaveBeenCalledWith({
       type: "error",
-      title: "Something went wrong",
-      description: "Network down",
+      title: "Couldn't confirm the result",
+      description: "The action may have completed. Refresh before retrying.",
     });
-    expect(rollback).toHaveBeenCalledTimes(1);
+    expect(rollback).not.toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalledTimes(1);
     expect(onThrown).toHaveBeenCalledWith(expect.any(Error));
     expect(returned).toBeNull();
   });
@@ -180,7 +181,7 @@ describe("useServerAction", () => {
     const { result } = renderHook(() =>
       useServerAction(action, {
         thrown: (error) =>
-          error instanceof Error && error.message === "This action took too long and was cancelled."
+          error instanceof Error && error.message === "The result could not be confirmed before the timeout."
             ? "Request timed out"
             : "Something went wrong",
         thrownDescription: () => "",
@@ -264,10 +265,11 @@ describe("useServerAction", () => {
 
     expect(toastAdd).toHaveBeenCalledWith({
       type: "error",
-      title: "Something went wrong",
-      description: "This action took too long and was cancelled.",
+      title: "Result not confirmed",
+      description: "The action may have completed. Refresh before retrying.",
     });
     expect(returned).toBeNull();
     expect(result.current.pending).toBe(false);
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 });

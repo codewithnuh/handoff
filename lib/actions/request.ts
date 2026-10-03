@@ -49,17 +49,22 @@ export const updateRequestStatus = defineAction({
     const readOnlyError = await assertWorkspaceWritable(access.value.workspaceId);
     if (readOnlyError) return readOnlyError;
 
-    const request = await db.request.update({
-      where: { id: input.id },
-      data: { status: input.status },
+    const request = await db.$transaction(async (tx) => {
+      const current = await tx.request.findUnique({ where: { id: input.id } });
+      if (!current) return null;
+      const updated = await tx.request.update({
+        where: { id: input.id },
+        data: { status: input.status },
+      });
+      await recordActivity({
+        projectId: updated.projectId,
+        type: "REQUEST_STATUS_CHANGED",
+        ...actorOf(access.value.user),
+        meta: { from: current.status, to: updated.status },
+      }, tx);
+      return updated;
     });
-
-    await recordActivity({
-      projectId: request.projectId,
-      type: "REQUEST_STATUS_CHANGED",
-      ...actorOf(access.value.user),
-      meta: { from: existing.status, to: request.status },
-    });
+    if (!request) return ActionResponse.failure(ERROR_CODES.NOT_FOUND, "Request not found.");
 
     return ActionResponse.success(
       request,

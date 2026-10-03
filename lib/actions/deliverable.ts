@@ -89,19 +89,21 @@ export const createDeliverable = defineAction({
   revalidate: true,
   errors: { fallback: "Failed to create the deliverable." },
   run: async (input, ctx): Promise<ActionResponseType<DeliverableResult>> => {
-    const deliverable = await db.deliverable.create({
-      data: {
+    const deliverable = await db.$transaction(async (tx) => {
+      const created = await tx.deliverable.create({
+        data: {
+          projectId: input.projectId,
+          title: input.title,
+          description: input.description ?? null,
+        },
+      });
+      await recordActivity({
         projectId: input.projectId,
-        title: input.title,
-        description: input.description ?? null,
-      },
-    });
-
-    await recordActivity({
-      projectId: input.projectId,
-      type: "DELIVERABLE_CREATED",
-      ...actorOf(ctx.user),
-      meta: { title: deliverable.title },
+        type: "DELIVERABLE_CREATED",
+        ...actorOf(ctx.user),
+        meta: { title: created.title },
+      }, tx);
+      return created;
     });
 
     return ActionResponse.success(
@@ -214,33 +216,23 @@ export const updateDeliverable = defineAction({
         data,
       });
       if (claimed.count !== 1) return null;
-      return tx.deliverable.findUniqueOrThrow({ where: { id } });
+      const updated = await tx.deliverable.findUniqueOrThrow({ where: { id } });
+      if (statusChanged) {
+        const activityType = updated.status === "IN_REVIEW"
+          ? "DELIVERABLE_SUBMITTED"
+          : null;
+        if (activityType) {
+          await recordActivity({
+            projectId: updated.projectId,
+            type: activityType,
+            ...actorOf(access.value.user),
+            meta: { from: existing.status, to: updated.status },
+          }, tx);
+        }
+      }
+      return updated;
     });
     if (!deliverable) return deliverableConflict();
-
-    if (statusChanged) {
-      const activityType = (() => {
-        switch (deliverable.status) {
-          case "APPROVED":
-            return "DELIVERABLE_APPROVED" as const;
-          case "CHANGES_REQUESTED":
-            return "CHANGES_REQUESTED" as const;
-          case "IN_REVIEW":
-            return "DELIVERABLE_SUBMITTED" as const;
-          default:
-            return null;
-        }
-      })();
-
-      if (activityType) {
-        await recordActivity({
-          projectId: deliverable.projectId,
-          type: activityType,
-          ...actorOf(access.value.user),
-          meta: { from: existing.status, to: deliverable.status },
-        });
-      }
-    }
 
     revalidatePath(`/portal/projects/${deliverable.projectId}`, "page");
     return ActionResponse.success(
@@ -375,7 +367,7 @@ export const addDeliverableVersion = defineAction({
         input.versionNumber ??
         (lastVersion ? lastVersion.versionNumber + 1 : 1);
 
-      return tx.deliverableVersion.create({
+      const created = await tx.deliverableVersion.create({
         data: {
           deliverableId: deliverable.id,
           versionNumber,
@@ -383,15 +375,15 @@ export const addDeliverableVersion = defineAction({
           notes: input.notes ?? null,
         },
       });
+      await recordActivity({
+        projectId: deliverable.projectId,
+        type: "DELIVERABLE_VERSION_UPLOADED",
+        ...actorOf(access.value.user),
+        meta: { versionNumber: created.versionNumber },
+      }, tx);
+      return created;
     });
     if (!version) return deliverableConflict();
-
-    await recordActivity({
-      projectId: deliverable.projectId,
-      type: "DELIVERABLE_VERSION_UPLOADED",
-      ...actorOf(access.value.user),
-      meta: { versionNumber: version.versionNumber },
-    });
 
     return ActionResponse.success(
       version,

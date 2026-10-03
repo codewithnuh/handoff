@@ -42,6 +42,7 @@ import type { TeamAssignmentProject } from "@/lib/queries/team";
 import {
   inviteTeammate,
   revokeTeamInvite,
+  retryTeamInviteEmail,
 } from "@/lib/actions/team";
 import { useServerAction } from "@/hooks/use-server-action";
 import type { WorkspacePermission } from "@/app/generated/prisma/client";
@@ -77,6 +78,11 @@ export function InvitesSection({
   const revoke = useServerAction(revokeTeamInvite, {
     success: "Invite revoked",
     failure: "Couldn't revoke",
+  });
+
+  const retryEmail = useServerAction(retryTeamInviteEmail, {
+    success: "Invite email checked",
+    failure: "Couldn't retry invite email",
   });
 
   const copy = async (id: string, url: string) => {
@@ -177,9 +183,24 @@ export function InvitesSection({
                         { month: "short", day: "numeric" },
                       )}`}
                 </p>
+                {inv.status === "PENDING" && (
+                  <p className="text-xs text-muted-foreground">
+                    Email: {inv.emailStatus.toLowerCase()}
+                  </p>
+                )}
               </div>
               {inv.status === "PENDING" && (
                 <div className="flex items-center gap-1 shrink-0">
+                  {inv.emailStatus !== "SENT" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={retryEmail.pending}
+                      onClick={() => void retryEmail.run({ id: inv.id })}
+                    >
+                      {retryEmail.pending ? "Sending…" : "Retry email"}
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="icon-sm"
