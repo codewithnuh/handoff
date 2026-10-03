@@ -94,7 +94,7 @@ export const createProject = defineAction({
     const creation = await db.$transaction(async (tx) => {
       // Serialize the final limit check and insert. The early pipeline check
       // gives a fast failure; this lock closes the concurrent create race.
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`handoff:project-limit:${ctx.workspace.id}`}))`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`handoff:project-limit:${ctx.workspace.id}`})) IS NULL`;
       const capacity = await assertCanCreateProject(ctx.workspace.id, tx);
       if (!capacity.ok) return capacity;
 
