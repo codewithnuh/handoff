@@ -8,17 +8,19 @@
  */
 
 import React, { useState, useCallback } from "react";
-import { useDropzone } from "@uploadthing/react";
+import { generateReactHelpers, useDropzone } from "@uploadthing/react";
 import { Upload, FileText, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type { OurFileRouter } from "@/lib/uploadthing";
+
+const { useUploadThing } = generateReactHelpers<OurFileRouter>();
 
 export type UploadedFile = {
-  url: string;
+  fileId: string;
   name: string;
   size: number;
   type: string;
-  key: string;
 };
 
 interface FileUploadProps {
@@ -27,6 +29,8 @@ interface FileUploadProps {
   disabled?: boolean;
   className?: string;
   accept?: string[];
+  projectId: string;
+  deliverableId?: string;
 }
 
 export function FileUpload({
@@ -34,9 +38,13 @@ export function FileUpload({
   onUploadError,
   disabled = false,
   className,
+  projectId,
+  deliverableId,
 }: FileUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
+
+  const { startUpload } = useUploadThing("deliverableFile");
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
@@ -46,27 +54,13 @@ export function FileUpload({
       setIsUploading(true);
 
       try {
-        const formData = new FormData();
-        formData.append("files", file);
-
-        const response = await fetch("/api/uploadthing", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!response.ok) {
-          throw new Error("Upload failed");
-        }
-
-        const result = await response.json();
-
-        if (result?.[0]) {
+        const result = await startUpload([file], { projectId, deliverableId });
+        if (result?.[0]?.serverData?.fileId) {
           const uploaded: UploadedFile = {
-            url: result[0].url ?? result[0].ufsUrl ?? "",
-            name: result[0].name ?? file.name,
-            size: result[0].size ?? file.size,
-            type: result[0].type ?? file.type,
-            key: result[0].key ?? result[0].key ?? "",
+            fileId: result[0].serverData.fileId,
+            name: result[0].serverData.filename,
+            size: result[0].serverData.size ?? file.size,
+            type: result[0].serverData.type ?? file.type,
           };
           setUploadedFile(uploaded);
           onUploadComplete(uploaded);
@@ -79,14 +73,34 @@ export function FileUpload({
         setIsUploading(false);
       }
     },
-    [onUploadComplete, onUploadError],
+    [onUploadComplete, onUploadError, projectId, deliverableId, startUpload],
   );
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const dropzone = {
     onDrop,
+    accept: {
+      "image/png": [".png"],
+      "image/jpeg": [".jpg", ".jpeg"],
+      "image/gif": [".gif"],
+      "image/webp": [".webp"],
+      "application/pdf": [".pdf"],
+      "application/zip": [".zip"],
+      "text/plain": [".txt"],
+      "text/csv": [".csv"],
+      "application/msword": [".doc"],
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+      "application/vnd.ms-excel": [".xls"],
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+      "application/vnd.ms-powerpoint": [".ppt"],
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation": [".pptx"],
+      "application/postscript": [".eps", ".ps"],
+    },
+    maxSize: 32 * 1024 * 1024,
     maxFiles: 1,
     disabled: disabled || isUploading,
-  });
+  };
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone(dropzone);
 
   const removeFile = () => {
     setUploadedFile(null);
@@ -140,7 +154,7 @@ export function FileUpload({
             : "Drag & drop a file here, or click to select"}
       </p>
       <p className="mt-1 text-[11px] text-muted-foreground">
-        Images, PDFs, documents, ZIPs up to 50MB
+        PDFs and ZIPs up to 32MB; documents and images up to 16MB; text up to 8MB
       </p>
     </div>
   );

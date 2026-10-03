@@ -30,7 +30,9 @@ This matrix maps exported server entry points to the identity and scope they mus
 | `createInvoice`, `updateInvoice`, `deleteInvoice`, `sendInvoice`, `markInvoicePaid`, `cancelInvoice`, `addLineItem`, `removeLineItem`, `convertDeliverablesToLineItems` | Invoice/project IDs are resolved and bound to the active workspace. | Owner/admin/lead/contributor with deliverable management capability; linked deliverables must belong to the same project. |
 | `inviteClient`, `revokeClientAccess`, `resendInvitation` | Resolved project. | Project lead, owner, or admin; access is explicit per project and email. |
 | `clientApproveDeliverable`, `clientRequestChanges`, `clientAddComment`, `clientCreateRequest` | Signed portal session, then explicit `ProjectAccess` for the target's parent project. | DRAFT deliverables are not actionable; review state and optimistic version must match. |
-| `createFile` | Active workspace session. | Store upload metadata only after authenticated upload flow; file IDs are checked again when linked or downloaded. |
+| `deliverableFile` upload route | Better Auth session, active workspace, project membership, and writable plan are checked before creating a one-hour upload intent. | Owners, admins, leads, and contributors; observers, outsiders, signed-out users, and read-only workspaces are denied before provider allocation. Verified provider completion creates the only file record. |
+| `addDeliverableVersion` | Target deliverable is resolved and its project is authorized. | A completed upload intent must match the same project and uploader and can be consumed once. |
+| `GET /api/files/[id]/download` | File's project is resolved before issuing a signed URL. | Dashboard project access or explicit portal project access; every redirect has a 60-second TTL and no-store headers. |
 | `listAllLinks` | Active workspace. | `MANAGE_MEMBERS`; return only invitation links from this workspace. |
 | `revokeLink`, `bulkRevokeLinks` | Active workspace. | Owner/admin only; client invitations must belong to this workspace. |
 

@@ -11,6 +11,7 @@ import { can, defineAction, writable } from "@/lib/actions/define";
 import { resolveProjectAccess } from "@/lib/access";
 import { ERROR_CODES } from "@/lib/constants/errors";
 import { assertWorkspaceWritable } from "@/lib/services/plan-limits";
+import { claimFileForVersion } from "@/lib/files/claim-file";
 import type { ActionResponseType } from "@/lib/types/action";
 import { ActionResponse } from "@/lib/utils/action-response";
 import {
@@ -329,13 +330,23 @@ export const addDeliverableVersion = defineAction({
       input.versionNumber ??
       (lastVersion ? lastVersion.versionNumber + 1 : 1);
 
-    const version = await db.deliverableVersion.create({
-      data: {
-        deliverableId: deliverable.id,
-        versionNumber,
-        fileId: input.fileId ?? null,
-        notes: input.notes ?? null,
-      },
+    const version = await db.$transaction(async (tx) => {
+      if (input.fileId) {
+        await claimFileForVersion(tx, {
+          fileId: input.fileId,
+          projectId: deliverable.projectId,
+          userId: access.value.user.id,
+        });
+      }
+
+      return tx.deliverableVersion.create({
+        data: {
+          deliverableId: deliverable.id,
+          versionNumber,
+          fileId: input.fileId ?? null,
+          notes: input.notes ?? null,
+        },
+      });
     });
 
     await recordActivity({

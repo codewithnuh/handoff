@@ -39,7 +39,6 @@ import {
   deleteDeliverable,
   addDeliverableVersion,
 } from "@/lib/actions/deliverable";
-import { createFile } from "@/lib/actions/file";
 import { useServerAction } from "@/hooks/use-server-action";
 import { DeliverableStatusBadge } from "./status-badges";
 import { formatDate } from "@/lib/presentational/format";
@@ -50,10 +49,12 @@ type DeliverableItem = ProjectDetailData["deliverables"][number];
 
 export function DeliverableCard({
   item,
+  projectId,
   permissions,
   currentUserId,
 }: {
   item: DeliverableItem;
+  projectId: string;
   permissions: ViewerPermissions;
   currentUserId: string;
 }) {
@@ -68,11 +69,6 @@ export function DeliverableCard({
     successDescription: () => "The deliverable has been removed.",
     failure: "Delete failed",
     onSuccess: () => setDeleteOpen(false),
-  });
-
-  const uploadFile = useServerAction(createFile, {
-    failure: "Upload failed",
-    refresh: false,
   });
 
   const addVersion = useServerAction(addDeliverableVersion, {
@@ -95,7 +91,7 @@ export function DeliverableCard({
     onThrown: () => router.refresh(),
   });
 
-  const isUploading = uploadFile.pending || addVersion.pending;
+  const isUploading = addVersion.pending;
 
   const isDraft = item.status === "DRAFT";
   const canSubmit = permissions.canSubmitForReview;
@@ -121,17 +117,7 @@ export function DeliverableCard({
   const handleUploadVersion = async () => {
     if (!uploadedFile) return;
 
-    // 1. Save file metadata
-    const fileResult = await uploadFile.run({
-      key: uploadedFile.key,
-      filename: uploadedFile.name,
-      mimeType: uploadedFile.type,
-      size: uploadedFile.size,
-    });
-
-    if (!fileResult?.success) return;
-
-    // 2. Create new version
+    // Create a version referencing the server verified upload record.
     const nextVersion = item.versions.length > 0
       ? Math.max(...item.versions.map((v) => v.versionNumber)) + 1
       : 1;
@@ -139,7 +125,7 @@ export function DeliverableCard({
     const versionResult = await addVersion.run({
       deliverableId: item.id,
       versionNumber: nextVersion,
-      fileId: fileResult.data.id,
+      fileId: uploadedFile.fileId,
       notes: versionNotes.trim() || null,
     });
 
@@ -253,9 +239,11 @@ export function DeliverableCard({
                       </div>
                     </div>
                     {ver.file && (
-                      <Button variant="ghost" size="icon-sm">
+                      <a href={`/api/files/${ver.file.id}/download`}>
+                      <Button variant="ghost" size="icon-sm" aria-label="Download file">
                         <Download className="h-3.5 w-3.5" />
                       </Button>
+                      </a>
                     )}
                   </div>
                 ))}
@@ -298,6 +286,8 @@ export function DeliverableCard({
 
           <div className="flex flex-col gap-4">
             <FileUpload
+              projectId={projectId}
+              deliverableId={item.id}
               onUploadComplete={(file) => setUploadedFile(file)}
               onUploadError={(error) =>
                 toast.add({

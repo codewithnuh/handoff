@@ -143,6 +143,8 @@ model User {
   workspaceMemberships WorkspaceMember[]
   projectMemberships   ProjectMember[]
   assignedTasks        Task[] @relation("TaskAssignee")
+  uploadedFiles        File[] @relation("FileUploader")
+  fileUploadIntents    FileUploadIntent[]
   // Subscription
   subscription Subscription?
   @@map("users")
@@ -351,6 +353,8 @@ model Project {
   access       ProjectAccess[]
   members      ProjectMember[]
   tasks        Task[]
+  files        File[]
+  fileUploadIntents FileUploadIntent[]
 
   @@index([workspaceId])
   @@index([clientId])
@@ -588,11 +592,41 @@ model File {
   filename  String
   mimeType  String?
   size      Int? // bytes
+  projectId String?
+  uploadedByUserId String?
+  uploadIntentId String? @unique
+  attachedAt DateTime?
   createdAt DateTime @default(now())
 
-  versions DeliverableVersion[]
+  project       Project?          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploadedBy    User?             @relation("FileUploader", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  uploadIntent  FileUploadIntent? @relation(fields: [uploadIntentId], references: [id], onDelete: SetNull)
+  versions      DeliverableVersion[]
 
+  @@index([projectId, createdAt])
+  @@index([uploadedByUserId])
   @@map("files")
+}
+
+// Server created before each UploadThing allocation. The customId on the
+// provider object binds the verified completion callback back to this row.
+model FileUploadIntent {
+  id               String   @id @default(cuid())
+  projectId        String
+  userId           String
+  providerKey      String?  @unique
+  status           String   @default("PENDING")
+  expiresAt        DateTime
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  file    File?
+
+  @@index([status, expiresAt])
+  @@index([projectId, userId])
+  @@map("file_upload_intents")
 }
 
 // ──────────────────────────────────────────────

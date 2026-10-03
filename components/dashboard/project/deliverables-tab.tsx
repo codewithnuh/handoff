@@ -46,6 +46,7 @@ export function DeliverablesTab({
           <DeliverableCard
             key={item.id}
             item={item}
+            projectId={projectId}
             permissions={permissions}
             currentUserId={currentUserId}
           />

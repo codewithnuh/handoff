@@ -49,6 +49,8 @@
     "db:reset": "prisma migrate reset",
     "db:wipe": "node scripts/db-wipe.mjs",
     "db:deploy": "prisma migrate deploy",
+    "files:cleanup": "tsx scripts/cleanup-file-uploads.ts",
+    "files:make-private": "tsx scripts/make-uploadthing-files-private.ts",
     "db:studio": "prisma studio",
     "lint": "eslint"
   },
