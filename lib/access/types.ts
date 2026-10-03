@@ -39,6 +39,8 @@ export type ProjectAccess = {
   /** The authenticated caller — handy for activity logging */
   user: AuthUser;
   role: EffectiveRole;
+  /** True only for the workspace owner; admins also receive an OWNER role. */
+  isWorkspaceOwner: boolean;
   /** Can edit project name/description/dates/status/progress */
   canEditProject: boolean;
   /** Owner/admin only — destructive */

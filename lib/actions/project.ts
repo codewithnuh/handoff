@@ -255,14 +255,24 @@ export const deleteProject = defineAction({
   schema: projectIdSchema,
   guard: (input) => resolveProjectAccess(input.id),
   check: [
+    (ctx) =>
+      ctx.isWorkspaceOwner
+        ? null
+        : ActionResponse.failure(
+            ERROR_CODES.FORBIDDEN,
+            "Only the workspace owner can delete a project.",
+          ),
     can(
       "canDeleteProject",
-      "Only the workspace owner or an admin can delete projects.",
+      "Only the workspace owner can delete projects.",
     ),
     writable,
   ],
   revalidate: true,
-  errors: { fallback: "Failed to delete the project." },
+  errors: {
+    fallback: "Failed to delete the project.",
+    referenced: "This project has invoices. Preserve the invoice history before deleting the project.",
+  },
   run: async (input, ctx): Promise<ActionResponseType<DeleteProjectResult>> => {
     const result = await db.project.deleteMany({
       where: {

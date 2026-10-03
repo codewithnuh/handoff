@@ -192,10 +192,11 @@ export function ProjectDetail({ data, permissions, initialTasks, currentUserId }
               )}
 
               {/* Delete Project Button */}
-              {permissions.canDeleteProject && (
+              {permissions.isWorkspaceOwner && permissions.canDeleteProject && (
                 <Button
                   variant="destructive"
                   size="sm"
+                  aria-label="Delete project"
                   onClick={() => setIsDeleting(true)}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -299,7 +300,7 @@ export function ProjectDetail({ data, permissions, initialTasks, currentUserId }
         onOpenChange={setIsDeleting}
         onConfirm={handleDeleteProject}
         title="Delete Project"
-        description={`Are you sure you want to delete "${project.name}"? This will also delete all deliverables, requests, invoices, and activity. This action cannot be undone.`}
+        description={`Deleting "${project.name}" permanently removes its deliverables, requests, tasks, files, access links, and activity. Uploaded storage objects may need separate cleanup. Projects with invoices cannot be deleted, so financial history is preserved. This action cannot be undone.`}
         isDeleting={remove.pending}
       />
     </div>

@@ -152,8 +152,12 @@ cp .env.example .env
 Fill in the required variables:
 
 ```env
-# Required — PostgreSQL connection string
-DATABASE_URL="postgresql://user:password@localhost:5432/handoff"
+# PostgreSQL connection string used by the running application
+DATABASE_URL="postgresql://user:password@localhost:5432/handoff_dev"
+
+# Required for local schema push, migration dev/reset, and db:wipe only.
+# Must target local database handoff_dev or handoff_test; never falls back to DATABASE_URL.
+DEV_DATABASE_URL="postgresql://user:password@localhost:5432/handoff_dev"
 
 # Required — Better Auth secret (generate with: openssl rand -hex 32)
 BETTER_AUTH_SECRET="replace-with-at-least-32-random-characters"
@@ -471,10 +475,12 @@ Client ─┬─ Project (1:N)
 | `pnpm db:push` | Push schema changes to the database |
 | `pnpm db:migrate` | Create and apply migrations |
 | `pnpm db:seed` | Seed the database |
-| `pnpm db:reset` | Reset the database (drop all data) |
+| `pnpm db:reset` | Reset local development database (drop all data) |
 | `pnpm db:studio` | Open Prisma Studio (visual DB browser) |
 | `pnpm db:deploy` | Deploy migrations to production |
-| `pnpm db:wipe` | Wipe ALL tables (development only) |
+| `pnpm db:wipe` | Wipe all tables in the guarded local development database |
+
+The `db:push`, `db:migrate`, `db:reset`, and `db:wipe` commands require a local `DEV_DATABASE_URL` pointing to `handoff_dev` or `handoff_test`. They refuse production mode, remote hosts, and inherited `DATABASE_URL` fallbacks. See [beta operations and recovery](./docs/beta-operations.md) before deploying or deleting project data.
 
 ---
 

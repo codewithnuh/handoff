@@ -151,6 +151,7 @@ describe("resolveProjectAccess", () => {
     expect(guard.ok).toBe(true);
     if (guard.ok) {
       expect(guard.value.role).toBe("OWNER");
+      expect(guard.value.isWorkspaceOwner).toBe(true);
       expect(guard.value.canDeleteProject).toBe(true);
       expect(guard.value.canSubmitForReview).toBe(true);
       expect(guard.value.isObserver).toBe(false);
@@ -227,6 +228,7 @@ describe("resolveProjectAccess", () => {
       expect(guard.ok).toBe(true);
       if (guard.ok) {
         expect(guard.value.role).toBe(role);
+        expect(guard.value.isWorkspaceOwner).toBe(false);
         expect(guard.value).toMatchObject(expected);
       }
     });

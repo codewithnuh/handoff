@@ -136,6 +136,17 @@ test("real signup, OTP, password reset, login, and persistent client/project cre
   await page.getByRole("button", { name: "Send Invoice" }).click();
   await expect(page.getByText("Sent", { exact: true })).toBeVisible();
 
+  await page.getByRole("button", { name: "Delete project" }).click();
+  const deleteDialog = page.getByRole("alertdialog", { name: "Delete Project" });
+  await expect(deleteDialog).toContainText("Projects with invoices cannot be deleted");
+  await deleteDialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(deleteDialog).toBeHidden();
+  await page.getByRole("button", { name: "Delete project" }).click();
+  await page.getByRole("alertdialog", { name: "Delete Project" }).getByRole("button", { name: "Delete" }).click();
+  await expect(page.getByText(/This project has invoices/i)).toBeVisible();
+  await page.getByRole("tab", { name: /Invoices/ }).click();
+  await expect(page.getByText(invoiceDescription, { exact: true })).toBeVisible();
+
   await page.getByRole("button", { name: "Invite" }).click();
   const inviteDialog = page.getByRole("dialog", { name: "Invite client to project" });
   await inviteDialog.getByRole("button", { name: "Create Link" }).click();
