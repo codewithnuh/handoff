@@ -140,7 +140,7 @@ sub-components. Shared status/label maps belong in
 
 ### Tests
 
-Vitest has separate unit and PostgreSQL integration commands. `pnpm test` runs unit tests against `lib/test/fake-db.ts`. `pnpm test:integration` applies committed migrations and runs real Prisma queries against a dedicated local PostgreSQL 16 database named `handoff_test`.
+Vitest has separate unit and PostgreSQL integration commands. `pnpm test` runs unit tests against `lib/test/fake-db.ts`. `pnpm test:integration` applies committed migrations and runs real Prisma queries against a dedicated local PostgreSQL 16 database named `handoff_test`. `pnpm test:migrations` checks a fresh install and a populated upgrade from the pinned pre-beta baseline, applies migrations twice, verifies Prisma reports no drift, and checks data and database constraints.
 
 From a clean checkout with local PostgreSQL available:
 
@@ -151,9 +151,13 @@ createdb handoff_test
 TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/handoff_test pnpm test:integration
 ```
 
-On PowerShell, set `$env:TEST_DATABASE_URL` to that local URL, then run `pnpm test:integration`. The database must already exist. Use local credentials for your PostgreSQL installation if they differ from the example.
+On PowerShell, set `$env:TEST_DATABASE_URL` to that local URL, then run `pnpm test:integration` or `pnpm test:migrations`. The database must already exist. Use local credentials for your PostgreSQL installation if they differ from the example.
 
 Integration fixtures use reserved `itest_` IDs, fixed timestamps, and cleanup limited to those fixture records. Never point integration tests at a development or production database. The runner requires `TEST_DATABASE_URL`, validates the local host and exact database name before migrating, and sets `DATABASE_URL` only in the child processes it starts. No SMTP credentials, storage credentials, production secrets, or paid services are needed.
+
+The migration suite applies its work to uniquely named schemas inside the guarded `handoff_test` database and drops only those schemas on exit. Its upgrade baseline is the last persisted pre-beta migration, `20261003000000_private_project_files`; when that release baseline changes, review and pin the new baseline explicitly. Migration history is append-only: correct an applied schema with a forward migration, never edit a migration already deployed. The current reconciliation archives historical Stripe subscription rows and carries a remaining paid term into the user-owned subscription, while keeping the existing invoice total and treating it as the legacy subtotal.
+
+For deployment, record the source baseline and target commit SHAs, run `pnpm db:deploy`, and verify the application against the migrated database before routing traffic. If a migration fails, stop rollout and use a forward fix after inspecting the database. Do not automatically reverse destructive changes or restore an older backup over newer writes; choose recovery only after deciding how to preserve those writes. Database backups should be taken and restore-tested according to the deployment environment's recovery plan.
 
 Tests are colocated with what they cover:
 

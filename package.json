@@ -41,6 +41,7 @@
     "prebuild": "prisma generate",
     "test": "vitest run",
     "test:integration": "node scripts/test-integration.mjs",
+    "test:migrations": "node scripts/test-migrations.mjs",
     "test:watch": "vitest ",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",

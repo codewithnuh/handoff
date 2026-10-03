@@ -659,6 +659,24 @@ model Subscription {
   @@map("subscriptions")
 }
 
+// Historical Stripe subscription records are retained as billing audit data.
+// Current entitlements live in Subscription and are no longer managed through
+// Stripe. This archive intentionally has no workspace relation so later
+// workspace deletion cannot erase billing history.
+model LegacyStripeSubscription {
+  id                String             @id
+  workspaceId       String             @unique
+  plan              SubscriptionPlan   @default(FREE)
+  status            SubscriptionStatus @default(ACTIVE)
+  stripeCustomerId  String?            @unique
+  stripeSubscriptionId String?         @unique
+  currentPeriodEnd  DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime
+
+  @@map("legacy_stripe_subscriptions")
+}
+
 // ──────────────────────────────────────────────
 // Paddle webhook idempotency
 // Paddle can and will redeliver the same event — always check

@@ -26,6 +26,13 @@ Closes #
 - [ ] No `any` or unsafe casts introduced
 - [ ] Updated docs (README) if behavior changed
 
+## Data change and rollout notes
+
+- Baseline commit or migration:
+- Target commit:
+- Data preserved or backfilled:
+- Deployment and recovery notes (forward fix / write-loss decision):
+
 ## Screenshots (if applicable)
 
 ## Notes for reviewers
