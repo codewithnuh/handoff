@@ -91,18 +91,30 @@ export const createProject = defineAction({
   revalidate: true,
   errors: { fallback: "Failed to create the project." },
   run: async (input, ctx): Promise<ActionResponseType<ProjectResult>> => {
-    const project = await db.project.create({
-      data: {
-        workspaceId: ctx.workspace.id,
-        clientId: input.clientId,
-        name: input.name,
-        description: input.description ?? null,
-        status: input.status,
-        progress: input.progress,
-        startDate: input.startDate ?? null,
-        dueDate: input.dueDate ?? null,
-      },
+    const creation = await db.$transaction(async (tx) => {
+      // Serialize the final limit check and insert. The early pipeline check
+      // gives a fast failure; this lock closes the concurrent create race.
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`handoff:project-limit:${ctx.workspace.id}`}))`;
+      const capacity = await assertCanCreateProject(ctx.workspace.id, tx);
+      if (!capacity.ok) return capacity;
+
+      const project = await tx.project.create({
+        data: {
+          workspaceId: ctx.workspace.id,
+          clientId: input.clientId,
+          name: input.name,
+          description: input.description ?? null,
+          status: input.status,
+          progress: input.progress,
+          startDate: input.startDate ?? null,
+          dueDate: input.dueDate ?? null,
+        },
+      });
+      return { ok: true as const, value: project };
     });
+
+    if (!creation.ok) return creation.error;
+    const project = creation.value;
 
     await recordActivity({
       projectId: project.id,
