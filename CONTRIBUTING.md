@@ -9,7 +9,7 @@ identifier and a term there disagree, the term in CONTEXT.md wins.
 
 ## Getting started
 
-Requirements: Node.js 22 or newer, pnpm 11.17.0 (pinned in `package.json`), and PostgreSQL.
+Requirements: Node.js 22 or newer, pnpm 11.17.0 (pinned in `package.json`), and PostgreSQL 14 or newer. CI currently runs PostgreSQL 16.
 
 ```bash
 # Install dependencies (use pnpm — see packageManager in package.json)
@@ -18,6 +18,9 @@ pnpm install
 # Configure environment
 cp .env.example .env
 # set DATABASE_URL, DEV_DATABASE_URL, BETTER_AUTH_SECRET, etc.
+
+# Create a local development database
+createdb handoff_dev
 
 # Create the database schema
 pnpm db:generate
@@ -38,12 +41,14 @@ printed to the console (`🔑 [DEV OTP] Code for …`).
    ```
 2. Write your code, following the existing conventions (see below).
 3. Add or update tests.
-4. Run the checks locally — this is exactly what CI runs, in order:
+4. Run the checks locally:
    ```bash
    pnpm lint
-   pnpm exec tsc --noEmit
-   pnpm test
+   pnpm typecheck
+   pnpm test:db-guard
+   pnpm test:unit
    TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/handoff_test pnpm test:integration
+   pnpm test:migrations
    pnpm build # CI's second job; required for changes to routes, env, or config
    ```
    Create the local `handoff_test` database before the first integration run. In PowerShell, set `$env:TEST_DATABASE_URL` to the same URL before running `pnpm test:integration`. The integration runner refuses remote hosts, any database name other than `handoff_test`, and never falls back to `DATABASE_URL` from `.env`.

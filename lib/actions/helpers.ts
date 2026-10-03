@@ -4,6 +4,7 @@ import { ERROR_CODES } from "@/lib/constants/errors";
 import type { ErrorCode } from "@/lib/constants/errors";
 import type { ActionError } from "@/lib/types/action";
 import { ActionResponse } from "@/lib/utils/action-response";
+import { safeErrorName } from "@/lib/diagnostics";
 
 export type ErrorMapOptions = {
   /** Fallback message when the error doesn't match a known code. */
@@ -101,7 +102,10 @@ export const toActionError = (
       case "P2014":
         return ActionResponse.failure(ERROR_CODES.CONFLICT, referenced);
       default:
-        console.error("Prisma error:", error);
+        console.error("Prisma request failed", {
+          errorName: safeErrorName(error),
+          code: error.code,
+        });
         return ActionResponse.failure(
           ERROR_CODES.DATABASE_ERROR,
           "The database could not complete this request.",
@@ -110,6 +114,6 @@ export const toActionError = (
   }
 
   // 3. Unknown errors
-  console.error("Unexpected action error:", error);
+  console.error("Unexpected action error", { errorName: safeErrorName(error) });
   return ActionResponse.failure(ERROR_CODES.INTERNAL_ERROR, fallback);
 };

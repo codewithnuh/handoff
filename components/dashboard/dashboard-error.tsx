@@ -4,6 +4,7 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ErrorPanel } from "@/components/presentational/error-panel";
+import { safeErrorName } from "@/lib/diagnostics";
 
 /** Hook-based button so the class boundary can navigate via the App Router */
 function SignInButton() {
@@ -43,7 +44,10 @@ export class DashboardError extends React.Component<
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("Dashboard section error:", error, errorInfo);
+    console.error("Dashboard section error:", {
+      errorName: safeErrorName(error),
+      componentStackPresent: Boolean(errorInfo.componentStack),
+    });
   }
 
   render() {
@@ -69,8 +73,9 @@ export class DashboardError extends React.Component<
                   ? "Your session has expired. Please sign in again."
                   : isNetworkError
                     ? "A network error occurred. Check your connection and try again."
-                    : this.state.error?.message ||
-                      "An unexpected error occurred."
+                    : process.env.NODE_ENV === "development"
+                      ? this.state.error?.message || "An unexpected error occurred."
+                      : "An unexpected error occurred. Try again or contact your operator with the error ID."
               }
               contentClassName="space-y-3"
               actions={isAuthError ? <SignInButton /> : undefined}

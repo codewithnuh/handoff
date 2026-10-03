@@ -10,6 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { IconAlertOctagon } from "@tabler/icons-react";
+import { safeErrorName } from "@/lib/diagnostics";
 
 export default function GlobalError({
   error,
@@ -21,8 +22,10 @@ export default function GlobalError({
   const router = useRouter();
 
   useEffect(() => {
-    // Log to external error reporting service in production
-    console.error("Unhandled error:", error);
+    console.error("Unhandled error:", {
+      errorName: safeErrorName(error),
+      errorId: error.digest,
+    });
   }, [error]);
 
   return (

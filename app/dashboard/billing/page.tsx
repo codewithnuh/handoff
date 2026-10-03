@@ -70,8 +70,8 @@ export default async function BillingPage() {
           <PlanCards usage={usage} />
 
           <p className="text-[10px] text-muted-foreground">
-            Payment processing is not yet connected. Buttons are placeholders
-            ready for your payment provider.
+            Online checkout and subscription changes are unavailable in this beta.
+            Existing plan limits still apply to your workspace.
           </p>
         </>
       ) : (
