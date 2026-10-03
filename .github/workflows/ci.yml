@@ -70,6 +70,9 @@ jobs:
       - name: Generate Prisma Client
         run: pnpm db:generate
 
+      - name: Fresh install and populated upgrade migration tests
+        run: pnpm test:migrations
+
       - name: Validate environment variables
         run: |
           test "$DATABASE_URL" = "postgresql://postgres:postgres@localhost:5432/handoff_test" || {
