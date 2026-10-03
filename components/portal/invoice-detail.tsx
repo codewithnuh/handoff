@@ -20,6 +20,7 @@ type PortalInvoice = {
   invoiceNumber: string;
   description: string | null;
   subtotal: string;
+  discount: string;
   taxRate: string;
   taxAmount: string;
   amount: string;
@@ -188,6 +189,14 @@ export function PortalInvoiceSection({
                         {formatCurrency(invoice.subtotal, invoice.currency)}
                       </span>
                     </div>
+                    {Number(invoice.discount) > 0 && (
+                      <div className="flex justify-between text-green-600">
+                        <span>Discount</span>
+                        <span className="font-medium">
+                          -{formatCurrency(invoice.discount, invoice.currency)}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">
                         Tax ({invoice.taxRate}%)

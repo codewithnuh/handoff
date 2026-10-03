@@ -7,8 +7,8 @@
  *      the (projectId, invoiceNumber) unique constraint, retried on collision.
  *   2. Total recalculation: reading line items and writing the totals happens
  *      in one transaction, not as two unrelated statements.
- *   3. Decimal mapping: JS numbers become money columns through `toDecimal`
- *      only — one `.toFixed(2)` for the whole product.
+ *   3. Decimal mapping: money columns pass through exact minor-unit rounding
+ *      before Prisma receives a decimal string.
  *
  * The pure arithmetic (`computeTotals`) lives in ./totals so the client-side
  * create-invoice preview computes exactly what the server will store.
@@ -16,7 +16,14 @@
 
 import { Prisma, type Invoice } from "@/app/generated/prisma/client";
 import { db } from "@/lib/prisma";
-import { computeTotals } from "@/lib/invoice/totals";
+import { computeLineAmountMinor, computeTotalsFromAmountsExact, MAX_INVOICE_AMOUNT } from "@/lib/invoice/totals";
+import {
+  fromScaledInteger,
+  INVOICE_CURRENCIES,
+  toScaledInteger,
+  roundToPrecision,
+  type InvoiceCurrency,
+} from "@/lib/invoice/totals";
 
 type Tx = Prisma.TransactionClient;
 
@@ -32,6 +39,36 @@ export type LineItemSeed = {
   deliverableId?: string | null;
 };
 
+export type LockedInvoiceMutation<T> = (tx: Tx, invoice: Invoice) => Promise<T>;
+
+/** Serialize every invoice edit and lifecycle transition on the invoice row. */
+export async function withLockedInvoice<T>(
+  invoiceId: string,
+  mutation: (tx: Tx, invoice: Invoice | null) => Promise<T>,
+): Promise<T> {
+  return db.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "invoices" WHERE "id" = ${invoiceId} FOR UPDATE
+    `;
+    const invoice = rows.length
+      ? await tx.invoice.findUnique({ where: { id: invoiceId } })
+      : null;
+    return mutation(tx, invoice);
+  });
+}
+
+/** Serialize and enforce the draft-only policy in the same transaction. */
+export async function withDraftInvoice<T>(
+  invoiceId: string,
+  mutation: LockedInvoiceMutation<T>,
+): Promise<{ kind: "MISSING" } | { kind: "NOT_DRAFT" } | { kind: "OK"; value: T }> {
+  return withLockedInvoice(invoiceId, async (tx, invoice) => {
+    if (!invoice) return { kind: "MISSING" };
+    if (invoice.status !== "DRAFT") return { kind: "NOT_DRAFT" };
+    return { kind: "OK", value: await mutation(tx, invoice) };
+  });
+}
+
 /** Attempts to allocate a number before giving up (a collision rolls back and retries). */
 const MAX_NUMBER_ATTEMPTS = 3;
 
@@ -40,11 +77,16 @@ const MAX_NUMBER_ATTEMPTS = 3;
  * precision, then hand Prisma a 2-decimal string.
  */
 export function toDecimal(value: number | string): Prisma.Decimal {
-  return new Prisma.Decimal(typeof value === "number" ? value.toFixed(2) : value);
+  return new Prisma.Decimal(roundToPrecision(value, 2));
+}
+
+export function toQuantityDecimal(value: number | string): Prisma.Decimal {
+  return new Prisma.Decimal(roundToPrecision(value, 3));
 }
 
 export type MoneyStrings = {
   subtotal: string;
+  discount: string;
   taxRate: string;
   taxAmount: string;
   amount: string;
@@ -58,6 +100,7 @@ export type MoneyStrings = {
 export function moneyStrings<
   T extends {
     subtotal: unknown;
+    discount: unknown;
     taxRate: unknown;
     taxAmount: unknown;
     amount: unknown;
@@ -68,6 +111,7 @@ export function moneyStrings<
   return {
     ...row,
     subtotal: String(row.subtotal),
+    discount: String(row.discount),
     taxRate: String(row.taxRate),
     taxAmount: String(row.taxAmount),
     amount: String(row.amount),
@@ -108,7 +152,7 @@ async function nextInvoiceNumber(tx: Tx, projectId: string): Promise<string> {
   return `INV-${String(highest + 1).padStart(3, "0")}`;
 }
 
-async function recalculate(tx: Tx, invoiceId: string): Promise<void> {
+export async function recalculateInvoiceInTransaction(tx: Tx, invoiceId: string): Promise<boolean> {
   const lineItems = await tx.invoiceLineItem.findMany({
     where: { invoiceId },
     select: { amount: true },
@@ -116,16 +160,25 @@ async function recalculate(tx: Tx, invoiceId: string): Promise<void> {
 
   const invoice = await tx.invoice.findUnique({
     where: { id: invoiceId },
-    select: { taxRate: true, discount: true },
+    select: { taxRate: true, discount: true, currency: true },
   });
 
-  if (!invoice) return;
+  if (!invoice) return false;
 
-  const totals = computeTotals({
-    subtotal: lineItems.reduce((sum, item) => sum + Number(item.amount), 0),
-    discount: Number(invoice.discount),
-    taxRate: Number(invoice.taxRate),
+  const currency = invoice.currency as InvoiceCurrency;
+  const precision = INVOICE_CURRENCIES[currency];
+  // Keep this guard close to persistence so unexpected legacy currencies fail
+  // visibly instead of writing totals with an implicit USD scale.
+  if (precision === undefined) throw new RangeError(`Unsupported invoice currency: ${invoice.currency}`);
+  const totals = computeTotalsFromAmountsExact({
+    lineAmounts: lineItems.map((item) => String(item.amount)),
+    discount: String(invoice.discount),
+    taxRate: String(invoice.taxRate),
+    currency,
   });
+
+  if (toScaledInteger(String(invoice.discount), precision) > toScaledInteger(totals.subtotal, precision)) return false;
+  if (toScaledInteger(totals.total, precision) > toScaledInteger(MAX_INVOICE_AMOUNT, precision)) return false;
 
   await tx.invoice.update({
     where: { id: invoiceId },
@@ -135,6 +188,7 @@ async function recalculate(tx: Tx, invoiceId: string): Promise<void> {
       amount: toDecimal(totals.total),
     },
   });
+  return true;
 }
 
 /**
@@ -142,7 +196,10 @@ async function recalculate(tx: Tx, invoiceId: string): Promise<void> {
  * write share one transaction — callers cannot run half of it.
  */
 export async function recalculateInvoice(invoiceId: string): Promise<void> {
-  await db.$transaction((tx) => recalculate(tx, invoiceId));
+  await withLockedInvoice(invoiceId, async (tx, invoice) => {
+    if (!invoice || invoice.status !== "DRAFT") return;
+    await recalculateInvoiceInTransaction(tx, invoiceId);
+  });
 }
 
 /**
@@ -155,6 +212,7 @@ export async function createInvoiceWithNumber(
   projectId: string,
   invoice: InvoiceSeed,
   lineItems: LineItemSeed[] = [],
+  actor?: { actorUserId: string; actorEmail: string; actorName: string | null },
 ): Promise<Invoice> {
   for (let attempt = 1; ; attempt++) {
     try {
@@ -166,21 +224,39 @@ export async function createInvoiceWithNumber(
         });
 
         if (lineItems.length > 0) {
+          const currency = invoice.currency as InvoiceCurrency;
           await tx.invoiceLineItem.createMany({
             data: lineItems.map((item) => ({
               invoiceId: created.id,
               description: item.description,
-              quantity: item.quantity,
+              quantity: toQuantityDecimal(item.quantity),
               unitPrice: toDecimal(item.unitPrice),
-              amount: toDecimal(item.quantity * item.unitPrice),
+              amount: toDecimal(fromScaledInteger(
+                computeLineAmountMinor(item.quantity, item.unitPrice, currency),
+                INVOICE_CURRENCIES[currency],
+              )),
               deliverableId: item.deliverableId ?? null,
             })),
           });
 
-          await recalculate(tx, created.id);
+          const totalsUpdated = await recalculateInvoiceInTransaction(tx, created.id);
+          if (!totalsUpdated) throw new RangeError("Invoice discount cannot exceed the subtotal.");
         }
 
-        return created;
+        const current = lineItems.length
+          ? (await tx.invoice.findUnique({ where: { id: created.id } })) ?? created
+          : created;
+        if (actor) {
+          await tx.activity.create({
+            data: {
+              projectId,
+              type: "INVOICE_CREATED",
+              ...actor,
+              meta: { invoiceNumber: current.invoiceNumber, invoiceId: current.id },
+            },
+          });
+        }
+        return current;
       });
     } catch (error) {
       if (attempt >= MAX_NUMBER_ATTEMPTS || !isUniqueViolation(error)) {

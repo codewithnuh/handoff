@@ -83,6 +83,7 @@ export type ProjectDetailData = {
     invoiceNumber: string;
     description: string | null;
     subtotal: string;
+    discount: string;
     taxRate: string;
     taxAmount: string;
     amount: string;
@@ -249,7 +250,10 @@ async function loadProjectDetail(projectId: string, scope: DetailScope) {
     requests,
     invoices: invoices.map((inv) => ({
       ...moneyStrings(inv),
-      lineItems: inv.lineItems.map(lineItemMoneyStrings),
+      lineItems: inv.lineItems.map((lineItem) => ({
+        ...lineItemMoneyStrings(lineItem),
+        quantity: Number(lineItem.quantity),
+      })),
     })),
     activities,
     approvedDeliverables,
@@ -364,6 +368,7 @@ export type PortalProjectDetail = {
     invoiceNumber: string;
     description: string | null;
     subtotal: string;
+    discount: string;
     taxRate: string;
     taxAmount: string;
     amount: string;
@@ -453,6 +458,7 @@ export async function getPortalProjectDetail(
       invoiceNumber: invoice.invoiceNumber,
       description: invoice.description,
       subtotal: invoice.subtotal,
+      discount: invoice.discount,
       taxRate: invoice.taxRate,
       taxAmount: invoice.taxAmount,
       amount: invoice.amount,
@@ -464,7 +470,7 @@ export async function getPortalProjectDetail(
       createdAt: invoice.createdAt,
       lineItems: invoice.lineItems.map((lineItem) => ({
         description: lineItem.description,
-        quantity: lineItem.quantity,
+        quantity: Number(lineItem.quantity),
         unitPrice: lineItem.unitPrice,
         amount: lineItem.amount,
       })),

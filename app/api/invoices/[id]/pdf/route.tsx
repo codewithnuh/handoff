@@ -89,6 +89,7 @@ export async function GET(
       invoiceNumber: invoice.invoiceNumber,
       description: invoice.description,
       subtotal: money.subtotal,
+      discount: money.discount,
       taxRate: money.taxRate,
       taxAmount: money.taxAmount,
       amount: money.amount,
@@ -98,7 +99,10 @@ export async function GET(
       paymentNotes: invoice.paymentNotes,
       status: invoice.status,
       createdAt: invoice.createdAt,
-      lineItems: invoice.lineItems.map((li) => lineItemMoneyStrings(li)),
+      lineItems: invoice.lineItems.map((li) => ({
+        ...lineItemMoneyStrings(li),
+        quantity: Number(li.quantity),
+      })),
       project: {
         name: invoice.project.name,
         client: invoice.project.client,
