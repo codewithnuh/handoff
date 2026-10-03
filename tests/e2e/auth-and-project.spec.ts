@@ -163,7 +163,7 @@ test("real signup, OTP, password reset, login, and persistent client/project cre
   await expect(page.getByText(invoiceDescription, { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Mark as Paid" })).toHaveCount(0);
   await page.getByRole("button", { name: "Approve" }).click();
-  await expect(page.getByText("Approved", { exact: true })).toBeVisible();
+  await expect(page.getByRole("main").getByText("Approved", { exact: true })).toBeVisible();
   const pdfLink = page.getByRole("link", { name: "Download PDF" });
   const pdfPath = await pdfLink.getAttribute("href");
   expect(pdfPath).toMatch(/^\/api\/invoices\//);
