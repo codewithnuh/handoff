@@ -67,6 +67,22 @@ beforeAll(async () => {
 afterAll(() => restoreSubjects?.());
 
 describe("invoice money and lifecycle against PostgreSQL", () => {
+  it("preserves invoice history and unrelated workspaces when project deletion is attempted", async () => {
+    const originalInvoice = await db.invoice.findUniqueOrThrow({ where: { id: fixtureIds.invoice } });
+
+    await expect(db.project.delete({ where: { id: fixtureIds.projectA } })).rejects.toThrow();
+
+    const [project, invoice, unrelatedWorkspace] = await Promise.all([
+      db.project.findUnique({ where: { id: fixtureIds.projectA } }),
+      db.invoice.findUnique({ where: { id: fixtureIds.invoice } }),
+      db.workspace.findUnique({ where: { id: fixtureIds.workspaceB } }),
+    ]);
+    expect(project?.id).toBe(fixtureIds.projectA);
+    expect(invoice?.id).toBe(originalInvoice.id);
+    expect(invoice?.amount.toFixed(2)).toBe(originalInvoice.amount.toFixed(2));
+    expect(unrelatedWorkspace?.id).toBe(fixtureIds.workspaceB);
+  });
+
   it("rolls a business update back when its required activity insert fails", async () => {
     const before = await db.project.findUniqueOrThrow({ where: { id: fixtureIds.projectA } });
     await expect(db.$transaction(async (tx) => {

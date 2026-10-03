@@ -123,6 +123,7 @@ export type ProjectDetailData = {
 
 export type ViewerPermissions = {
   role: EffectiveRole;
+  isWorkspaceOwner: boolean;
   canEditProject: boolean;
   canDeleteProject: boolean;
   canManageDeliverables: boolean;
@@ -292,6 +293,7 @@ export async function getProjectDetailForViewer(
     },
     permissions: {
       role: access.value.role,
+      isWorkspaceOwner: access.value.isWorkspaceOwner,
       canEditProject: access.value.canEditProject,
       canDeleteProject: access.value.canDeleteProject,
       canManageDeliverables: access.value.canManageDeliverables,

@@ -214,8 +214,8 @@ export const updateWorkspace = defineAction({
 });
 
 /**
- * ⚠️ Destructive: deleting the workspace cascades to ALL owned data
- * (clients, projects, deliverables, invoices, activities, …).
+ * ⚠️ Destructive: deleting the workspace cascades to its clients, projects,
+ * and project data. Invoice references restrict deletion to preserve history.
  * Owner only.
  */
 export const deleteWorkspace = defineAction({
@@ -228,7 +228,10 @@ export const deleteWorkspace = defineAction({
           "Only the workspace owner can delete the workspace.",
         ),
   revalidate: true,
-  errors: { fallback: "Failed to delete the workspace." },
+  errors: {
+    fallback: "Failed to delete the workspace.",
+    referenced: "This workspace contains invoices. Preserve financial history before deleting it.",
+  },
   run: async (ctx): Promise<ActionResponseType<DeleteWorkspaceResult>> => {
     await db.workspace.delete({ where: { id: ctx.workspace.id } });
     return ActionResponse.success({ deleted: true }, "Workspace deleted");

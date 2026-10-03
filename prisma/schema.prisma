@@ -557,7 +557,8 @@ model Invoice {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // Financial history must survive project deletion; a reference blocks it.
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Restrict)
   lineItems InvoiceLineItem[]
 
   @@unique([projectId, invoiceNumber])

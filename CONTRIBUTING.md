@@ -17,11 +17,11 @@ pnpm install
 
 # Configure environment
 cp .env.example .env
-# fill in DATABASE_URL, BETTER_AUTH_SECRET, etc.
+# set DATABASE_URL, DEV_DATABASE_URL, BETTER_AUTH_SECRET, etc.
 
 # Create the database schema
 pnpm db:generate
-pnpm db:push
+pnpm db:push # requires local DEV_DATABASE_URL (handoff_dev or handoff_test)
 
 # Run the dev server
 pnpm dev

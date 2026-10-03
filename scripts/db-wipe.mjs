@@ -10,9 +10,12 @@
 
 import "dotenv/config";
 import { Client } from "pg";
+import { getDevDatabaseUrl } from "./dev-db-guard.mjs";
 
 async function main() {
-  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  const client = new Client({
+    connectionString: getDevDatabaseUrl(process.env.DEV_DATABASE_URL),
+  });
   await client.connect();
 
   const { rows } = await client.query(`

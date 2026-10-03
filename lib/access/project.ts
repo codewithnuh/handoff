@@ -13,11 +13,13 @@ const OWNER_ACCESS = (
   projectId: string,
   workspaceId: string,
   user: ProjectAccess["user"],
+  isWorkspaceOwner: boolean,
 ): ProjectAccess => ({
   projectId,
   workspaceId,
   user,
   role: "OWNER",
+  isWorkspaceOwner,
   canEditProject: true,
   canDeleteProject: true,
   canManageDeliverables: true,
@@ -95,7 +97,7 @@ export const resolveProjectAccess = async (
   if (isOwner || isAdmin) {
     return {
       ok: true,
-      value: OWNER_ACCESS(project.id, workspace.id, user),
+      value: OWNER_ACCESS(project.id, workspace.id, user, isOwner),
     };
   }
 
@@ -128,6 +130,7 @@ export const resolveProjectAccess = async (
       workspaceId: workspace.id,
       user,
       role,
+      isWorkspaceOwner: false,
       ...access,
     },
   };

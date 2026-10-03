@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createProject, updateProjectStatus } from "@/lib/actions/project";
+import { createProject, deleteProject, updateProjectStatus } from "@/lib/actions/project";
 import { db } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { ERROR_CODES } from "@/lib/constants/errors";
@@ -30,6 +30,8 @@ const findProjectFirst = vi.mocked(db.project.findFirst);
 const findProjectUnique = vi.mocked(db.project.findUnique);
 const createProjectDb = vi.mocked(db.project.create);
 const updateProjectDb = vi.mocked(db.project.update);
+const deleteProjectDb = vi.mocked(db.project.deleteMany);
+const findWorkspaceMembership = vi.mocked(db.workspaceMember.findUnique);
 const createActivity = vi.mocked(db.activity.create);
 
 const user = {
@@ -158,5 +160,27 @@ describe("updateProjectStatus", () => {
         }),
       }),
     );
+  });
+});
+
+describe("deleteProject", () => {
+  it("rejects a workspace admin because deletion is owner-only", async () => {
+    await signedIn();
+    findWorkspace.mockResolvedValue({ ...workspace, ownerId: "another-user" } as never);
+    findWorkspaceUnique.mockResolvedValue({ ownerId: "another-user" } as never);
+    findWorkspaceMembership.mockResolvedValue({
+      role: "ADMIN",
+      permissions: [],
+    } as never);
+    findProjectFirst.mockResolvedValue({ id: "proj-1", workspaceId: "ws-1" } as never);
+
+    const result = await deleteProject({ id: "proj-1" });
+
+    expect(result).toMatchObject({
+      success: false,
+      message: "Only the workspace owner can delete a project.",
+      error: { code: ERROR_CODES.FORBIDDEN },
+    });
+    expect(deleteProjectDb).not.toHaveBeenCalled();
   });
 });
