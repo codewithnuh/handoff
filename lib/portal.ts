@@ -17,6 +17,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/prisma";
+import type { Prisma } from "@/app/generated/prisma/client";
 import { env } from "@/env";
 import { INVITE_TTL_SECONDS } from "@/lib/constants/invitations";
 
@@ -139,19 +140,23 @@ export async function getClientPortalSession(): Promise<ClientPortalSession | nu
  * are cleaned up to prevent session accumulation.
  */
 export async function issueClientSession(email: string): Promise<void> {
-  // Clean up any existing sessions for this email to prevent accumulation
-  await db.clientSession.deleteMany({
-    where: { email },
-  });
+  const session = await db.$transaction((tx) => replaceClientSession(tx, email));
+  await setClientSessionCookie(session.id);
+}
 
-  const session = await db.clientSession.create({
+/** Replaces this email's portal session inside a caller-owned transaction. */
+export async function replaceClientSession(
+  tx: Prisma.TransactionClient,
+  email: string,
+) {
+  await tx.clientSession.deleteMany({ where: { email } });
+  return tx.clientSession.create({
     data: {
       email,
       token: crypto.randomUUID(),
       expiresAt: new Date(Date.now() + CLIENT_SESSION_MAX_AGE * 1000),
     },
   });
-  await setClientSessionCookie(session.id);
 }
 
 /**

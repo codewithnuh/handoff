@@ -87,7 +87,7 @@ const INVITATION_TOKEN = "valid-hex-token-abc123";
 // ──────────────────────────────────────────────
 
 describe("Full invitation flow: invite → accept → portal access", () => {
-  it("step 1: accept endpoint creates ProjectAccess and issues session for valid token", async () => {
+  it("step 1: opening the invitation link shows explicit acceptance confirmation", async () => {
     // Mock: invitation exists and is valid
     vi.mocked(db.clientInvitation.findUnique).mockResolvedValue({
       id: "inv-1",
@@ -97,35 +97,7 @@ describe("Full invitation flow: invite → accept → portal access", () => {
       acceptedAt: null,
     } as never);
 
-    // Mock: $transaction creates ProjectAccess + marks invitation accepted
-    vi.mocked(db.$transaction).mockImplementation(async (fn) => {
-      // Minimal transaction-client stub cast to the expected shape
-      const tx = {
-        projectAccess: {
-          upsert: vi.fn().mockResolvedValue({
-            id: "pa-1",
-            projectId: PROJECT_ID,
-            email: CLIENT_A_EMAIL,
-            createdAt: new Date(),
-          }),
-        },
-        clientInvitation: {
-          update: vi.fn().mockResolvedValue({}),
-        },
-      } as unknown as Parameters<typeof fn>[0];
-      return fn(tx);
-    });
-
-    // Mock: session creation
-    vi.mocked(db.clientSession.create).mockResolvedValue({
-      id: SESSION_ID,
-      email: CLIENT_A_EMAIL,
-      token: "random-session-token",
-      expiresAt: new Date("2099-12-31"),
-      createdAt: new Date(),
-    } as never);
-
-    // Act: hit the accept endpoint
+    // Opening the email link must not claim access or create a session.
     const { GET } = await import("@/app/api/portal/accept/route");
     const url = new URL(
       `http://localhost:3000/api/portal/accept?token=${INVITATION_TOKEN}`,
@@ -133,28 +105,10 @@ describe("Full invitation flow: invite → accept → portal access", () => {
     const request = new NextRequest(url.toString());
     const response = await GET(request);
 
-    // Assert: redirects to project portal
-    expect(response.status).toBe(307);
-    expect(response.headers.get("Location")).toContain(
-      `/portal/projects/${PROJECT_ID}`,
-    );
-
-    // Assert: ProjectAccess was created
-    expect(db.$transaction).toHaveBeenCalled();
-
-    // Assert: session was created
-    expect(db.clientSession.create).toHaveBeenCalledWith({
-      data: {
-        email: CLIENT_A_EMAIL,
-        token: expect.any(String),
-        expiresAt: expect.any(Date),
-      },
-    });
-
-    // Assert: cookie was set via response headers (not cookies().set())
-    const setCookie = response.headers.get("Set-Cookie");
-    expect(setCookie).toBeTruthy();
-    expect(setCookie).toContain("cp_session");
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain('method="post"');
+    expect(db.$transaction).not.toHaveBeenCalled();
+    expect(db.clientSession.create).not.toHaveBeenCalled();
   });
 
   it("step 2: client can resolve session after accepting", async () => {

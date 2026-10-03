@@ -6,6 +6,7 @@ import type {
   TeamInvitation,
   WorkspacePermission,
 } from "@/app/generated/prisma/client";
+import type { Prisma } from "@/app/generated/prisma/client";
 import { db } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { env } from "@/env";
@@ -84,13 +85,14 @@ const teamAcceptUrl = (token: string) =>
  * (CONTRIBUTOR) per assigned project. Idempotent via unique-constraint upserts.
  */
 async function grantInvitedAccess(
+  tx: Prisma.TransactionClient,
   workspaceId: string,
   userId: string,
   projectIds: string[],
   role: "ADMIN" | "MEMBER" = "MEMBER",
   permissions: string[] = [],
 ) {
-  await db.workspaceMember.upsert({
+  await tx.workspaceMember.upsert({
     where: { workspaceId_userId: { workspaceId, userId } },
     create: {
       workspaceId,
@@ -105,13 +107,13 @@ async function grantInvitedAccess(
   });
 
   // Only assign projects that actually belong to this workspace
-  const validProjects = await db.project.findMany({
+  const validProjects = await tx.project.findMany({
     where: { id: { in: projectIds }, workspaceId },
     select: { id: true },
   });
 
   for (const project of validProjects) {
-    await db.projectMember.upsert({
+    await tx.projectMember.upsert({
       where: {
         projectId_userId: { projectId: project.id, userId },
       },
@@ -123,12 +125,12 @@ async function grantInvitedAccess(
   // Only point a NEW freelancer at the joined workspace — never hijack the
   // active context of someone who already has their own workspaces.
   const [ownedCount, membershipCount] = await Promise.all([
-    db.workspace.count({ where: { ownerId: userId } }),
-    db.workspaceMember.count({ where: { userId } }),
+    tx.workspace.count({ where: { ownerId: userId } }),
+    tx.workspaceMember.count({ where: { userId } }),
   ]);
   const isBrandNew = ownedCount + membershipCount <= 1; // just this one
   if (isBrandNew) {
-    await db.user
+    await tx.user
       .update({
         where: { id: userId },
         data: { activeWorkspaceId: workspaceId },
@@ -683,8 +685,11 @@ export const acceptTeamInvite = defineAction({
       return invalid("This invite has expired.");
     }
 
-    // Who is accepting?
+    // Who is accepting? Existing accounts must sign in with the verified
+    // address the invitation was sent to. A new account can be created from
+    // this one-time emailed token, which itself proves mailbox possession.
     let userId: string;
+    let verifiedByInviteToken = false;
     try {
       const session = await auth.api.getSession({ headers: await headers() });
 
@@ -695,12 +700,18 @@ export const acceptTeamInvite = defineAction({
             `This invite is for ${invitation.email}. Sign in with that account to accept it.`,
           );
         }
+        if (!session.user.emailVerified) {
+          return ActionResponse.failure(
+            ERROR_CODES.FORBIDDEN,
+            "Verify your email address before accepting this invite.",
+          );
+        }
         userId = session.user.id;
       } else {
         // No session. If this email already belongs to a Handoff account,
         // NEVER create a second password for it — direct them to sign in.
-        const existingUser = await db.user.findUnique({
-          where: { email: invitation.email },
+        const existingUser = await db.user.findFirst({
+          where: { email: { equals: invitation.email, mode: "insensitive" } },
           select: { id: true },
         });
         if (existingUser) {
@@ -739,6 +750,7 @@ export const acceptTeamInvite = defineAction({
           );
         }
         userId = result.user.id;
+        verifiedByInviteToken = true;
       }
     } catch (error) {
       const message =
@@ -757,17 +769,45 @@ export const acceptTeamInvite = defineAction({
       ? (invitation.permissions as string[])
       : [];
 
-    await grantInvitedAccess(
-      invitation.workspace.id,
-      userId,
-      projectIds,
-      inviteRole,
-      invitePermissions,
-    );
-    await db.teamInvitation.update({
-      where: { id: invitation.id },
-      data: { acceptedAt: new Date() },
+    const accepted = await db.$transaction(async (tx) => {
+      const workspaceOwner = await tx.workspace.findUnique({
+        where: { id: invitation.workspace.id },
+        select: { ownerId: true },
+      });
+      if (!workspaceOwner || workspaceOwner.ownerId === userId) return false;
+
+      const now = new Date();
+      const claim = await tx.teamInvitation.updateMany({
+        where: {
+          id: invitation.id,
+          acceptedAt: null,
+          expiresAt: { gt: now },
+        },
+        data: { acceptedAt: now },
+      });
+      if (claim.count !== 1) return false;
+
+      if (verifiedByInviteToken) {
+        await tx.user.update({
+          where: { id: userId },
+          data: { emailVerified: true },
+        });
+      }
+
+      await grantInvitedAccess(
+        tx,
+        invitation.workspace.id,
+        userId,
+        projectIds,
+        inviteRole,
+        invitePermissions,
+      );
+      return true;
     });
+
+    if (!accepted) {
+      return invalid("This invite has already been used or has expired.");
+    }
 
     return ActionResponse.success(
       { workspaceId: invitation.workspace.id },
