@@ -40,6 +40,7 @@
     "start": "next start",
     "prebuild": "prisma generate",
     "test": "vitest run",
+    "test:integration": "node scripts/test-integration.mjs",
     "test:watch": "vitest ",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
