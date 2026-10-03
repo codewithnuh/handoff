@@ -73,7 +73,14 @@ export function DeliverableCard({
 
   const addVersion = useServerAction(addDeliverableVersion, {
     failure: "Version creation failed",
+    failureDescription: (error, message) =>
+      error.code === "CONFLICT"
+        ? "This deliverable changed. Refresh and retry the upload."
+        : message,
     refresh: false,
+    onError: (error) => {
+      if (error.code === "CONFLICT") router.refresh();
+    },
   });
 
   const statusChange = useServerAction(updateDeliverable, {
@@ -94,8 +101,19 @@ export function DeliverableCard({
   const isUploading = addVersion.pending;
 
   const isDraft = item.status === "DRAFT";
+  const isApproved = item.status === "APPROVED";
   const canSubmit = permissions.canSubmitForReview;
-  const canDelete = canSubmit;
+  const canDelete = canSubmit && isDraft;
+  const canUploadVersion =
+    permissions.canManageDeliverables &&
+    !isApproved &&
+    (isDraft || canSubmit);
+  const hasMenuActions =
+    canUploadVersion ||
+    (canSubmit &&
+      (isDraft ||
+        item.status === "IN_REVIEW" ||
+        item.status === "CHANGES_REQUESTED"));
 
   const handleStatusChange = async (newStatus: string) => {
     if (newStatus === item.status) return;
@@ -118,13 +136,9 @@ export function DeliverableCard({
     if (!uploadedFile) return;
 
     // Create a version referencing the server verified upload record.
-    const nextVersion = item.versions.length > 0
-      ? Math.max(...item.versions.map((v) => v.versionNumber)) + 1
-      : 1;
-
     const versionResult = await addVersion.run({
       deliverableId: item.id,
-      versionNumber: nextVersion,
+      expectedVersion: item.version,
       fileId: uploadedFile.fileId,
       notes: versionNotes.trim() || null,
     });
@@ -134,7 +148,7 @@ export function DeliverableCard({
     toast.add({
       type: "success",
       title: "Version uploaded",
-      description: `Version ${nextVersion} has been added.`,
+      description: `Version ${versionResult.data.versionNumber} has been added.`,
     });
 
     setUploadedFile(null);
@@ -161,7 +175,7 @@ export function DeliverableCard({
             </div>
 
             {/* Deliverable Actions Menu */}
-            {(canSubmit || canDelete) && (
+            {hasMenuActions && (
               <DropdownMenu>
                 <DropdownMenuTrigger
                   render={<Button variant="ghost" size="icon-sm" />}
@@ -169,13 +183,13 @@ export function DeliverableCard({
                   <MoreHorizontal className="h-4 w-4" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  {permissions.canManageDeliverables && (
+                  {canUploadVersion && (
                     <DropdownMenuItem onClick={() => setUploadOpen(true)}>
                       <Upload className="h-3.5 w-3.5" />
                       Upload New Version
                     </DropdownMenuItem>
                   )}
-                  {canSubmit && isDraft && (
+                  {canSubmit && (isDraft || item.status === "CHANGES_REQUESTED") && (
                     <DropdownMenuItem
                       onClick={() => handleStatusChange("IN_REVIEW")}
                       disabled={statusChange.pending}
@@ -184,7 +198,7 @@ export function DeliverableCard({
                       Submit for Review
                     </DropdownMenuItem>
                   )}
-                  {canSubmit && !isDraft && (
+                  {canSubmit && item.status === "IN_REVIEW" && (
                     <DropdownMenuItem
                       onClick={() => handleStatusChange("DRAFT")}
                       disabled={statusChange.pending}
@@ -279,8 +293,8 @@ export function DeliverableCard({
           <DialogHeader>
             <DialogTitle>Upload New Version</DialogTitle>
             <DialogDescription>
-              Upload a new file for &quot;{item.title}&quot;. This will be
-              version {item.versions.length > 0 ? Math.max(...item.versions.map((v) => v.versionNumber)) + 1 : 1}.
+              Upload a new file for &quot;{item.title}&quot;. The next version is
+              allocated when the upload is saved.
             </DialogDescription>
           </DialogHeader>
 

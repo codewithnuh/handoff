@@ -31,6 +31,12 @@ export type DeliverableListResult = { items: Deliverable[] };
 export type DeliverableVersionResult = DeliverableVersion;
 export type DeleteResult = { deleted: boolean };
 
+const deliverableConflict = () =>
+  ActionResponse.failure(
+    ERROR_CODES.CONFLICT,
+    "This deliverable was modified by someone else. Refresh to see the latest version and try again.",
+  );
+
 // dashboard paths handled via shared helper
 
 // ──────────────────────────────────────────────
@@ -111,8 +117,6 @@ export const updateDeliverable = defineAction({
   revalidate: true,
   errors: {
     fallback: "Failed to update the deliverable.",
-    notFound:
-      "This deliverable was just modified by someone else. Refresh and try again.",
   },
   run: async (input): Promise<ActionResponseType<DeliverableResult>> => {
     const { id, expectedVersion, title, description, status } = input;
@@ -146,10 +150,36 @@ export const updateDeliverable = defineAction({
     // client-facing, so only a lead (or admin/owner) can touch it or push
     // it back into review. Approvals/change-requests belong to the client.
     const touchesContent = title !== undefined || description !== undefined;
-    if (
-      (touchesContent && existing.status !== "DRAFT") ||
-      (status === "IN_REVIEW" && existing.status !== "IN_REVIEW")
-    ) {
+    if (existing.status === "APPROVED") {
+      return ActionResponse.failure(
+        ERROR_CODES.INVALID_STATUS,
+        "Approved deliverables are final and cannot be edited.",
+      );
+    }
+
+    const statusChanged = status !== undefined && status !== existing.status;
+    const validStatusTransition =
+      (existing.status === "DRAFT" && status === "IN_REVIEW") ||
+      (existing.status === "IN_REVIEW" && status === "DRAFT") ||
+      (existing.status === "CHANGES_REQUESTED" && status === "IN_REVIEW");
+    if (statusChanged && !validStatusTransition) {
+      return ActionResponse.failure(
+        ERROR_CODES.INVALID_STATUS,
+        "This deliverable cannot make that review transition.",
+      );
+    }
+
+    if (!touchesContent && !statusChanged) {
+      return ActionResponse.failure(
+        ERROR_CODES.VALIDATION_ERROR,
+        "Provide a change to save.",
+      );
+    }
+
+    const requiresLead =
+      existing.status !== "DRAFT" ||
+      status === "IN_REVIEW";
+    if (requiresLead) {
       if (!access.value.canSubmitForReview) {
         return ActionResponse.failure(
           ERROR_CODES.FORBIDDEN,
@@ -157,27 +187,10 @@ export const updateDeliverable = defineAction({
         );
       }
     }
-    if (
-      status !== undefined &&
-      status !== existing.status &&
-      status !== "DRAFT" &&
-      status !== "IN_REVIEW"
-    ) {
-      return ActionResponse.failure(
-        ERROR_CODES.FORBIDDEN,
-        "Approvals and change requests are made by the client in the portal.",
-      );
-    }
-
     // Optimistic locking: if the caller sends the version it loaded,
     // reject stale writes instead of silently overwriting concurrent
     // changes (e.g. the client approving/rejecting this deliverable).
-    if (expectedVersion !== undefined && existing.version !== expectedVersion) {
-      return ActionResponse.failure(
-        ERROR_CODES.CONFLICT,
-        "This deliverable was modified by someone else. Refresh and try again.",
-      );
-    }
+    if (existing.version !== expectedVersion) return deliverableConflict();
 
     // Partial-update semantics: only touch the fields the caller sent.
     // (Blanket `?? null` mapping used to wipe description on status-only updates.)
@@ -195,17 +208,15 @@ export const updateDeliverable = defineAction({
     if (description !== undefined) data.description = description;
     if (status !== undefined) data.status = status;
 
-    const deliverable = await db.deliverable.update({
-      // Atomic guard — rejects with P2025 if the row changed since the read
-      where:
-        expectedVersion !== undefined
-          ? { id, version: expectedVersion }
-          : { id },
-      data,
+    const deliverable = await db.$transaction(async (tx) => {
+      const claimed = await tx.deliverable.updateMany({
+        where: { id, version: expectedVersion, status: existing.status },
+        data,
+      });
+      if (claimed.count !== 1) return null;
+      return tx.deliverable.findUniqueOrThrow({ where: { id } });
     });
-
-    const statusChanged =
-      data.status !== undefined && data.status !== existing.status;
+    if (!deliverable) return deliverableConflict();
 
     if (statusChanged) {
       const activityType = (() => {
@@ -247,7 +258,7 @@ export const deleteDeliverable = defineAction({
   run: async (input): Promise<ActionResponseType<DeleteResult>> => {
     const deliverable = await db.deliverable.findUnique({
       where: { id: input.id },
-      select: { id: true, projectId: true },
+      select: { id: true, projectId: true, status: true },
     });
     if (!deliverable) {
       return ActionResponse.failure(
@@ -263,6 +274,13 @@ export const deleteDeliverable = defineAction({
       return ActionResponse.failure(
         ERROR_CODES.FORBIDDEN,
         "Only a project lead can delete deliverables.",
+      );
+    }
+
+    if (deliverable.status !== "DRAFT") {
+      return ActionResponse.failure(
+        ERROR_CODES.INVALID_STATUS,
+        "Submitted deliverables and their review history cannot be deleted.",
       );
     }
 
@@ -285,12 +303,13 @@ export const addDeliverableVersion = defineAction({
   revalidate: true,
   errors: {
     fallback: "Failed to add the deliverable version.",
-    conflict: "A version with this number already exists.",
+    conflict:
+      "This version conflicts with a newer change. Refresh and try again.",
   },
   run: async (input): Promise<ActionResponseType<DeliverableVersionResult>> => {
     const deliverable = await db.deliverable.findUnique({
       where: { id: input.deliverableId },
-      select: { id: true, projectId: true, status: true },
+      select: { id: true, projectId: true, status: true, version: true },
     });
     if (!deliverable) {
       return ActionResponse.failure(
@@ -315,22 +334,30 @@ export const addDeliverableVersion = defineAction({
         "Only a project lead can add versions once a deliverable is submitted.",
       );
     }
-
+    if (deliverable.status === "APPROVED") {
+      return ActionResponse.failure(
+        ERROR_CODES.INVALID_STATUS,
+        "Approved deliverables are final and cannot receive new versions.",
+      );
+    }
     const readOnlyError = await assertWorkspaceWritable(
       access.value.workspaceId,
     );
     if (readOnlyError) return readOnlyError;
 
-    const lastVersion = await db.deliverableVersion.findFirst({
-      where: { deliverableId: deliverable.id },
-      orderBy: { versionNumber: "desc" },
-      select: { versionNumber: true },
-    });
-    const versionNumber =
-      input.versionNumber ??
-      (lastVersion ? lastVersion.versionNumber + 1 : 1);
-
     const version = await db.$transaction(async (tx) => {
+      // Claim the shared review token first. Concurrent uploads from the same
+      // view cannot allocate the same next version or attach to stale review.
+      const claimed = await tx.deliverable.updateMany({
+        where: {
+          id: deliverable.id,
+          version: input.expectedVersion,
+          status: deliverable.status,
+        },
+        data: { version: { increment: 1 } },
+      });
+      if (claimed.count !== 1) return null;
+
       if (input.fileId) {
         await claimFileForVersion(tx, {
           fileId: input.fileId,
@@ -338,6 +365,15 @@ export const addDeliverableVersion = defineAction({
           userId: access.value.user.id,
         });
       }
+
+      const lastVersion = await tx.deliverableVersion.findFirst({
+        where: { deliverableId: deliverable.id },
+        orderBy: { versionNumber: "desc" },
+        select: { versionNumber: true },
+      });
+      const versionNumber =
+        input.versionNumber ??
+        (lastVersion ? lastVersion.versionNumber + 1 : 1);
 
       return tx.deliverableVersion.create({
         data: {
@@ -348,12 +384,13 @@ export const addDeliverableVersion = defineAction({
         },
       });
     });
+    if (!version) return deliverableConflict();
 
     await recordActivity({
       projectId: deliverable.projectId,
       type: "DELIVERABLE_VERSION_UPLOADED",
       ...actorOf(access.value.user),
-      meta: { versionNumber },
+      meta: { versionNumber: version.versionNumber },
     });
 
     return ActionResponse.success(

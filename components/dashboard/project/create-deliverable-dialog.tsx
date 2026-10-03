@@ -53,7 +53,7 @@ export function CreateDeliverableDialog({ projectId }: { projectId: string }) {
       if (uploadedFile) {
         const versionResult = await addVersion.run({
           deliverableId: result.data.id,
-          versionNumber: 1,
+          expectedVersion: result.data.version,
           fileId: uploadedFile.fileId,
           notes: value.notes.trim() || null,
         });

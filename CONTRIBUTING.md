@@ -159,6 +159,21 @@ The migration suite applies its work to uniquely named schemas inside the guarde
 
 For deployment, record the source baseline and target commit SHAs, run `pnpm db:deploy`, and verify the application against the migrated database before routing traffic. If a migration fails, stop rollout and use a forward fix after inspecting the database. Do not automatically reverse destructive changes or restore an older backup over newer writes; choose recovery only after deciding how to preserve those writes. Database backups should be taken and restore-tested according to the deployment environment's recovery plan.
 
+### Deliverable review lifecycle
+
+All freelancer content edits, version uploads, and review transitions compare the `Deliverable.version` read by the caller and increment it in the same database transaction. A stale mutation returns `CONFLICT`; the caller refreshes before retrying. The `(deliverableId, versionNumber)` unique constraint remains the final guard against duplicate history rows.
+
+| Current status | Freelancer action | Client action |
+| --- | --- | --- |
+| `DRAFT` | Contributors can edit/upload; a lead can edit/upload, delete, or submit to `IN_REVIEW` | No review action |
+| `IN_REVIEW` | A lead can edit/upload or return it to `DRAFT` | Approve or request changes |
+| `CHANGES_REQUESTED` | A lead can edit/upload or resubmit to `IN_REVIEW` | Approve or request changes again |
+| `APPROVED` | Content and versions are final | No further review action |
+
+Submitted and approved deliverables cannot be deleted through the freelancer action; return an in-review item to draft first if it must be removed. This keeps reviewed file and version history available.
+
+Portal approval and request-changes require the submitted version. Request feedback is committed in the same transaction as the status transition. A duplicate or stale decision returns `CONFLICT` and cannot attach feedback to a transition that did not win.
+
 Tests are colocated with what they cover:
 
 - actions: `lib/actions/*.test.ts`

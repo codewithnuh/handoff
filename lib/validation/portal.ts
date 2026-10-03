@@ -3,7 +3,7 @@ import { idSchema } from "@/lib/validation/shared";
 
 export const clientApproveDeliverableSchema = z.object({
   deliverableId: idSchema,
-  expectedVersion: z.number().int().nonnegative(),
+  expectedVersion: z.number().int().positive(),
 });
 
 export type ClientApproveDeliverableInput = z.infer<
@@ -12,7 +12,7 @@ export type ClientApproveDeliverableInput = z.infer<
 
 export const clientRequestChangesSchema = z.object({
   deliverableId: idSchema,
-  expectedVersion: z.number().int().nonnegative(),
+  expectedVersion: z.number().int().positive(),
   comment: z
     .string()
     .trim()

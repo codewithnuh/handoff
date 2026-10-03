@@ -88,7 +88,11 @@ export const clientApproveDeliverable = defineAction({
 
     try {
       const updated = await db.deliverable.update({
-        where: { id: input.deliverableId, version: input.expectedVersion },
+        where: {
+          id: input.deliverableId,
+          version: input.expectedVersion,
+          status: { in: ["IN_REVIEW", "CHANGES_REQUESTED"] },
+        },
         data: { status: "APPROVED", version: { increment: 1 } },
       });
 
@@ -150,7 +154,11 @@ export const clientRequestChanges = defineAction({
     try {
       const updated = await db.$transaction(async (tx) => {
         const result = await tx.deliverable.update({
-          where: { id: input.deliverableId, version: input.expectedVersion },
+          where: {
+            id: input.deliverableId,
+            version: input.expectedVersion,
+            status: { in: ["IN_REVIEW", "CHANGES_REQUESTED"] },
+          },
           data: { status: "CHANGES_REQUESTED", version: { increment: 1 } },
         });
 
