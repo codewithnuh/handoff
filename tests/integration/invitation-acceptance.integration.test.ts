@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/prisma";
 import { fixtureIds, seedIntegrationFixtures } from "./fixtures";
 
+vi.mock("server-only", () => ({}));
 vi.mock("@/lib/portal", async (importOriginal) => {
   const portal = await importOriginal<typeof import("@/lib/portal")>();
   return {
