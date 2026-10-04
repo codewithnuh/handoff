@@ -77,10 +77,6 @@ export default function ContactPage() {
             </Card>
           </div>
 
-          {/* Response Time */}
-          <p className="mt-8 text-center text-xs text-muted-foreground">
-            We typically respond within 24–48 hours on business days.
-          </p>
         </div>
       </Container>
       <Footer />

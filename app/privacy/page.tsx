@@ -3,33 +3,20 @@ import { LegalPage } from "@/components/legal/legal-page";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
-  description:
-    "How Handoff collects, uses, and protects your personal information.",
+  description: "What information Handoff processes to provide project and client management.",
 };
 
 export default function PrivacyPage() {
   return (
     <LegalPage
       title="Privacy Policy"
-      description="How we collect, use, and protect your personal information."
-      lastUpdated="September 1, 2026"
+      description="What information Handoff handles, why it is used, and how to contact the project."
+      lastUpdated="October 4, 2026"
     >
-      <h2>1. Introduction</h2>
+      <h2>About this policy</h2>
       <p>
-        Welcome to Handoff (&quot;we,&quot; &quot;our,&quot; or &quot;us&quot;).
-        We are committed to protecting your privacy. This Privacy Policy
-        explains how we collect, use, disclose, and safeguard your information
-        when you use our hosted platform.
-      </p>
-      {/* TODO: Replace with your actual legal entity name and jurisdiction */}
-      <p>
-        Handoff is operated by [YOUR LEGAL ENTITY NAME], registered in
-        [YOUR COUNTRY/STATE].
-      </p>
-
-      <h3>Open Source &amp; Self-Hosting</h3>
-      <p>
-        Handoff is open source under the{" "}
+        This policy describes information processed by the Handoff hosted
+        service. Handoff is open source under the{" "}
         <a
           href="https://github.com/codewithnuh/handoff/blob/main/LICENSE"
           target="_blank"
@@ -37,207 +24,119 @@ export default function PrivacyPage() {
         >
           MIT License
         </a>
-        . This Privacy Policy applies only to the hosted service we operate
-        (handoff.dev). If you self-host Handoff, you are the data controller
-        and are responsible for your own privacy compliance, including
-        providing a privacy policy to your users. We do not have access to
-        data stored on self-hosted instances.
+        . When someone else hosts an instance, that operator controls the
+        instance and is responsible for its privacy practices.
       </p>
 
-      <h2>2. Information We Collect</h2>
-      <h3>2.1 Account Information</h3>
-      <p>When you create an account, we collect:</p>
-      <ul>
-        <li>Name</li>
-        <li>Email address</li>
-        <li>Password (stored securely using bcrypt hashing)</li>
-      </ul>
-
-      <h3>2.2 Project and Client Data</h3>
-      <p>As you use Handoff, we store:</p>
-      <ul>
-        <li>Projects, deliverables, and tasks you create</li>
-        <li>Client information you add (names, emails)</li>
-        <li>Files you upload via our file storage provider</li>
-        <li>Comments, approvals, and activity within projects</li>
-        <li>Invoices and financial data you generate</li>
-      </ul>
-
-      <h3>2.3 Client Portal Data</h3>
-      <p>
-        When you invite clients to the portal, we collect their email addresses
-        and track their interactions (deliverable approvals, comments,
-        requests) for the purpose of providing the service.
-      </p>
-
-      <h3>2.4 Usage Data</h3>
-      <p>We may automatically collect:</p>
-      <ul>
-        <li>Device type and browser information</li>
-        <li>Pages visited and features used</li>
-        <li>IP address</li>
-        {/* TODO: Add if you use analytics */}
-        <li>
-          [Analytics data — add if you use Google Analytics, Plausible, etc.]
-        </li>
-      </ul>
-
-      <h2>3. How We Use Your Information</h2>
-      <p>We use collected information to:</p>
-      <ul>
-        <li>Provide, maintain, and improve the Handoff service</li>
-        <li>Process transactions and send related information</li>
-        <li>Send administrative notifications (account updates, security alerts)</li>
-        <li>Respond to your inquiries and provide support</li>
-        <li>Monitor and analyze usage trends to improve user experience</li>
-        <li>Detect, prevent, and address technical issues and fraud</li>
-      </ul>
-
-      <h2>4. Third-Party Services</h2>
-      <p>We use the following third-party services that may process your data:</p>
-      <ul>
-        {/* TODO: Update with actual providers */}
-        <li>
-          <strong>File Storage:</strong> UploadThing — for secure file uploads
-          and storage
-        </li>
-        <li>
-          <strong>Database Hosting:</strong> [YOUR DATABASE PROVIDER]
-        </li>
-        <li>
-          <strong>Application Hosting:</strong> [YOUR HOSTING PROVIDER]
-        </li>
-        <li>
-          <strong>Email:</strong> [YOUR EMAIL SERVICE PROVIDER] — for
-          transactional emails
-        </li>
-        {/* TODO: Add any analytics, error tracking, or other services */}
-      </ul>
-      <p>
-        Each third-party service has its own privacy policy. We encourage you
-        to review their policies.
-      </p>
-
-      <h2>5. Data Sharing</h2>
-      <p>
-        We do not sell your personal information. We may share your data only
-        in the following circumstances:
-      </p>
-      <ul>
-        <li>With your explicit consent</li>
-        <li>To comply with legal obligations</li>
-        <li>To protect our rights and safety</li>
-        <li>
-          In connection with a merger, acquisition, or sale of assets (with
-          notice to you)
-        </li>
-      </ul>
-
-      <h2>6. Data Retention</h2>
-      <p>
-        We retain your personal information for as long as your account is
-        active or as needed to provide the service. We will also retain your
-        data as necessary to comply with legal obligations, resolve disputes,
-        and enforce our agreements.
-      </p>
-      {/* TODO: Update with actual retention period */}
-      <p>
-        If you delete your account, we will remove your personal data within
-        [30/60/90] days, except where required by law.
-      </p>
-
-      <h2>7. Data Security</h2>
-      <p>
-        We implement industry-standard security measures including:
-      </p>
-      <ul>
-        <li>Passwords hashed with bcrypt</li>
-        <li>HTTPS encryption for all data in transit</li>
-        <li>Role-based access controls within workspaces</li>
-        <li>Secure file storage with access controls</li>
-      </ul>
-      <p>
-        However, no method of transmission over the Internet is 100% secure,
-        and we cannot guarantee absolute security.
-      </p>
-
-      <h2>8. Your Rights</h2>
-      <p>Depending on your location, you may have the right to:</p>
-      <ul>
-        <li>Access the personal information we hold about you</li>
-        <li>Correct inaccurate or incomplete data</li>
-        <li>Request deletion of your personal data</li>
-        <li>Object to or restrict processing of your data</li>
-        <li>Data portability — receive your data in a structured format</li>
-        <li>Withdraw consent at any time</li>
-      </ul>
-      <p>
-        To exercise any of these rights, contact us at{" "}
-        {/* TODO: Replace with actual email */}
-        <a href="mailto:support@handoff.noorulhassan.com">support@handoff.noorulhassan.com</a>.
-      </p>
-
-      <h2>9. Cookies</h2>
-      <p>
-        We use cookies and similar technologies to maintain your session and
-        improve your experience. For detailed information, see our{" "}
-        <a href="/cookies">Cookie Policy</a>.
-      </p>
-
-      <h2>10. Children&apos;s Privacy</h2>
-      {/* TODO: Update minimum age — typically 16 for GDPR */}
-      <p>
-        Handoff is not intended for users under the age of 16. We do not
-        knowingly collect personal information from children. If we become
-        aware that we have collected data from a child, we will take steps to
-        delete it promptly.
-      </p>
-
-      <h2>11. Self-Hosted Instances</h2>
-      <p>
-        If you deploy Handoff on your own infrastructure, this Privacy Policy
-        does not apply to your instance. As the operator of a self-hosted
-        deployment, you are responsible for:
-      </p>
+      <h2>Information you provide</h2>
       <ul>
         <li>
-          Complying with applicable data protection laws (GDPR, CCPA, etc.)
+          <strong>Account details:</strong> your name, email address, and
+          authentication information.
         </li>
         <li>
-          Providing your own privacy policy to your users
+          <strong>Workspace content:</strong> projects, tasks, deliverables,
+          clients, team memberships, comments, approvals, invoices, and files
+          that you create or upload.
         </li>
         <li>
-          Managing data retention, deletion, and security for your instance
+          <strong>Invitations and portal activity:</strong> invitee and client
+          email addresses, plus comments, requests, and approvals made through
+          project portals.
         </li>
         <li>
-          Handling data subject requests from your users
+          <strong>Support messages:</strong> information you choose to include
+          when you contact the project.
         </li>
       </ul>
       <p>
-        The Handoff source code is available under the MIT License. We do not
-        monitor or access data on self-hosted instances.
+        Passwords are processed by the authentication system and are not
+        available to Handoff staff in readable form. Avoid placing sensitive
+        information in project content unless it is needed for your work.
       </p>
 
-      <h2>12. Changes to This Policy</h2>
-      <p>
-        We may update this Privacy Policy from time to time. We will notify
-        you of any material changes by posting the new policy on this page and
-        updating the &quot;Last updated&quot; date. Your continued use of
-        Handoff after changes constitutes acceptance of the updated policy.
-      </p>
-
-      <h2>13. Contact Us</h2>
-      <p>
-        If you have questions about this Privacy Policy or our data practices,
-        contact us at:
-      </p>
+      <h2>How information is used</h2>
+      <p>Information is used to:</p>
       <ul>
-        {/* TODO: Replace with actual contact info */}
-        <li>
-          Email: <a href="mailto:support@handoff.noorulhassan.com">support@handoff.noorulhassan.com</a>
-        </li>
-        <li>Address: [YOUR BUSINESS ADDRESS]</li>
+        <li>Provide account, workspace, project, and client portal features.</li>
+        <li>Authenticate users and enforce workspace and project permissions.</li>
+        <li>Send account verification, password reset, and invitation emails.</li>
+        <li>Respond to support requests and maintain the service.</li>
+        <li>Protect the service, investigate abuse, and resolve technical issues.</li>
       </ul>
+      <p>
+        The application does not currently include an advertising or product
+        analytics service.
+      </p>
+
+      <h2>Service providers</h2>
+      <p>
+        To run the service, information may be processed by infrastructure
+        configured by the instance operator, including a PostgreSQL database,
+        an email delivery provider, and UploadThing for file uploads. The
+        application source does not determine the specific hosting, database,
+        or email provider used by a deployment. Those providers may process
+        information under their own terms and privacy policies.
+      </p>
+
+      <h2>Sharing</h2>
+      <p>
+        Handoff does not sell personal information or share it for targeted
+        advertising. Workspace owners and teammates with the relevant
+        permissions can access workspace content. Information may also be
+        disclosed when necessary to operate the service, respond to a valid
+        legal request, protect users and the service, or handle a transfer of
+        the service.
+      </p>
+
+      <h2>Cookies and sessions</h2>
+      <p>
+        Essential session cookies keep account and client portal access working.
+        See the <a href="/cookies">Cookie Policy</a> for details.
+      </p>
+
+      <h2>Retention and deletion</h2>
+      <p>
+        Workspace content is retained while it is stored in the service. The
+        application does not publish a fixed deletion or backup retention
+        period. To ask about access, correction, or deletion of information,
+        contact the project using the details on the{" "}
+        <a href="/contact">Contact &amp; Support</a> page. The instance
+        operator may need to retain some information to meet legal obligations,
+        resolve disputes, or protect the service.
+      </p>
+
+      <h2>Security</h2>
+      <p>
+        Handoff includes authentication rate limits, server-side access checks,
+        scoped client portal sessions, and private file upload authorization.
+        Security of hosting, database access, backups, and deployment secrets
+        depends on the operator. See our <a href="/security">Security</a> page.
+      </p>
+
+      <h2>Children</h2>
+      <p>
+        Handoff is a business productivity service and is not intended for
+        children under 16. If you believe a child has provided account
+        information, contact the project so the instance operator can review
+        the request.
+      </p>
+
+      <h2>Self-hosted instances</h2>
+      <p>
+        If you use an instance operated by someone other than the Handoff
+        project, contact that operator with privacy questions or requests. The
+        Handoff project does not receive data from independently hosted
+        installations.
+      </p>
+
+      <h2>Updates and contact</h2>
+      <p>
+        This policy may change as the service changes. Updates will be posted
+        here with a revised date. For privacy questions or requests, use the
+        contact details on our <a href="/contact">Contact &amp; Support</a>{" "}
+        page.
+      </p>
     </LegalPage>
   );
 }
