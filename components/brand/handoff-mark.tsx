@@ -8,7 +8,7 @@ type HandoffMarkProps = {
 export function HandoffMark({ size = 32, className }: HandoffMarkProps) {
   return (
     <Image
-      src="/handoff.svg"
+      src="/logo.png"
       width={size}
       height={size}
       alt=""
