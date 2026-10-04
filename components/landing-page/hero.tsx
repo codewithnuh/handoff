@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "motion/react";
+import { HandoffMark } from "@/components/brand/handoff-mark";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -76,7 +77,7 @@ export function Hero() {
         >
           <div className="product-topbar">
             <div className="product-brand">
-              <span className="product-brand-glyph">h</span>
+              <HandoffMark size={20} className="product-brand-mark" />
               <span>handoff</span>
             </div>
             <div className="product-breadcrumb">Northstar Studio <span>/</span> Overview</div>

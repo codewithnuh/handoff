@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowUpRight, Check } from "lucide-react";
 import type { ReactNode } from "react";
+import { HandoffMark } from "@/components/brand/handoff-mark";
 
 type AuthPageShellProps = {
   eyebrow: string;
@@ -31,7 +32,7 @@ export function AuthPageShell({
     <main className="auth-page">
       <header className="auth-topbar">
         <Link href="/" className="auth-brand" aria-label="Handoff home">
-          <span className="auth-brand-mark" aria-hidden="true">h</span>
+          <HandoffMark size={30} className="auth-brand-mark" />
           <span>Handoff</span>
         </Link>
         <Link href="/" className="auth-back-link">

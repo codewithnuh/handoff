@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { requirePortalSession } from "@/lib/access";
 import { ClientLogoutButton } from "../logout-button";
-import Image from "next/image";
+import { HandoffMark } from "@/components/brand/handoff-mark";
 
 /**
  * Authenticated portal layout — all /portal/* pages that render client
@@ -34,15 +34,7 @@ export default async function PortalClientLayout({
               className="flex items-center gap-0.5 text-foreground transition-opacity hover:opacity-80"
               aria-label="Handoff home"
             >
-              <Image
-                src="/logo.png"
-                width={32}
-                height={32}
-                alt=""
-                aria-hidden="true"
-                className="size-8 object-contain"
-                priority
-              />
+              <HandoffMark size={32} className="size-8 shrink-0" />
 
               <span className="font-heading text-xl font-semibold leading-none tracking-[-0.025em]">
                 Handoff

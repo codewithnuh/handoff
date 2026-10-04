@@ -9,6 +9,7 @@ import { type ReactNode } from "react";
 import { requireWorkspace } from "@/lib/access";
 import { listWorkspaces } from "@/lib/actions/workspace";
 import Link from "next/link";
+import { HandoffMark } from "@/components/brand/handoff-mark";
 
 // Session-scoped: every dashboard page reads the auth session.
 export const dynamic = "force-dynamic";
@@ -39,7 +40,7 @@ export default async function Layout({
             className="flex items-center gap-0.5 text-foreground transition-opacity hover:opacity-80"
             aria-label="Handoff home"
           >
-            <span className="app-brand-mark" aria-hidden="true">h</span>
+            <HandoffMark size={26} className="app-brand-mark" />
             <span className="app-brand-name">Handoff</span>
           </Link>
         }
@@ -53,7 +54,7 @@ export default async function Layout({
         <div className="workspace-mobilebar md:hidden">
           <SidebarTrigger size="icon" aria-label="Open navigation" />
           <Link href="/dashboard" className="app-brand" aria-label="Handoff dashboard">
-            <span className="app-brand-mark" aria-hidden="true">h</span>
+            <HandoffMark size={26} className="app-brand-mark" />
             <span className="app-brand-name">Handoff</span>
           </Link>
         </div>

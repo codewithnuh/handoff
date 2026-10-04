@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HandoffMark } from "@/components/brand/handoff-mark";
 
 const groups = [
   {
@@ -34,7 +35,7 @@ export function Footer() {
         <div className="landing-footer-main">
           <div>
             <Link href="/" className="landing-brand" aria-label="Handoff home">
-              <span className="landing-brand-glyph" aria-hidden="true">h</span>
+              <HandoffMark size={30} className="landing-brand-mark" />
               <span>Handoff</span>
             </Link>
             <p className="landing-footer-description">

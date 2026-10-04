@@ -424,17 +424,10 @@
   }
 
   .app-brand-mark {
-    display: grid;
+    display: block;
     width: 1.65rem;
     height: 1.65rem;
     flex: none;
-    place-items: center;
-    border-radius: 5px;
-    background: var(--primary);
-    color: var(--primary-foreground);
-    font-size: 1.05rem;
-    font-weight: 650;
-    line-height: 1;
   }
 
   .app-brand-name {
@@ -778,14 +771,23 @@
     min-height: 4rem;
     align-items: center;
     justify-content: space-between;
-    gap: 1.5rem;
+    gap: clamp(0.8rem, 2vw, 1.5rem);
   }
 
-  .landing-nav-links,
-  .landing-nav-actions {
+  .landing-nav-links {
     display: flex;
     align-items: center;
-    gap: 1.25rem;
+    justify-content: center;
+    gap: clamp(0.75rem, 1.8vw, 1.35rem);
+    margin-inline: auto;
+  }
+
+  .landing-nav-actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: flex-end;
+    gap: clamp(0.75rem, 1.5vw, 1.1rem);
   }
 
   .landing-mobile-toggle {
@@ -797,6 +799,19 @@
     border-radius: var(--radius-control);
     background: transparent;
     color: var(--mist, #d0d6e0);
+    cursor: pointer;
+    transition: border-color var(--app-motion-fast) var(--app-ease), background-color var(--app-motion-fast) var(--app-ease), color var(--app-motion-fast) var(--app-ease);
+  }
+
+  .landing-mobile-toggle:hover {
+    border-color: var(--smoke, #383b3f);
+    background: var(--card);
+    color: var(--foreground);
+  }
+
+  .landing-mobile-toggle:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 3px;
   }
 
   .landing-mobile-menu {
@@ -814,6 +829,20 @@
     font-size: 0.85rem;
   }
 
+  .landing-mobile-menu > a {
+    display: flex;
+    min-height: 2.8rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem;
+  }
+
+  .landing-mobile-menu > a svg,
+  .landing-nav-links a svg,
+  .landing-button-primary svg {
+    flex: none;
+  }
+
   .landing-mobile-actions {
     display: flex;
     align-items: center;
@@ -826,8 +855,14 @@
 
   .landing-nav-links a,
   .landing-nav-login {
+    display: inline-flex;
+    min-height: 2.25rem;
+    align-items: center;
+    gap: 0.35rem;
     color: var(--muted-foreground);
     font-size: 0.8125rem;
+    line-height: 1;
+    white-space: nowrap;
     transition: color var(--app-motion-fast) var(--app-ease);
   }
 
@@ -838,26 +873,27 @@
 
   .landing-brand {
     display: inline-flex;
+    flex: none;
     align-items: center;
-    gap: 0.55rem;
+    gap: 0.6rem;
     color: var(--foreground);
     font-size: 0.95rem;
     font-weight: 560;
     letter-spacing: -0.035em;
   }
 
-  .landing-brand-glyph,
-  .product-brand-glyph {
-    display: grid;
-    width: 1.65rem;
-    height: 1.65rem;
-    place-items: center;
-    border-radius: 5px;
-    background: var(--primary);
-    color: var(--primary-foreground);
-    font-size: 1.05rem;
-    font-weight: 650;
-    line-height: 1;
+  .landing-brand-mark {
+    display: block;
+    width: 1.875rem;
+    height: 1.875rem;
+    flex: none;
+  }
+
+  .product-brand-mark {
+    display: block;
+    width: 1.25rem;
+    height: 1.25rem;
+    flex: none;
   }
 
   .landing-button-primary {
@@ -874,6 +910,7 @@
     font-size: 0.8125rem;
     font-weight: 560;
     letter-spacing: -0.01em;
+    white-space: nowrap;
     transition:
       transform var(--app-motion-fast) var(--app-ease),
       filter var(--app-motion-fast) var(--app-ease);
@@ -993,13 +1030,6 @@
     color: var(--foreground);
     font-size: 0.75rem;
     font-weight: 560;
-  }
-
-  .product-brand-glyph {
-    width: 1.2rem;
-    height: 1.2rem;
-    border-radius: 3px;
-    font-size: 0.8rem;
   }
 
   .product-breadcrumb span {
@@ -1611,7 +1641,7 @@
 
 .auth-topbar { min-height: 5rem; border-bottom: 1px solid var(--border); }
 .auth-brand { display: inline-flex; align-items: center; gap: 0.65rem; color: var(--foreground); font-size: 0.95rem; font-weight: 560; letter-spacing: -0.035em; }
-.auth-brand-mark { display: grid; width: 1.8rem; height: 1.8rem; place-items: center; border: 1px solid var(--smoke, #383b3f); border-radius: 0.55rem; background: var(--card); color: var(--primary); font-size: 1.05rem; font-weight: 590; }
+.auth-brand-mark { display: block; width: 1.8rem; height: 1.8rem; flex: none; }
 .auth-back-link { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--muted-foreground); font-size: 0.75rem; transition: color var(--app-motion-fast) var(--app-ease); }
 .auth-back-link:hover { color: var(--foreground); }
 

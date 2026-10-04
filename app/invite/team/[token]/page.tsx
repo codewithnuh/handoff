@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/prisma";
 import { validateTeamInvite } from "@/lib/actions/team";
 import { AcceptInviteForm } from "@/components/auth/accept-invite-form";
+import { HandoffMark } from "@/components/brand/handoff-mark";
 
 export const metadata = { title: "Join workspace — Handoff" };
 
@@ -15,7 +16,7 @@ function InviteFrame({ children }: { children: ReactNode }) {
       <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(ellipse_at_top,rgba(228,242,34,0.07),transparent_68%)]" />
       <header className="relative mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
         <Link href="/" className="group inline-flex items-center gap-2.5 rounded-md text-sm font-medium tracking-tight text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          <span aria-hidden="true" className="grid size-8 place-items-center rounded-lg border border-border bg-card font-semibold text-primary transition-colors group-hover:border-primary/40">h</span>
+          <HandoffMark size={30} />
           Handoff
         </Link>
         <Link href="/contact" className="text-sm text-muted-foreground transition-colors hover:text-foreground">Need help?</Link>
