@@ -386,6 +386,19 @@
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
     }
+
+    [data-slot="sidebar-menu-button"],
+    [data-slot="sheet-content"],
+    [data-slot="sheet-overlay"],
+    .workspace-sidebar-sheet,
+    .sidebar-nav-label {
+      transition-property: opacity, color, background-color, border-color !important;
+      transition-duration: 100ms !important;
+    }
+
+    [data-slot="sidebar-menu-button"]:active {
+      transform: none !important;
+    }
   }
 
   /* ── Hover gating ── */
@@ -452,14 +465,41 @@
     border-right: 1px solid var(--sidebar-border);
   }
 
+  .group[data-collapsible="icon"] .workspace-sidebar-header {
+    justify-content: center;
+  }
+
+  .group[data-collapsible="icon"] .workspace-sidebar-brand {
+    display: none;
+  }
+
   [data-slot="sidebar-menu-button"] {
     min-height: 2.35rem;
     border-radius: 7px;
     color: color-mix(in srgb, var(--sidebar-foreground) 72%, transparent);
+  }
+
+  .sidebar-nav-label {
+    display: inline-block;
+    transform: translateX(0);
+    opacity: 1;
     transition:
-      color var(--app-motion-fast) var(--app-ease),
-      background-color var(--app-motion-fast) var(--app-ease),
-      transform var(--app-motion-fast) var(--app-ease);
+      opacity 120ms var(--ease-out),
+      transform 120ms var(--ease-out);
+  }
+
+  .group[data-collapsible="icon"] .sidebar-nav-label {
+    transform: translateX(-0.25rem);
+    opacity: 0;
+  }
+
+  [data-slot="sidebar-menu-button"]::before {
+    transform: scaleY(0.5);
+    opacity: 0;
+    transition:
+      opacity 150ms var(--ease-out),
+      transform 150ms var(--ease-out);
+    content: "";
   }
 
   [data-slot="sidebar-menu-button"]:hover {
@@ -479,7 +519,8 @@
     width: 2px;
     border-radius: 2px;
     background: var(--sidebar-primary);
-    content: "";
+    transform: scaleY(1);
+    opacity: 1;
   }
 
   .workspace-page {
@@ -1591,6 +1632,7 @@
 .auth-privacy-note a { color: var(--muted-foreground); text-decoration: underline; text-decoration-color: var(--graphite, #23252a); text-underline-offset: 2px; }
 .auth-privacy-note a:hover { color: var(--mist, #d0d6e0); }
 .auth-footer { min-height: 3.75rem; border-top: 1px solid var(--border); color: var(--ash, #62666d); font-size: 0.62rem; }
+.workspace-sidebar-sheet { transition-duration: 250ms; }
 
 @media (max-width: 850px) {
   .auth-main { max-width: 37rem; grid-template-columns: 1fr; gap: 2.5rem; padding-block: 3rem; }

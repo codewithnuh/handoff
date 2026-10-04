@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import {
   Combobox,
   ComboboxContent,
@@ -39,13 +40,20 @@ export function ClientCombobox({
   isOpen,
   onOpenChange,
 }: ClientComboboxProps) {
-  const selectedClient = clients.find((client) => client.id === value) ?? null;
+  const [createdClient, setCreatedClient] = useState<ClientOption | null>(null);
+  const availableClients =
+    createdClient && !clients.some((client) => client.id === createdClient.id)
+      ? [createdClient, ...clients]
+      : clients;
+  const selectedClient =
+    availableClients.find((client) => client.id === value) ?? null;
 
   return (
     <>
       <Combobox
-        items={clients}
-        itemToStringValue={(client) => client?.name ?? ""}
+        items={availableClients}
+        itemToStringLabel={(client) => client?.name ?? ""}
+        itemToStringValue={(client) => client?.id ?? ""}
         value={selectedClient}
         onValueChange={(client) => {
           onChange(client?.id ?? "");
@@ -53,13 +61,14 @@ export function ClientCombobox({
       >
         <ComboboxInput
           placeholder={
-            clients.length ? "Select a client" : "Create your first client"
+            availableClients.length
+              ? "Select a client"
+              : "Create your first client"
           }
-          value={selectedClient?.name ?? ""}
         />
 
         <ComboboxContent>
-          {clients.length === 0 ? (
+          {availableClients.length === 0 ? (
             <ComboboxEmpty>
               <div className="flex flex-col items-center gap-2 p-3">
                 <p className="text-sm text-muted-foreground">No clients yet.</p>
@@ -121,6 +130,7 @@ export function ClientCombobox({
 
           <CreateClientForm
             onCreated={(client) => {
+              setCreatedClient(client);
               onChange(client.id);
               onOpenChange?.(false);
             }}
