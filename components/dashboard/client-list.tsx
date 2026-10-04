@@ -5,20 +5,16 @@ import {
   Search,
   Users,
   Mail,
-  Building2,
   MoreHorizontal,
   Trash2,
   Pencil,
   UserPlus,
-  Shield,
 } from "lucide-react";
 import { useForm } from "@tanstack/react-form";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -138,13 +134,27 @@ export function ClientList({ clients }: ClientListProps) {
 
       {/* Client Cards */}
       {filteredClients.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="client-list">
           {filteredClients.map((client) => (
-            <Card key={client.id} className="shadow-xs">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium truncate max-w-[70%]">
+            <div className="client-list-row" key={client.id}>
+              <span className="client-avatar" aria-hidden="true">
+                {client.name.slice(0, 1).toUpperCase()}
+              </span>
+              <span className="client-list-main">
+                <strong>
                   {client.name}
-                </CardTitle>
+                </strong>
+                <small>{client.company || "Independent client"}</small>
+              </span>
+              <span className="client-list-email">
+                <Mail className="size-3.5" />
+                <span>{client.email}</span>
+              </span>
+              <span className="client-project-count">
+                <strong>{client._count?.projects ?? 0}</strong>
+                <small>projects</small>
+              </span>
+              <span className="client-list-actions">
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     render={<Button variant="ghost" size="icon-sm" />}
@@ -166,35 +176,8 @@ export function ClientList({ clients }: ClientListProps) {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Mail className="h-3.5 w-3.5" />
-                    <span className="truncate">{client.email}</span>
-                  </div>
-                  {client.company && (
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Building2 className="h-3.5 w-3.5" />
-                      <span className="truncate">{client.company}</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between pt-2 border-t border-border">
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Shield className="h-3.5 w-3.5" />
-                    <span>
-                      {client._count?.projects ?? 0} project
-                      {(client._count?.projects ?? 0) !== 1 ? "s" : ""}
-                    </span>
-                  </div>
-                  <Badge variant="secondary" className="text-[10px]">
-                    Client
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
+              </span>
+            </div>
           ))}
         </div>
       ) : (

@@ -9,7 +9,6 @@ import { type ReactNode } from "react";
 import { requireWorkspace } from "@/lib/access";
 import { listWorkspaces } from "@/lib/actions/workspace";
 import Link from "next/link";
-import Image from "next/image";
 
 // Session-scoped: every dashboard page reads the auth session.
 export const dynamic = "force-dynamic";
@@ -40,19 +39,8 @@ export default async function Layout({
             className="flex items-center gap-0.5 text-foreground transition-opacity hover:opacity-80"
             aria-label="Handoff home"
           >
-            <Image
-              src="/logo.png"
-              width={32}
-              height={32}
-              alt=""
-              aria-hidden="true"
-              className="size-8 object-contain"
-              priority
-            />
-
-            <span className="font-heading text-xl text-white font-semibold leading-none tracking-[-0.025em]">
-              Handoff
-            </span>
+            <span className="app-brand-mark" aria-hidden="true">h</span>
+            <span className="app-brand-name">Handoff</span>
           </Link>
         }
         isAdmin={guard.value.isOwner || guard.value.isAdmin}
@@ -64,9 +52,9 @@ export default async function Layout({
       <SidebarInset className="workspace-main">
         <div className="workspace-mobilebar md:hidden">
           <SidebarTrigger size="icon" aria-label="Open navigation" />
-          <Link href="/dashboard" className="flex items-center gap-2" aria-label="Handoff dashboard">
-            <Image src="/logo.png" width={28} height={28} alt="" aria-hidden="true" />
-            <span className="font-heading text-base font-semibold tracking-tight">Handoff</span>
+          <Link href="/dashboard" className="app-brand" aria-label="Handoff dashboard">
+            <span className="app-brand-mark" aria-hidden="true">h</span>
+            <span className="app-brand-name">Handoff</span>
           </Link>
         </div>
         {children}

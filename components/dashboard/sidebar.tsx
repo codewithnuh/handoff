@@ -149,6 +149,7 @@ export function AppSidebar({
         <Button
           onClick={handleLogout}
           size="lg"
+          variant="ghost"
           className="w-full"
           disabled={isLoggingOut}
         >

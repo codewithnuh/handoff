@@ -1,7 +1,5 @@
-import { Container } from "@/components/globals/container";
 import { Navbar } from "@/components/globals/nav";
 import { FinalCTA } from "@/components/landing-page/cta";
-import { WorkflowDemo } from "@/components/landing-page/workflow-demo";
 import { FeaturesSection } from "@/components/landing-page/features";
 import { Footer } from "@/components/landing-page/footer";
 import { Hero } from "@/components/landing-page/hero";
@@ -14,16 +12,13 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-background">
       <Navbar />
-      <Container border>
-        <Hero />
-        {/* <WorkflowDemo /> */}
-        <ProblemSection />
-        <HowItWorks />
-        <FeaturesSection />
-        <Comparison />
-        <Pricing />
-        <FinalCTA />
-      </Container>
+      <Hero />
+      <ProblemSection />
+      <HowItWorks />
+      <FeaturesSection />
+      <Comparison />
+      <Pricing />
+      <FinalCTA />
       <Footer />
     </main>
   );

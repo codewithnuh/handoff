@@ -1,172 +1,93 @@
 import { Clock, DollarSign, Folder, MessageSquare } from "lucide-react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDashboardOverview } from "@/lib/queries/dashboard";
 import { ProjectOverviewError } from "./project-overview-error";
 
-// ──────────────────────────────────────────────
-// Loading Skeleton
-// ──────────────────────────────────────────────
+const overviewItems = [
+  { id: "active-projects", title: "Active projects", icon: Folder },
+  { id: "pending-deliverables", title: "Pending deliverables", icon: Clock },
+  { id: "open-client-requests", title: "Open client requests", icon: MessageSquare },
+  { id: "outstanding-invoices", title: "Outstanding invoices", icon: DollarSign },
+];
 
 export function ProjectOverviewSkeleton() {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <Card className="shadow-md" key={i}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <Skeleton className="h-4 w-28" />
-            <Skeleton className="size-4 rounded-full" />
-          </CardHeader>
-          <CardContent>
-            <Skeleton className="h-7 w-16 mb-2" />
-            <Skeleton className="h-3 w-36" />
-          </CardContent>
-        </Card>
+    <div className="dashboard-overview-skeleton" aria-label="Loading workspace summary">
+      {overviewItems.map((item) => (
+        <div className="overview-skeleton-item" key={item.id}>
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="mt-3 h-7 w-16" />
+          <Skeleton className="mt-2 h-3 w-32" />
+        </div>
       ))}
     </div>
   );
 }
 
-// ──────────────────────────────────────────────
-// Overview Cards (Server Component)
-// ──────────────────────────────────────────────
-
 export async function ProjectOverview() {
   const data = await getDashboardOverview();
 
   if (!data) {
-    return (
-      <ProjectOverviewError message="Please sign in to view your dashboard." />
-    );
+    return <ProjectOverviewError message="Please sign in to view your dashboard." />;
   }
 
-  const stats = [
-    {
-      id: "active-projects",
-      title: "Active projects",
-      value: data.activeProjectCount,
+  const values: Record<string, { value: string; description: string; note?: string }> = {
+    "active-projects": {
+      value: String(data.activeProjectCount),
       description: "Projects currently in progress",
-      icon: Folder,
     },
-    {
-      id: "pending-deliverables",
-      title: "Pending deliverables",
-      value: data.pendingDeliverableCount,
+    "pending-deliverables": {
+      value: String(data.pendingDeliverableCount),
       description: `${data.deliverablesInReviewCount} in review · ${data.deliverablesChangesRequestedCount} changes requested`,
-      icon: Clock,
     },
-    {
-      id: "open-client-requests",
-      title: "Open client requests",
-      value: data.openRequestCount,
-      description: "Requests waiting for action",
-      icon: MessageSquare,
+    "open-client-requests": {
+      value: String(data.openRequestCount),
+      description: "Requests waiting for your reply",
     },
-    {
-      id: "outstanding-invoices",
-      title: "Outstanding invoices",
+    "outstanding-invoices": {
       value: `$${data.outstandingAmount.toLocaleString()}`,
       description: `${data.overdueInvoiceCount} invoice${data.overdueInvoiceCount !== 1 ? "s" : ""} overdue`,
-      subtext:
-        data.overdueAmount > 0
-          ? `$${data.overdueAmount.toLocaleString()} overdue`
-          : undefined,
-      icon: DollarSign,
+      note: data.overdueAmount > 0 ? `$${data.overdueAmount.toLocaleString()} overdue` : undefined,
     },
-  ];
+  };
 
-  const revenueStats = [
-    {
-      id: "paid-revenue",
-      title: "Paid revenue",
-      value: `$${data.paidRevenue.toLocaleString()}`,
-      description: "Total confirmed payments",
-      icon: DollarSign,
-      color: "text-green-600",
-    },
-    {
-      id: "pending-revenue",
-      title: "Pending revenue",
-      value: `$${data.pendingRevenue.toLocaleString()}`,
-      description: "Sent invoices awaiting payment",
-      icon: Clock,
-      color: "text-blue-600",
-    },
-    {
-      id: "overdue-revenue",
-      title: "Overdue revenue",
-      value: `$${data.overdueRevenue.toLocaleString()}`,
-      description: "Past due invoices",
-      icon: DollarSign,
-      color: "text-red-600",
-    },
+  const revenue = [
+    { label: "Paid", value: data.paidRevenue, description: "Confirmed payments" },
+    { label: "Pending", value: data.pendingRevenue, description: "Invoices awaiting payment" },
+    { label: "Overdue", value: data.overdueRevenue, description: "Past due invoices" },
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
+    <section className="dashboard-overview" aria-label="Workspace overview">
+      <div className="overview-metrics">
+        {overviewItems.map((item) => {
+          const Icon = item.icon;
+          const metric = values[item.id];
 
           return (
-            <Card className="shadow-md" key={stat.id}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  {stat.title}
-                </CardTitle>
-
-                <Icon className="size-4 text-muted-foreground" />
-              </CardHeader>
-
-              <CardContent>
-                <div className="text-2xl font-bold tracking-tight">
-                  {stat.value}
-                </div>
-
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {stat.description}
-                </p>
-
-                {stat.subtext && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {stat.subtext}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
+            <article className="overview-metric" key={item.id}>
+              <div className="overview-metric-label"><Icon size={14} /><span>{item.title}</span></div>
+              <strong className="overview-metric-value">{metric.value}</strong>
+              <p>{metric.description}</p>
+              {metric.note && <small>{metric.note}</small>}
+            </article>
           );
         })}
       </div>
 
-      {/* Revenue Overview */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        {revenueStats.map((stat) => {
-          const Icon = stat.icon;
-
-          return (
-            <Card className="shadow-md" key={stat.id}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  {stat.title}
-                </CardTitle>
-
-                <Icon className={`size-4 ${stat.color}`} />
-              </CardHeader>
-
-              <CardContent>
-                <div className="text-2xl font-bold tracking-tight">
-                  {stat.value}
-                </div>
-
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {stat.description}
-                </p>
-              </CardContent>
-            </Card>
-          );
-        })}
+      <div className="overview-revenue">
+        <h2>Revenue</h2>
+        <div className="overview-revenue-items">
+          {revenue.map((item) => (
+            <div className="overview-revenue-item" key={item.label}>
+              <span>{item.label}</span>
+              <strong>${item.value.toLocaleString()}</strong>
+              <small>{item.description}</small>
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+    </section>
   );
 }

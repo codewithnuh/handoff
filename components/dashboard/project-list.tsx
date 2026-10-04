@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ProjectListItem } from "@/lib/queries/dashboard";
 import { EmptyState } from "@/components/presentational/empty-state";
 import {
@@ -147,7 +146,7 @@ export function ProjectList({ projects, clients }: ProjectListProps) {
 
       {/* Projects Grid */}
       {filteredProjects.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="project-list">
           {filteredProjects.map((project) => {
             const status =
               projectStatusOption(project.status) ?? PROJECT_STATUS_OPTIONS[0];
@@ -156,56 +155,32 @@ export function ProjectList({ projects, clients }: ProjectListProps) {
               <Link
                 key={project.id}
                 href={`/dashboard/projects/${project.id}`}
-                className="group block"
+                className="project-list-row"
               >
-                <Card className="shadow-xs h-full transition-shadow group-hover:shadow-md">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-xs font-medium text-muted-foreground truncate max-w-[70%]">
-                      {project.client.company || project.client.name}
-                    </CardTitle>
-                    <Badge variant={status.variant}>{status.label}</Badge>
-                  </CardHeader>
-
-                  <CardContent>
-                    <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">
-                      {project.name}
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">
-                      {project.description || "No description provided."}
-                    </p>
-
-                    <div className="border-border mt-4 space-y-3 border-t pt-3">
-                      {/* Progress Bar */}
-                      <Progress value={project.progress}>
-                        <div className="text-muted-foreground mb-1 flex justify-between text-xs">
-                          <span>Progress</span>
-                          <span className="text-foreground font-medium">
-                            {project.progress}%
-                          </span>
-                        </div>
-                      </Progress>
-
-                      {/* Metadata Row */}
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <div className="flex items-center gap-1.5">
-                          <Calendar className="h-3.5 w-3.5" />
-                          <span>
-                            {project.dueDate
-                              ? new Date(project.dueDate).toLocaleDateString()
-                              : "No due date"}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <FolderKanban className="h-3.5 w-3.5" />
-                          <span>
-                            {project._count.deliverables} Deliverable
-                            {project._count.deliverables !== 1 ? "s" : ""}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <span className="project-list-mark" aria-hidden="true">
+                  <FolderKanban className="size-4" />
+                </span>
+                <span className="project-list-main">
+                  <strong>{project.name}</strong>
+                  <small>{project.client.company || project.client.name}</small>
+                </span>
+                <span className="project-list-status">
+                  <Badge variant={status.variant}>{status.label}</Badge>
+                </span>
+                <span className="project-list-progress">
+                  <span className="project-progress-label">
+                    <span>Progress</span><strong>{project.progress}%</strong>
+                  </span>
+                  <Progress value={project.progress} />
+                </span>
+                <span className="project-list-meta">
+                  <span><Calendar className="size-3.5" />
+                    {project.dueDate
+                      ? new Date(project.dueDate).toLocaleDateString()
+                      : "No due date"}
+                  </span>
+                  <small>{project._count.deliverables} deliverable{project._count.deliverables !== 1 ? "s" : ""}</small>
+                </span>
               </Link>
             );
           })}
