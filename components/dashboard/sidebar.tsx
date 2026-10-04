@@ -128,7 +128,7 @@ export function AppSidebar({
         <WorkspaceSwitcher workspaces={workspaces} />
       </div>
 
-      <SidebarContent>
+      <SidebarContent className="px-2">
         <SidebarMenu>
           {visibleItems.map((item) => (
             <SidebarMenuItem key={item.title}>

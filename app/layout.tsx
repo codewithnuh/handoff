@@ -48,6 +48,7 @@ export default function RootLayout({
       lang="en"
       className={cn(
         "h-full",
+        "dark",
         "antialiased",
         geistSans.variable,
         geistMono.variable,

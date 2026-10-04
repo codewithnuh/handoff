@@ -1423,6 +1423,9 @@
 .workspace-main [data-slot="badge"][data-variant="default"] { border-color: #23252a; background: #23252a; color: #d0d6e0; }
 .workspace-main [data-slot="badge"][data-variant="secondary"] { border-color: transparent; background: #161718; color: #8a8f98; }
 .workspace-main [data-slot="badge"][data-variant="outline"] { border-color: #383b3f; background: transparent; color: #d0d6e0; }
+.workspace-main [data-slot="tabs-list"] { border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--card); padding: 0.2rem; }
+.workspace-main [data-slot="tabs-trigger"] { min-height: 2rem; flex: 0 0 auto; border-radius: calc(var(--radius-control) - 2px); color: var(--muted-foreground); padding-inline: 0.7rem; }
+.workspace-main [data-slot="tabs-trigger"][aria-selected="true"] { background: var(--accent); color: var(--foreground); box-shadow: inset 0 0 0 1px var(--border); }
 .workspace-main h1,
 .workspace-main h2,
 .workspace-main h3 { letter-spacing: -0.035em; }
