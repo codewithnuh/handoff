@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireWorkspacePermission } from "@/lib/access";
 import { getWorkspaceUsage } from "@/lib/queries/usage";
 import { PlanCards } from "@/components/dashboard/billing/plan-cards";
+import { PageHeader } from "@/components/dashboard/page-header";
 
 export const metadata = { title: "Billing — Handoff" };
 
@@ -42,13 +43,11 @@ export default async function BillingPage() {
   const usage = await getWorkspaceUsage();
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-5xl">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Billing</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Your plan and usage for {guard.value.workspace.name}.
-        </p>
-      </div>
+    <div className="workspace-page space-y-6">
+      <PageHeader
+        title="Billing"
+        description={`Your plan and usage for ${guard.value.workspace.name}.`}
+      />
 
       {usage ? (
         <>

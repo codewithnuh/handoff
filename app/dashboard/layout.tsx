@@ -61,10 +61,13 @@ export default async function Layout({
         workspaces={workspaces.success ? workspaces.data.items : []}
       />
 
-      <SidebarInset>
-        {" "}
-        <div className="flex items-center gap-2">
-          <SidebarTrigger size={"lg"} className="md:hidden" />
+      <SidebarInset className="workspace-main">
+        <div className="workspace-mobilebar md:hidden">
+          <SidebarTrigger size="icon" aria-label="Open navigation" />
+          <Link href="/dashboard" className="flex items-center gap-2" aria-label="Handoff dashboard">
+            <Image src="/logo.png" width={28} height={28} alt="" aria-hidden="true" />
+            <span className="font-heading text-base font-semibold tracking-tight">Handoff</span>
+          </Link>
         </div>
         {children}
       </SidebarInset>
