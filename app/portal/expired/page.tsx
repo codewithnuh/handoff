@@ -1,5 +1,11 @@
+import type { Metadata } from "next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconAlertTriangle, IconMail } from "@tabler/icons-react";
+
+export const metadata: Metadata = {
+  title: "Portal session expired",
+  robots: { index: false, follow: false },
+};
 
 export default function PortalExpiredPage() {
   return (

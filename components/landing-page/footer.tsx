@@ -7,6 +7,7 @@ const groups = [
     links: [
       { label: "Features", href: "/#features" },
       { label: "Pricing", href: "/#pricing" },
+      { label: "FAQ", href: "/#faq" },
       { label: "Sign in", href: "/login" },
     ],
   },
@@ -61,7 +62,12 @@ export function Footer() {
 
         <div className="landing-footer-bottom">
           <span>© {new Date().getFullYear()} Handoff</span>
-          <span>Open source · Built for independent work</span>
+          <span>
+            Open source · Created by{" "}
+            <a href="https://noorulhassan.com" target="_blank" rel="me noopener noreferrer">
+              Noor ul Hassan
+            </a>
+          </span>
         </div>
       </div>
     </footer>

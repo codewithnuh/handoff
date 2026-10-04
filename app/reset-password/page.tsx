@@ -6,6 +6,7 @@ import ResetPasswordFlow from "@/components/auth/reset-password-flow";
 export const metadata: Metadata = {
   title: "Reset password",
   description: "Reset your Handoff account password",
+  robots: { index: false, follow: false },
 };
 
 export default function ResetPasswordPage() {

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal/legal-page";
+import { createPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createPageMetadata({
   title: "Billing and Refunds",
   description: "Current billing and refund information for Handoff.",
-};
+  path: "/refund",
+});
 
 export default function RefundPage() {
   return (

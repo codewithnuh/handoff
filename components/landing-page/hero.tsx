@@ -31,7 +31,7 @@ export function Hero() {
             transition={{ duration: 0.4, ease: EASE }}
           >
             <span className="landing-eyebrow-mark" aria-hidden="true" />
-            Project management for independent work
+            Freelance project management with a client portal
           </motion.p>
 
           <motion.h1
@@ -40,8 +40,8 @@ export function Hero() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.55, delay: 0.05, ease: EASE }}
           >
-            Good work deserves
-            <br className="hidden sm:block" /> a cleaner handoff.
+            Project and client
+            <br className="hidden sm:block" /> management for freelancers.
           </motion.h1>
 
           <motion.div
@@ -51,9 +51,9 @@ export function Hero() {
             transition={{ duration: 0.5, delay: 0.15, ease: EASE }}
           >
             <p>
-              Keep project details, client feedback, and invoices together.
-              Share a focused project view so every client knows what needs
-              their input and what happens next.
+              Manage freelance clients, projects, deliverables, feedback, and
+              invoices in one place. Share a client portal for clear progress
+              updates and approvals.
             </p>
             <div className="landing-hero-actions">
               <Link className="landing-button-primary" href="/register">

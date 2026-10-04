@@ -5,6 +5,7 @@ import RegisterForm from "@/components/auth/register-form";
 export const metadata: Metadata = {
   title: "Create account",
   description: "Create a Handoff account",
+  robots: { index: false, follow: false },
 };
 
 export default function RegisterPage() {

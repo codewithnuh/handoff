@@ -5,6 +5,7 @@ import LoginForm from "@/components/auth/login-form";
 export const metadata: Metadata = {
   title: "Sign in",
   description: "Sign in to your Handoff account",
+  robots: { index: false, follow: false },
 };
 
 export default function LoginPage() {

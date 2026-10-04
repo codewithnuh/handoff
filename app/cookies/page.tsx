@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal/legal-page";
+import { createPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createPageMetadata({
   title: "Cookie Policy",
   description: "The cookies Handoff uses to keep your account and client portal working.",
-};
+  path: "/cookies",
+});
 
 export default function CookiesPage() {
   return (

@@ -8,7 +8,10 @@ import { validateTeamInvite } from "@/lib/actions/team";
 import { AcceptInviteForm } from "@/components/auth/accept-invite-form";
 import { HandoffMark } from "@/components/brand/handoff-mark";
 
-export const metadata = { title: "Join workspace — Handoff" };
+export const metadata = {
+  title: "Join workspace",
+  robots: { index: false, follow: false },
+};
 
 function InviteFrame({ children }: { children: ReactNode }) {
   return (

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal/legal-page";
+import { createPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createPageMetadata({
   title: "Security",
   description: "How Handoff protects account, workspace, and client project access.",
-};
+  path: "/security",
+});
 
 export default function SecurityPage() {
   return (

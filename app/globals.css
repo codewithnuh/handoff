@@ -1382,6 +1382,16 @@
   .landing-plan-link { display: inline-flex; margin-top: 1.25rem; color: var(--mist, #d0d6e0); font-size: 0.76rem; }
   .landing-plan-link:hover { color: var(--foreground); }
 
+  .landing-faq { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: clamp(2rem, 7vw, 6rem); align-items: start; }
+  .landing-faq-list { border-top: 1px solid var(--border); }
+  .landing-faq-item { border-bottom: 1px solid var(--border); }
+  .landing-faq-item summary { display: flex; min-height: 3.5rem; align-items: center; justify-content: space-between; gap: 1rem; color: var(--mist, #d0d6e0); font-size: 0.86rem; cursor: pointer; list-style: none; }
+  .landing-faq-item summary::-webkit-details-marker { display: none; }
+  .landing-faq-item summary::after { content: "+"; flex: none; color: var(--ash, #62666d); font-size: 1.1rem; transition: color var(--app-motion-fast) var(--app-ease); }
+  .landing-faq-item[open] summary::after { content: "−"; color: var(--primary); }
+  .landing-faq-item summary:focus-visible { border-radius: 3px; outline: 2px solid var(--ring); outline-offset: 3px; }
+  .landing-faq-item p { max-width: 42rem; margin: 0 2rem 1.1rem 0; color: var(--muted-foreground); font-size: 0.78rem; line-height: 1.7; }
+
   .landing-portal-callout { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); align-items: center; gap: clamp(2rem, 7vw, 6rem); }
   .landing-portal-points { display: grid; gap: 0.65rem; margin: 1.3rem 0 0; padding: 0; color: var(--fog, #8a8f98); font-size: 0.78rem; list-style: none; }
   .landing-portal-points li { display: flex; align-items: center; gap: 0.5rem; }
@@ -1460,6 +1470,8 @@
   .landing-footer-group a { color: var(--muted-foreground); font-size: 0.72rem; transition: color var(--app-motion-fast) var(--app-ease); }
   .landing-footer-group a:hover { color: var(--foreground); }
   .landing-footer-bottom { display: flex; justify-content: space-between; gap: 1rem; border-top: 1px solid var(--border); padding-block: 1rem; color: var(--ash, #62666d); font-size: 0.65rem; }
+  .landing-footer-bottom a { color: var(--muted-foreground); text-underline-offset: 2px; }
+  .landing-footer-bottom a:hover { color: var(--foreground); }
 }
 
 @media (max-width: 760px) {
@@ -1515,6 +1527,7 @@
   .project-list-progress { display: none; }
   .client-list-row { grid-template-columns: 2.1rem minmax(0, 1fr) minmax(10rem, 1fr) 2rem; }
   .client-project-count { display: none; }
+  .landing-faq { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
 }
 
 @media (max-width: 640px) {

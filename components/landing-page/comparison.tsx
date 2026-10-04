@@ -12,7 +12,7 @@ export function Comparison() {
     <section className="landing-section">
       <div className="landing-section-inner landing-portal-callout">
         <div>
-          <p className="landing-section-label">The client side of the handoff</p>
+          <p className="landing-section-label">A client portal for freelancers</p>
           <h2>Clients review the work, never your whole workspace.</h2>
           <p className="landing-copy">
             Share one focused project view with the files, context, and next

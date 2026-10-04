@@ -1,16 +1,17 @@
-import type { Metadata } from "next";
 import { Navbar } from "@/components/globals/nav";
 import { Footer } from "@/components/landing-page/footer";
 import { Container } from "@/components/globals/container";
 import { Card, CardContent } from "@/components/ui/card";
 import { IconMail, IconBrandGithub } from "@tabler/icons-react";
 import { ContactForm } from "@/components/contact/contact-form";
+import { createPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata = createPageMetadata({
   title: "Contact & Support",
   description:
-    "Get in touch with the Handoff team. We're here to help with questions, support, and feedback.",
-};
+    "Contact Handoff for help with the open-source freelance project management app, client portal, account setup, or product feedback.",
+  path: "/contact",
+});
 
 const SUPPORT_EMAIL = "support@handoff.noorulhassan.com";
 const GITHUB_URL = "https://github.com/codewithnuh/handoff/issues";
