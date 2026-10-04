@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, BriefcaseBusiness, ShieldCheck, Users } from "lucide-react";
+import type { ReactNode } from "react";
+import { ArrowLeft, ArrowRight, Briefcase, ShieldCheck, Users } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/prisma";
 import { validateTeamInvite } from "@/lib/actions/team";
@@ -8,7 +9,7 @@ import { AcceptInviteForm } from "@/components/auth/accept-invite-form";
 
 export const metadata = { title: "Join workspace — Handoff" };
 
-function InviteFrame({ children }: { children: React.ReactNode }) {
+function InviteFrame({ children }: { children: ReactNode }) {
   return (
     <main className="relative flex min-h-screen flex-col overflow-hidden bg-background text-foreground">
       <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(ellipse_at_top,rgba(228,242,34,0.07),transparent_68%)]" />
@@ -99,7 +100,7 @@ export default async function AcceptTeamInvitePage({
               </div>
               <div className="h-px bg-border" />
               <div className="flex items-start gap-3">
-                <div className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground"><BriefcaseBusiness aria-hidden="true" className="size-4" /></div>
+                <div className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground"><Briefcase aria-hidden="true" className="size-4" /></div>
                 <div>
                   <p className="text-xs text-muted-foreground">Project access</p>
                   <p className="mt-1 text-sm font-medium">
