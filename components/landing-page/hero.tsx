@@ -50,16 +50,16 @@ export function Hero() {
             transition={{ duration: 0.5, delay: 0.15, ease: EASE }}
           >
             <p>
-              Keep projects, clients, deliverables, approvals, and invoices in
-              one calm workspace. Give every client one clear place to follow
-              the work.
+              Keep project details, client feedback, and invoices together.
+              Share a focused project view so every client knows what needs
+              their input and what happens next.
             </p>
             <div className="landing-hero-actions">
               <Link className="landing-button-primary" href="/register">
                 Start your workspace <ArrowRight size={16} aria-hidden="true" />
               </Link>
-              <Link className="landing-button-link" href="#workflow">
-                See how it works <ArrowUpRight size={15} aria-hidden="true" />
+              <Link className="landing-button-link" href="#product-demo">
+                Preview the client handoff <ArrowUpRight size={15} aria-hidden="true" />
               </Link>
             </div>
           </motion.div>
@@ -153,7 +153,7 @@ export function Hero() {
         </motion.div>
 
         <div className="landing-proofline">
-          <span>Built for independent studios</span>
+          <span>Made for independent studios</span>
           <i aria-hidden="true" />
           <span>Clients review without an account</span>
           <i aria-hidden="true" />

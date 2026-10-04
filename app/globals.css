@@ -1356,24 +1356,66 @@
   .landing-portal-points { display: grid; gap: 0.65rem; margin: 1.3rem 0 0; padding: 0; color: var(--fog, #8a8f98); font-size: 0.78rem; list-style: none; }
   .landing-portal-points li { display: flex; align-items: center; gap: 0.5rem; }
   .landing-portal-points svg { color: var(--primary); }
-  .landing-portal-preview { border: 1px solid var(--border); border-radius: var(--radius-card); padding: clamp(1rem, 2.8vw, 1.6rem); background: var(--card); }
-  .landing-portal-topline { display: flex; justify-content: space-between; gap: 1rem; color: var(--muted-foreground); font-size: 0.65rem; }
-  .landing-portal-topline span:last-child { color: var(--fog, #8a8f98); }
-  .landing-portal-preview h3 { margin: 1.25rem 0 0; color: var(--foreground); font-size: 1.1rem; font-weight: 510; letter-spacing: -0.03em; }
-  .landing-portal-preview > p { margin: 0.3rem 0 1rem; color: var(--muted-foreground); font-size: 0.76rem; }
-  .landing-portal-file { display: flex; align-items: center; gap: 0.65rem; border: 1px solid var(--border); border-radius: 5px; padding: 0.65rem; }
-  .landing-portal-file-icon { display: grid; width: 2rem; height: 2rem; flex: none; place-items: center; border-radius: 4px; background: #23252a; color: #d0d6e0; }
-  .landing-portal-file > span:nth-child(2) { display: grid; min-width: 0; flex: 1; gap: 0.15rem; }
-  .landing-portal-file strong { overflow: hidden; color: var(--mist, #d0d6e0); font-size: 0.7rem; font-weight: 450; text-overflow: ellipsis; white-space: nowrap; }
-  .landing-portal-file small { color: var(--muted-foreground); font-size: 0.6rem; }
-  .landing-portal-status { border: 1px solid var(--border); border-radius: 4px; padding: 0.25rem 0.4rem; color: var(--fog, #8a8f98); font-size: 0.55rem; white-space: nowrap; }
-  .landing-portal-comment { display: flex; align-items: start; gap: 0.55rem; margin-top: 0.8rem; border-bottom: 1px solid var(--border); padding-bottom: 0.8rem; }
-  .landing-portal-comment p { margin: 0; color: var(--muted-foreground); font-size: 0.65rem; line-height: 1.5; }
-  .landing-portal-comment strong { color: var(--mist, #d0d6e0); font-weight: 450; }
-  .landing-portal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.75rem; }
-  .landing-portal-actions span,
-  .landing-portal-actions button { display: inline-flex; min-height: 1.85rem; align-items: center; gap: 0.35rem; border: 1px solid var(--border); border-radius: 4px; padding: 0 0.55rem; background: transparent; color: var(--muted-foreground); font-size: 0.6rem; }
-  .landing-portal-actions button { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); font-weight: 560; }
+
+  .landing-review-demo { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--card); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 65%, transparent); }
+  .landing-review-toolbar { display: flex; min-height: 3.15rem; align-items: center; justify-content: space-between; gap: 0.8rem; border-bottom: 1px solid var(--border); padding: 0.45rem 0.65rem; }
+  .landing-review-views { display: inline-flex; gap: 0.2rem; border: 1px solid var(--border); border-radius: 5px; padding: 0.2rem; background: var(--background); }
+  .landing-review-view { min-height: 1.85rem; border-radius: 3px; padding: 0.35rem 0.6rem; background: transparent; color: var(--muted-foreground); font: inherit; font-size: 0.63rem; cursor: pointer; transition: color var(--app-motion-fast) var(--app-ease), background-color var(--app-motion-fast) var(--app-ease); }
+  .landing-review-view:hover { color: var(--foreground); }
+  .landing-review-view.is-active { background: var(--obsidian, #161718); color: var(--foreground); }
+  .landing-review-view:focus-visible,
+  .landing-review-actions button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .landing-review-demo-label { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--ash, #62666d); font-size: 0.57rem; white-space: nowrap; }
+  .landing-review-demo-label > span { width: 0.34rem; height: 0.34rem; border-radius: 50%; background: var(--primary); }
+  .landing-review-window { min-height: 22.5rem; }
+  .landing-review-windowbar { display: grid; min-height: 2.7rem; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: center; gap: 0.6rem; border-bottom: 1px solid var(--border); padding: 0 0.85rem; color: var(--muted-foreground); font-size: 0.61rem; }
+  .landing-review-identity { display: flex; min-width: 0; align-items: center; gap: 0.45rem; color: var(--mist, #d0d6e0); }
+  .landing-review-identity > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .landing-review-glyph { display: grid; width: 1.3rem; height: 1.3rem; flex: none; place-items: center; border: 1px solid var(--border); border-radius: 4px; color: var(--primary); font-size: 0.7rem; font-weight: 600; }
+  .landing-review-breadcrumb { display: flex; min-width: 0; justify-content: center; gap: 0.38rem; overflow: hidden; white-space: nowrap; }
+  .landing-review-breadcrumb span:first-child { overflow: hidden; text-overflow: ellipsis; }
+  .landing-review-status { display: inline-flex; align-items: center; gap: 0.35rem; border: 1px solid var(--border); border-radius: 999px; padding: 0.25rem 0.45rem; color: var(--fog, #8a8f98); font-size: 0.56rem; white-space: nowrap; }
+  .landing-review-status i { width: 0.32rem; height: 0.32rem; border-radius: 50%; background: #e4f222; }
+  .landing-review-status.is-approved i { background: var(--pulse-green, #27a644); }
+  .landing-review-status.needs-changes i { background: var(--coral-red, #eb5757); }
+  .landing-review-body { padding: 1.1rem clamp(0.8rem, 2.2vw, 1.25rem) 0.8rem; }
+  .landing-review-heading { display: flex; align-items: start; justify-content: space-between; gap: 0.8rem; }
+  .landing-review-heading p { margin: 0; color: var(--ash, #62666d); font-size: 0.52rem; letter-spacing: 0.075em; }
+  .landing-review-heading h3 { margin: 0.35rem 0 0; color: var(--foreground); font-size: 1.05rem; font-weight: 510; letter-spacing: -0.035em; }
+  .landing-review-heading > div > span { display: block; margin-top: 0.2rem; color: var(--muted-foreground); font-size: 0.61rem; }
+  .landing-review-page-count { display: inline-flex; flex: none; align-items: center; gap: 0.3rem; color: var(--ash, #62666d); font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 0.54rem; font-variant-numeric: tabular-nums; }
+  .landing-review-page-count i { width: 0.55rem; height: 1px; background: var(--smoke, #383b3f); }
+  .landing-review-file { margin-top: 0.95rem; }
+  .landing-review-file-art { position: relative; display: flex; height: 7rem; align-items: center; overflow: hidden; border: 1px solid var(--border); border-radius: 5px; padding: 0 1.1rem; background: #141516; }
+  .landing-review-file-art::before { position: absolute; top: -3.2rem; right: 2.1rem; width: 10rem; height: 10rem; border: 1px solid #383b3f; border-radius: 50%; content: ""; }
+  .landing-review-file-art::after { position: absolute; top: -1.8rem; right: 3.5rem; width: 7.2rem; height: 7.2rem; border: 1px solid #383b3f; border-radius: 50%; content: ""; }
+  .landing-review-file-art > span { z-index: 1; color: var(--bone, #e5e5e6); font-size: 2.6rem; font-weight: 400; letter-spacing: -0.09em; }
+  .landing-review-file-art > span > span { color: var(--primary); }
+  .landing-review-file-art > i { position: absolute; right: 1.1rem; bottom: 1.2rem; width: 2.3rem; height: 0.35rem; background: var(--primary); }
+  .landing-review-file-art > b,
+  .landing-review-file-art > em { position: absolute; right: 1.1rem; bottom: 0.65rem; width: 4.5rem; height: 1px; background: #62666d; }
+  .landing-review-file-art > em { bottom: 0.4rem; width: 3rem; }
+  .landing-review-file-meta { display: flex; min-width: 0; align-items: center; gap: 0.55rem; margin-top: 0.45rem; border: 1px solid var(--border); border-radius: 5px; padding: 0.5rem 0.6rem; background: var(--background); }
+  .landing-review-file-icon,
+  .landing-review-comment-icon { display: grid; width: 1.8rem; height: 1.8rem; flex: none; place-items: center; border-radius: 4px; background: var(--obsidian, #161718); color: var(--mist, #d0d6e0); }
+  .landing-review-file-meta > span:nth-child(2) { display: grid; min-width: 0; flex: 1; gap: 0.12rem; }
+  .landing-review-file-meta strong { overflow: hidden; color: var(--mist, #d0d6e0); font-size: 0.61rem; font-weight: 450; text-overflow: ellipsis; white-space: nowrap; }
+  .landing-review-file-meta small { color: var(--muted-foreground); font-size: 0.55rem; }
+  .landing-review-file-version { border: 1px solid var(--border); border-radius: 3px; padding: 0.18rem 0.3rem; color: var(--muted-foreground); font-size: 0.5rem; }
+  .landing-review-note { display: flex; align-items: start; gap: 0.55rem; margin-top: 0.7rem; }
+  .landing-review-comment-icon { width: 1.6rem; height: 1.6rem; }
+  .landing-review-note p { display: grid; min-width: 0; flex: 1; gap: 0.12rem; margin: 0; color: var(--muted-foreground); font-size: 0.57rem; line-height: 1.45; }
+  .landing-review-note strong { color: var(--mist, #d0d6e0); font-size: 0.59rem; font-weight: 450; }
+  .landing-review-time { color: var(--ash, #62666d); font-size: 0.53rem; }
+  .landing-review-actions { display: flex; min-height: 2.5rem; align-items: center; justify-content: flex-end; gap: 0.45rem; margin-top: 0.75rem; border-top: 1px solid var(--border); padding-top: 0.6rem; }
+  .landing-review-actions button { display: inline-flex; min-height: 1.9rem; align-items: center; justify-content: center; gap: 0.35rem; border: 1px solid var(--border); border-radius: 4px; padding: 0.35rem 0.55rem; background: transparent; color: var(--mist, #d0d6e0); font: inherit; font-size: 0.59rem; cursor: pointer; transition: background-color var(--app-motion-fast) var(--app-ease), border-color var(--app-motion-fast) var(--app-ease), transform var(--app-motion-fast) var(--app-ease); }
+  .landing-review-actions button:active { transform: translateY(1px); }
+  .landing-review-actions .landing-review-approve { border-color: var(--primary); background: var(--primary); color: var(--primary-foreground); font-weight: 560; }
+  .landing-review-actions .landing-review-approve:hover { filter: brightness(1.06); }
+  .landing-review-actions .landing-review-secondary:hover { background: var(--obsidian, #161718); }
+  .landing-review-actions p { display: flex; width: 100%; align-items: center; gap: 0.4rem; margin: 0; color: var(--muted-foreground); font-size: 0.58rem; }
+  .landing-review-private-dot { width: 0.33rem; height: 0.33rem; border-radius: 50%; background: var(--ash, #62666d); }
+  .landing-review-caption { margin: 0; border-top: 1px solid var(--border); padding: 0.6rem 0.8rem; color: var(--ash, #62666d); font-size: 0.56rem; line-height: 1.45; }
 
   .landing-cta { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 1.5rem; border-top: 1px solid var(--border); padding-block: clamp(2.5rem, 6vw, 5rem); }
   .landing-cta h2 { max-width: 40rem; margin: 0; color: var(--foreground); font-size: clamp(2rem, 4.5vw, 3.8rem); font-weight: 510; line-height: 1.02; letter-spacing: -0.06em; }
@@ -1658,4 +1700,20 @@
   .auth-form-card [data-slot="card-content"] { padding: 1rem; }
   .auth-footer { min-height: 3.25rem; font-size: 0.56rem; }
   .auth-footer span:last-child { text-align: right; }
+}
+
+@media (max-width: 520px) {
+  .landing-review-toolbar { align-items: flex-start; flex-direction: column; gap: 0.45rem; }
+  .landing-review-demo-label { padding-left: 0.15rem; }
+  .landing-review-window { min-height: 0; }
+  .landing-review-windowbar { grid-template-columns: minmax(0, 1fr) auto; }
+  .landing-review-breadcrumb { display: none; }
+  .landing-review-body { padding-inline: 0.7rem; }
+  .landing-review-actions { align-items: stretch; }
+  .landing-review-actions button { flex: 1; padding-inline: 0.35rem; font-size: 0.55rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-review-view,
+  .landing-review-actions button { transition: none; }
 }
