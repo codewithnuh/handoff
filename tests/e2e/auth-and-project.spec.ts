@@ -48,8 +48,8 @@ async function signUpAndVerify(page: Page, request: APIRequestContext, email: st
   const raw = await latestMail(request, email);
   const otp = raw.match(/verification code is\s*(\d{6})/i)?.[1];
   expect(otp, "SMTP capture should contain the real verification OTP").toBeTruthy();
+  // Completing all six digits submits verification automatically.
   await page.getByLabel("Verification code").fill(otp!);
-  await page.getByRole("button", { name: "Verify email" }).click();
   await expect(page).toHaveURL(/dashboard/);
   await expect(page.getByRole("button", { name: "Dashboard" })).toBeVisible();
 }
