@@ -1,10 +1,6 @@
 import type { Metadata } from "next";
 
-const fallbackSiteUrl = "https://handoff-six-psi.vercel.app";
-
-export const siteUrl = new URL(
-  process.env.NEXT_PUBLIC_APP_URL || fallbackSiteUrl,
-).origin;
+export const siteUrl = "https://handoff.noorulhassan.com";
 
 export const siteDescription =
   "Manage freelance projects, clients, deliverables, feedback, and invoices in one workspace. Share a private client portal for clear updates and approvals.";

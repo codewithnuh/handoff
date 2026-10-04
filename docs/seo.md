@@ -21,7 +21,7 @@ These are phrased from current search results and product category language. The
 - `app/robots.ts` publishes crawler rules and the sitemap URL.
 - `app/opengraph-image.tsx` generates the social sharing image from the public logo.
 
-Set `NEXT_PUBLIC_APP_URL` to the canonical production origin in the hosting environment. It currently falls back to the Handoff Vercel deployment URL. Update that fallback in `lib/seo.ts` if the production hostname changes.
+The canonical production origin is `https://handoff.noorulhassan.com`, configured once in `lib/seo.ts`. Metadata, structured data, `robots.txt`, and the sitemap derive their absolute URLs from that shared value. Update it there if the production hostname changes; preview deployments intentionally keep pointing search engines at the production domain.
 
 Sign-in, sign-up, password recovery, verification, invitation, dashboard, and client portal pages are marked `noindex`. Keep private workspace pages out of the sitemap.
 
