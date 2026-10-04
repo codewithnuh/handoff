@@ -15,11 +15,15 @@ export default async function LinksRoute() {
 
   if (!result.success) {
     return (
-      <div className="p-4 md:p-6 max-w-5xl">
-        <h1 className="text-2xl font-bold tracking-tight">Links</h1>
-        <p className="text-sm text-muted-foreground mt-2">
+      <div className="workspace-page space-y-6">
+        <div className="page-heading">
+          <div>
+        <h1>Links</h1>
+        <p>
           {result.message}
         </p>
+          </div>
+        </div>
       </div>
     );
   }

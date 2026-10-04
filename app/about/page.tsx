@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { Navbar } from "@/components/globals/nav";
 import { Footer } from "@/components/landing-page/footer";
@@ -10,12 +9,14 @@ import {
   IconLock,
   IconRocket,
 } from "@tabler/icons-react";
+import { createPageMetadata, creatorProfiles } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata = createPageMetadata({
   title: "About",
   description:
-    "Learn about Handoff — the open-source client and project management platform for freelancers.",
-};
+    "Meet Handoff, the open-source project and client management workspace for freelancers, independent professionals, and small studios.",
+  path: "/about",
+});
 
 export default function AboutPage() {
   return (
@@ -46,6 +47,31 @@ export default function AboutPage() {
                 bloat of enterprise project management tools. One link. One
                 place. Clear status.
               </p>
+            </section>
+
+            <section>
+              <div className="flex items-center gap-3">
+                <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
+                  <IconUsers className="size-5 text-primary" />
+                </div>
+                <h2 className="text-lg font-semibold">Created by Noor ul Hassan</h2>
+              </div>
+              <p className="mt-3 text-sm leading-7 text-muted-foreground">
+                Handoff is an open-source project created by independent developer Noor ul Hassan to make client and project work easier to manage.
+              </p>
+              <nav aria-label="Noor ul Hassan profiles" className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm">
+                {creatorProfiles.map((profile) => (
+                  <a
+                    className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                    href={profile.url}
+                    key={profile.url}
+                    target="_blank"
+                    rel="me noopener noreferrer"
+                  >
+                    {profile.name}
+                  </a>
+                ))}
+              </nav>
             </section>
 
             <section>

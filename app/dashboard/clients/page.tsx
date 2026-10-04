@@ -3,6 +3,7 @@ import { db } from "@/lib/prisma";
 import { getVisibleProjectIds, requireWorkspacePermission } from "@/lib/access";
 import { ClientList } from "@/components/dashboard/client-list";
 import { ClientsPageSkeleton } from "@/components/presentational/route-skeletons";
+import { PageHeader } from "@/components/dashboard/page-header";
 
 // ──────────────────────────────────────────────
 // Server-side data fetch (streams inside Suspense)
@@ -52,17 +53,12 @@ async function ClientsData() {
 
 export default function ClientsPage() {
   return (
-    <div className="max-w-7xl space-y-6 p-4 md:p-6">
+    <div className="workspace-page space-y-6">
       {/* Header */}
-      <div className="border-b flex flex-col justify-between gap-4 pb-5 sm:flex-row sm:items-center">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Manage your workspace clients. Invite them to projects from the
-            Portal page.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Clients"
+        description="Keep client details close and see which projects each person is part of."
+      />
 
       {/* Client List */}
       <Suspense fallback={<ClientsPageSkeleton />}>

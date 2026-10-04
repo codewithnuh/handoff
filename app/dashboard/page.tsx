@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 
 import { getCurrentWorkspace } from "@/lib/actions/workspace";
 import { listClients } from "@/lib/actions/client";
@@ -98,7 +97,7 @@ export default async function Dashboard() {
     : [];
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
+    <div className="workspace-page flex flex-1 flex-col gap-6">
       {/* Header — always rendered, no Suspense needed (already fetched above) */}
       <DashboardHeader
         userName={userName}

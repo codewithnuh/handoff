@@ -151,18 +151,18 @@ export function DashboardHeader({
   });
 
   return (
-    <div className=" flex border-b-2 pb-5 gap-5 sm:items-end justify-between flex-col sm:flex-row">
+    <div className="workspace-heading">
       <div>
-        <p className="text-muted-foreground">Good morning, {userName}</p>
-        <h2 className="text-secondary-foreground font-bold text-2xl">
+        <p className="mb-1 text-sm">Good to see you, {userName}</p>
+        <h1>
           {workspaceName}
-        </h2>
-        <p className="text-muted-foreground">
-          Here&apos;s what&apos;s happening across your projects today.
+        </h1>
+        <p className="mt-2">
+          Your client work, projects, and payments in one view.
         </p>
       </div>
 
-      <div className="flex items-center gap-x-4">
+      <div className="flex flex-wrap items-center gap-2">
         {canManageClients && (
           <Dialog open={clientOpen} onOpenChange={setClientOpen}>
             <DialogTrigger render={<Button size="lg" variant="secondary" />}>

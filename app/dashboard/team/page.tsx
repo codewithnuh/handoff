@@ -3,6 +3,7 @@ import { requireWorkspacePermission } from "@/lib/access";
 import { listTeamMembers, listTeamInvites } from "@/lib/actions/team";
 import { getManageableProjects } from "@/lib/queries/team";
 import { TeamManagement } from "@/components/dashboard/team";
+import { PageHeader } from "@/components/dashboard/page-header";
 
 export const metadata = { title: "Team — Handoff" };
 
@@ -22,14 +23,11 @@ export default async function TeamPage() {
   ]);
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-5xl">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Team</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Invite teammates, set their standing, and control which projects they
-          can see.
-        </p>
-      </div>
+    <div className="workspace-page space-y-6">
+      <PageHeader
+        title="Team"
+        description="Invite collaborators and choose which projects they can see."
+      />
 
       <TeamManagement
         members={membersResult.success ? membersResult.data.items : []}

@@ -2,229 +2,164 @@
 
 import Link from "next/link";
 import { motion } from "motion/react";
-import { Badge } from "../ui/badge";
-import { Button } from "../ui/button";
-import { IconArrowRight, IconEye } from "@tabler/icons-react";
-import { WorkflowDemo } from "./workflow-demo";
+import { HandoffMark } from "@/components/brand/handoff-mark";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Check,
+  CircleDot,
+  Clock3,
+  FileText,
+  LayoutGrid,
+  MoreHorizontal,
+  Plus,
+  Search,
+  Users,
+} from "lucide-react";
 
 const EASE = [0.23, 1, 0.32, 1] as const;
 
 export function Hero() {
   return (
-    <section className="relative overflow-hidden bg-background">
-      {/* Background glow */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 -z-10 flex justify-center overflow-hidden"
-      >
-        <div className="h-[500px] w-[900px] rounded-full bg-primary/5 blur-3xl" />
-      </div>
-
-      <div className="mx-auto flex w-full max-w-7xl flex-col items-center px-4 pb-20 pt-20 sm:px-6 sm:pb-24 sm:pt-24 lg:px-8 lg:pt-28">
-        {/* Hero copy */}
-        <div className="relative z-10 flex w-full max-w-7xl flex-col items-center text-center">
-          {/* Badge */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
+    <section className="landing-hero" aria-labelledby="hero-title">
+      <div className="landing-wrap">
+        <div className="landing-hero-copy">
+          <motion.p
+            className="landing-eyebrow"
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{
-              duration: 0.5,
-              delay: 0.1,
-              ease: EASE,
-            }}
+            transition={{ duration: 0.4, ease: EASE }}
           >
-            <Badge className="gap-2 rounded-full px-3 py-1">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
-              </span>
+            <span className="landing-eyebrow-mark" aria-hidden="true" />
+            Freelance project management with a client portal
+          </motion.p>
 
-              <span>For Freelancers & Creative Teams</span>
-            </Badge>
-          </motion.div>
-
-          {/* Heading */}
           <motion.h1
-            initial={{ opacity: 0, y: 16 }}
+            id="hero-title"
+            initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{
-              duration: 0.6,
-              delay: 0.2,
-              ease: EASE,
-            }}
-            className="
-              mt-6
-              max-w-7xl
-              text-balance
-              text-4xl
-              font-bold
-              leading-[1.05]
-              tracking-tight
-              text-foreground
-              sm:text-5xl
-              md:text-6xl
-              lg:text-7xl
-          "
+            transition={{ duration: 0.55, delay: 0.05, ease: EASE }}
           >
-            Stop chasing status updates.
-            <span className="block text-muted-foreground">
-              Start handing off work.
-            </span>
+            Project and client
+            <br className="hidden sm:block" /> management for freelancers.
           </motion.h1>
 
-          {/* Description */}
-          <motion.p
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              duration: 0.6,
-              delay: 0.3,
-              ease: EASE,
-            }}
-            className="
-              mt-6
-              max-w-2xl
-              text-balance
-              text-base
-              leading-7
-              text-muted-foreground
-              sm:text-lg
-              sm:leading-8
-          "
-          >
-            Send one link. Your client sees what&apos;s done, approves or
-            rejects work, and leaves feedback — all in one place. No more
-            digging through email and WhatsApp for the latest answer.
-          </motion.p>
-
-          {/* CTAs */}
           <motion.div
-            initial={{ opacity: 0, y: 16 }}
+            className="landing-hero-bottom"
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{
-              duration: 0.6,
-              delay: 0.4,
-              ease: EASE,
-            }}
-            className="
-              mt-8
-              flex
-              w-full
-              flex-col
-              items-stretch
-              justify-center
-              gap-3
-              sm:w-auto
-              sm:flex-row
-              sm:items-center
-          "
+            transition={{ duration: 0.5, delay: 0.15, ease: EASE }}
           >
-            <Button
-              render={
-                <Link href="/register">
-                  Get started free
-                  <IconArrowRight
-                    aria-hidden="true"
-                    className="ml-1 size-4 transition-transform duration-200 group-hover:translate-x-0.5"
-                  />
-                </Link>
-              }
-              nativeButton={false}
-              size="lg"
-              className="group h-11 w-full px-5 sm:w-auto"
-            ></Button>
-
-            <Button
-              render={
-                <Link href="#workflow-demo">
-                  Watch how it works
-                  <IconEye aria-hidden="true" className="ml-1 size-4" />
-                </Link>
-              }
-              nativeButton={false}
-              variant="outline"
-              size="lg"
-              className="h-11 w-full px-5 sm:w-auto"
-            ></Button>
+            <p>
+              Manage freelance clients, projects, deliverables, feedback, and
+              invoices in one place. Share a client portal for clear progress
+              updates and approvals.
+            </p>
+            <div className="landing-hero-actions">
+              <Link className="landing-button-primary" href="/register">
+                Start your workspace <ArrowRight size={16} aria-hidden="true" />
+              </Link>
+              <Link className="landing-button-link" href="#product-demo">
+                Preview the client handoff <ArrowUpRight size={15} aria-hidden="true" />
+              </Link>
+            </div>
           </motion.div>
-
-          {/* Trust line */}
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{
-              duration: 0.5,
-              delay: 0.6,
-            }}
-            className="mt-4 text-xs text-muted-foreground sm:text-sm"
-          >
-            No credit card · No onboarding · Set up your first project in
-            minutes
-          </motion.p>
         </div>
 
-        {/* Workflow */}
         <motion.div
-          id="workflow-demo"
-          initial={{ opacity: 0, y: 30 }}
+          id="product"
+          className="product-frame"
+          initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{
-            duration: 0.8,
-            delay: 0.55,
-            ease: EASE,
-          }}
-          className="
-            relative
-            mt-14
-            w-full
-            max-w-6xl
-            sm:mt-16
-            lg:mt-20
-          "
+          transition={{ duration: 0.75, delay: 0.25, ease: EASE }}
+          role="img"
+          aria-label="Preview of a Handoff workspace with projects, deliverable progress, and a client approval waiting for review"
         >
-          {/* Glow behind workflow */}
-          <div
-            aria-hidden="true"
-            className="
-              pointer-events-none
-              absolute
-              -inset-4
-              -z-10
-              rounded-[2rem]
-              bg-primary/5
-              blur-2xl
-              sm:-inset-8
-            "
-          />
+          <div className="product-topbar">
+            <div className="product-brand">
+              <HandoffMark size={20} className="product-brand-mark" />
+              <span>handoff</span>
+            </div>
+            <div className="product-breadcrumb">Northstar Studio <span>/</span> Overview</div>
+            <div className="product-top-actions">
+              <span className="product-shortcut"><Search size={12} /> Search <kbd>⌘ K</kbd></span>
+              <span className="product-avatar">NS</span>
+            </div>
+          </div>
 
-          {/* Top fade */}
-          <div
-            aria-hidden="true"
-            className="
-              pointer-events-none
-              absolute
-              -top-10
-              left-1/2
-              z-10
-              h-20
-              w-3/4
-              -translate-x-1/2
-              bg-background
-              opacity-60
-              blur-2xl
-            "
-          />
+          <div className="product-layout">
+            <aside className="product-rail" aria-hidden="true">
+              <span className="product-rail-label">WORKSPACE</span>
+              <span className="product-rail-item is-active"><LayoutGrid size={14} /> Overview</span>
+              <span className="product-rail-item"><CircleDot size={14} /> Projects <i>4</i></span>
+              <span className="product-rail-item"><Users size={14} /> Clients</span>
+              <span className="product-rail-item"><FileText size={14} /> Invoices</span>
+              <span className="product-rail-label product-rail-label-spaced">YOUR WORK</span>
+              <span className="product-rail-project"><b className="project-dot dot-teal" /> Northstar rebrand</span>
+              <span className="product-rail-project"><b className="project-dot dot-violet" /> Atlas website</span>
+              <span className="product-profile"><span className="product-avatar">AM</span> Alex Morgan</span>
+            </aside>
 
-          <div
-            className="
-              overflow-hidden
-              rounded-xl
-              sm:rounded-2xl
-            "
-          >
-            <WorkflowDemo />
+            <div className="product-content">
+              <div className="product-page-heading">
+                <div>
+                  <span className="product-kicker">MONDAY, OCTOBER 5</span>
+                  <h2>Good morning, Alex</h2>
+                  <p>Here&apos;s what needs your attention.</p>
+                </div>
+                <button type="button" tabIndex={-1} className="product-create"><Plus size={14} /> New project</button>
+              </div>
+
+              <div className="product-stats">
+                <div><span>Active projects</span><strong>06</strong><small>Across 4 clients</small></div>
+                <div><span>For your review</span><strong>02</strong><small className="product-lime-text">One needs a decision</small></div>
+                <div><span>Outstanding</span><strong>$4,250</strong><small>2 invoices sent</small></div>
+              </div>
+
+              <div className="product-section-heading">
+                <div><h3>Active projects</h3><span>Recent work across your studio</span></div>
+                <MoreHorizontal size={16} />
+              </div>
+
+              <div className="product-table">
+                <div className="product-table-head"><span>PROJECT</span><span>STATUS</span><span>PROGRESS</span><span>DUE</span></div>
+                <div className="product-row">
+                  <span className="product-project-cell"><b className="project-dot dot-teal" /><span><strong>Northstar rebrand</strong><small>Northstar Coffee</small></span></span>
+                  <span className="product-status"><i className="status-dot status-working" /> In progress</span>
+                  <span className="product-progress"><i><b style={{ width: "72%" }} /></i><small>72%</small></span>
+                  <span className="product-date">Oct 14</span>
+                </div>
+                <div className="product-row">
+                  <span className="product-project-cell"><b className="project-dot dot-violet" /><span><strong>Atlas website</strong><small>Atlas Ventures</small></span></span>
+                  <span className="product-status"><i className="status-dot status-review" /> In review</span>
+                  <span className="product-progress"><i><b style={{ width: "88%" }} /></i><small>88%</small></span>
+                  <span className="product-date">Oct 18</span>
+                </div>
+                <div className="product-row">
+                  <span className="product-project-cell"><b className="project-dot dot-orange" /><span><strong>Spring campaign</strong><small>Fieldwork Supply</small></span></span>
+                  <span className="product-status"><i className="status-dot status-planning" /> Planning</span>
+                  <span className="product-progress"><i><b style={{ width: "24%" }} /></i><small>24%</small></span>
+                  <span className="product-date">Oct 22</span>
+                </div>
+              </div>
+
+              <div className="product-review-card">
+                <div className="product-review-icon"><Clock3 size={15} /></div>
+                <div className="product-review-copy"><strong>Logo suite is waiting for approval</strong><span>Northstar Coffee · Sent 2 hours ago</span></div>
+                <span className="product-review-action">View review <ArrowRight size={13} /></span>
+                <span className="product-review-check"><Check size={12} /></span>
+              </div>
+            </div>
           </div>
         </motion.div>
+
+        <div className="landing-proofline">
+          <span>Made for independent studios</span>
+          <i aria-hidden="true" />
+          <span>Clients review without an account</span>
+          <i aria-hidden="true" />
+          <span>Open source</span>
+        </div>
       </div>
     </section>
   );

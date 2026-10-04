@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Image from "next/image";
 import { motion, AnimatePresence } from "motion/react";
+import { HandoffMark } from "@/components/brand/handoff-mark";
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -100,7 +100,7 @@ function Sidebar({ active }: { active: string }) {
   return (
     <aside className="hidden w-[180px] shrink-0 flex-col border-r border-border bg-sidebar text-sidebar-foreground md:flex">
       <div className="flex items-center gap-2 border-b border-sidebar-border px-4 py-3">
-        <Image src="/logo.png" width={22} height={22} alt="" aria-hidden="true" className="size-[22px] object-contain" />
+        <HandoffMark size={22} className="size-[22px] shrink-0" />
         <span className="text-xs font-semibold">Handoff</span>
       </div>
       <div className="border-b border-sidebar-border px-3 py-2">
@@ -617,7 +617,7 @@ export function WorkflowDemo() {
                 <div className="flex flex-1 flex-col overflow-hidden">
                   <header className="border-b border-border bg-card px-4 py-3 md:px-6">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2"><Image src="/logo.png" width={20} height={20} alt="" aria-hidden="true" className="size-5 object-contain" /><span className="text-[11px] font-semibold">Handoff</span></div>
+                      <div className="flex items-center gap-2"><HandoffMark size={20} className="size-5 shrink-0" /><span className="text-[11px] font-semibold">Handoff</span></div>
                       <div className="flex items-center gap-2"><span className="text-[10px] text-muted-foreground">Sarah&apos;s Workspace</span><div className="flex size-6 items-center justify-center rounded-full bg-primary/10 text-[9px] font-bold text-primary">S</div></div>
                     </div>
                   </header>

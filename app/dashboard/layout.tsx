@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/dashboard/sidebar";
 import {
@@ -9,10 +10,11 @@ import { type ReactNode } from "react";
 import { requireWorkspace } from "@/lib/access";
 import { listWorkspaces } from "@/lib/actions/workspace";
 import Link from "next/link";
-import Image from "next/image";
+import { HandoffMark } from "@/components/brand/handoff-mark";
 
 // Session-scoped: every dashboard page reads the auth session.
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 export default async function Layout({
   children,
@@ -40,19 +42,8 @@ export default async function Layout({
             className="flex items-center gap-0.5 text-foreground transition-opacity hover:opacity-80"
             aria-label="Handoff home"
           >
-            <Image
-              src="/logo.png"
-              width={32}
-              height={32}
-              alt=""
-              aria-hidden="true"
-              className="size-8 object-contain"
-              priority
-            />
-
-            <span className="font-heading text-xl text-white font-semibold leading-none tracking-[-0.025em]">
-              Handoff
-            </span>
+            <HandoffMark size={26} className="app-brand-mark" />
+            <span className="app-brand-name">Handoff</span>
           </Link>
         }
         isAdmin={guard.value.isOwner || guard.value.isAdmin}
@@ -61,10 +52,13 @@ export default async function Layout({
         workspaces={workspaces.success ? workspaces.data.items : []}
       />
 
-      <SidebarInset>
-        {" "}
-        <div className="flex items-center gap-2">
-          <SidebarTrigger size={"lg"} className="md:hidden" />
+      <SidebarInset className="workspace-main">
+        <div className="workspace-mobilebar md:hidden">
+          <SidebarTrigger size="icon" aria-label="Open navigation" />
+          <Link href="/dashboard" className="app-brand" aria-label="Handoff dashboard">
+            <HandoffMark size={26} className="app-brand-mark" />
+            <span className="app-brand-name">Handoff</span>
+          </Link>
         </div>
         {children}
       </SidebarInset>

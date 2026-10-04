@@ -8,6 +8,7 @@ import {
   ReadOnlyBanner,
 } from "@/components/dashboard/usage-banner";
 import { getWorkspaceUsage } from "@/lib/queries/usage";
+import { PageHeader } from "@/components/dashboard/page-header";
 
 // ──────────────────────────────────────────────
 // Usage Section (server-rendered)
@@ -46,17 +47,12 @@ async function ProjectsSection() {
 
 export default function ProjectsPage() {
   return (
-    <div className="max-w-7xl space-y-6 p-4 md:p-6">
+    <div className="workspace-page space-y-6">
       {/* Header */}
-      <div className="border-b flex flex-col justify-between gap-4 pb-5 sm:flex-row sm:items-center">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Projects</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Manage your workspace projects, deliverable status, and client
-            access.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Projects"
+        description="Track active work, deliverables, deadlines, and client access."
+      />
 
       {/* Usage banners */}
       <Suspense fallback={<UsageBannerSkeleton />}>

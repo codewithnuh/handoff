@@ -110,8 +110,8 @@ export function AppSidebar({
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="flex flex-row items-center justify-between p-2">
-        <div className="flex items-center gap-2 overflow-hidden">
+      <SidebarHeader className="workspace-sidebar-header flex flex-row items-center justify-between p-2">
+        <div className="workspace-sidebar-brand flex items-center gap-2 overflow-hidden">
           {logo ?? (
             <Link href="/dashboard" className="flex items-center gap-2">
               <span className="text-sm font-semibold group-data-[collapsible=icon]:hidden">
@@ -128,7 +128,7 @@ export function AppSidebar({
         <WorkspaceSwitcher workspaces={workspaces} />
       </div>
 
-      <SidebarContent>
+      <SidebarContent className="px-2">
         <SidebarMenu>
           {visibleItems.map((item) => (
             <SidebarMenuItem key={item.title}>
@@ -136,9 +136,10 @@ export function AppSidebar({
                 <SidebarMenuButton
                   tooltip={item.title}
                   isActive={isActive(item.url)}
+                  className="transition-[transform,color,background-color] duration-150 ease-[var(--ease-out)] active:scale-[0.98]"
                 >
                   <item.icon />
-                  <span>{item.title}</span>
+                  <span className="sidebar-nav-label">{item.title}</span>
                 </SidebarMenuButton>
               </Link>
             </SidebarMenuItem>
@@ -149,6 +150,7 @@ export function AppSidebar({
         <Button
           onClick={handleLogout}
           size="lg"
+          variant="ghost"
           className="w-full"
           disabled={isLoggingOut}
         >

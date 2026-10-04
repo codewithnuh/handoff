@@ -49,6 +49,7 @@ import {
 import { useServerAction } from "@/hooks/use-server-action";
 import { formatDate } from "@/lib/presentational/format";
 import { LINK_STATUS_CONFIG as STATUS_CONFIG } from "@/lib/presentational/status";
+import { PageHeader } from "@/components/dashboard/page-header";
 
 // ──────────────────────────────────────────────
 // Constants
@@ -194,14 +195,12 @@ export function LinksPage({ teamLinks, clientLinks }: LinksPageProps) {
   };
 
   return (
-    <div className="flex flex-col gap-6 p-4 md:p-6">
+    <div className="workspace-page space-y-6">
       {/* ── Header ── */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Links</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Track all team and client invitation links for your workspace.
-        </p>
-      </div>
+      <PageHeader
+        title="Links"
+        description="Track all team and client invitation links for your workspace."
+      />
 
       {/* ── Stats ── */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
@@ -223,18 +222,17 @@ export function LinksPage({ teamLinks, clientLinks }: LinksPageProps) {
 
       {/* ── Filters ── */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center border border-border rounded-md">
+        <div className="flex items-center gap-0.5 rounded-md border border-border bg-card p-0.5">
           {(["all", "team", "client"] as const).map((f) => (
             <Button
               key={f}
+              variant={filter === f ? "default" : "ghost"}
               onClick={() => {
                 setFilter(f);
                 setSelectedIds(new Set());
               }}
-              className={`px-3 py-1.5 text-xs font-medium capitalize transition-colors ${
-                filter === f
-                  ? "bg-primary text-primary-foreground"
-                  : "text-gray-200 hover:text-foreground"
+              className={`px-3 text-xs font-medium capitalize ${
+                filter === f ? "" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {f}

@@ -111,7 +111,7 @@ export function ProjectDetail({ data, permissions, initialTasks, currentUserId }
   };
 
   return (
-    <div className="max-w-7xl space-y-6 p-4 md:p-6">
+    <div className="workspace-page space-y-6">
       {/* Navigation Breadcrumb */}
       <nav className="text-muted-foreground flex items-center gap-2 text-xs">
         <Link

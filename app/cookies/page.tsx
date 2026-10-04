@@ -1,103 +1,71 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal/legal-page";
+import { createPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createPageMetadata({
   title: "Cookie Policy",
-  description:
-    "How Handoff uses cookies and similar technologies.",
-};
+  description: "The cookies Handoff uses to keep your account and client portal working.",
+  path: "/cookies",
+});
 
 export default function CookiesPage() {
   return (
     <LegalPage
       title="Cookie Policy"
-      description="How we use cookies and similar technologies on our platform."
-      lastUpdated="September 1, 2026"
+      description="A clear list of the browser cookies used by Handoff."
+      lastUpdated="October 4, 2026"
     >
-      <h2>What Are Cookies</h2>
+      <h2>How cookies are used</h2>
       <p>
-        Cookies are small text files placed on your device when you visit a
-        website. They help the site remember your preferences and provide a
-        better experience.
+        Handoff uses essential cookies to recognize signed-in users and protect
+        access to private workspaces and client portals. The app does not use
+        advertising cookies or a third-party analytics cookie.
       </p>
 
-      <h2>Cookies We Use</h2>
-
-      <h3>Essential Cookies</h3>
-      <p>
-        These cookies are necessary for Handoff to function properly. They
-        cannot be disabled.
-      </p>
+      <h2>Essential authentication cookies</h2>
       <ul>
         <li>
-          <strong>Session cookie:</strong> Maintains your authentication
-          session while you are signed in. Deleted when you close your
-          browser or sign out.
+          <strong>Account session:</strong> Maintains your Handoff sign-in so
+          private dashboard pages and actions can identify your account.
         </li>
         <li>
-          <strong>CSRF token:</strong> Protects against cross-site request
-          forgery attacks on form submissions.
+          <strong>Client portal session (cp_session):</strong> Keeps a client
+          signed in to the specific project portal they were granted access to.
         </li>
       </ul>
-
-      <h3>Functional Cookies</h3>
-      {/* TODO: Add if you use any */}
-      <ul>
-        <li>
-          [Add any functional cookies you use — e.g., theme preference,
-          language selection]
-        </li>
-      </ul>
-
-      <h3>Analytics Cookies</h3>
-      {/* TODO: Add if you use analytics */}
       <p>
-        [If you use Google Analytics, Plausible, PostHog, or any other
-        analytics tool, list it here with its cookie details. If you do not
-        use analytics, remove this section or state that you do not use
-        analytics cookies.]
+        These cookies are set when you sign in. Their lifetime follows the
+        session settings for the service; signing out or session expiry ends
+        access. Blocking them will prevent sign-in and portal access from
+        working.
       </p>
 
-      <h2>Third-Party Cookies</h2>
-      {/* TODO: Update with actual third parties */}
+      <h2>Analytics and preferences</h2>
       <p>
-        Some third-party services we use may place cookies on your device:
-      </p>
-      <ul>
-        <li>
-          [List any third-party cookies — e.g., analytics, embedded content,
-          payment processors]
-        </li>
-      </ul>
-
-      <h2>Managing Cookies</h2>
-      <p>
-        You can control and manage cookies through your browser settings.
-        Most browsers allow you to:
-      </p>
-      <ul>
-        <li>View what cookies are set</li>
-        <li>Delete cookies individually or all at once</li>
-        <li>Block cookies from specific sites</li>
-        <li>Block all cookies</li>
-        <li>Clear cookies when you close the browser</li>
-      </ul>
-      <p>
-        Note: Blocking essential cookies may prevent Handoff from functioning
-        correctly.
+        Handoff does not currently set analytics, advertising, language, or
+        theme preference cookies. If that changes, this policy will be updated
+        to describe the additional cookies and their purpose.
       </p>
 
-      <h2>Changes to This Policy</h2>
+      <h2>Third-party services</h2>
       <p>
-        We may update this Cookie Policy from time to time. Changes will be
-        posted on this page with an updated &quot;Last updated&quot; date.
+        Handoff uses third-party services to deliver features such as email
+        and file uploads. The application does not intentionally use those
+        services to set tracking cookies. Their handling of data is described
+        in our <a href="/privacy">Privacy Policy</a>.
       </p>
 
-      <h2>Contact</h2>
+      <h2>Managing cookies</h2>
       <p>
-        For questions about our use of cookies, contact us at{" "}
-        {/* TODO: Replace with actual email */}
-        <a href="mailto:support@handoff.noorulhassan.com">support@handoff.noorulhassan.com</a>.
+        Your browser lets you inspect, delete, or block cookies. Removing an
+        active session cookie signs you out; blocking essential cookies may
+        prevent account and client portal features from working.
+      </p>
+
+      <h2>Questions</h2>
+      <p>
+        For questions about this policy, use the contact details on our{" "}
+        <a href="/contact">Contact &amp; Support</a> page.
       </p>
     </LegalPage>
   );

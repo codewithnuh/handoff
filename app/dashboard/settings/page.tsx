@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/prisma";
 import { requireWorkspacePermission } from "@/lib/access";
 import { SettingsForm } from "@/components/dashboard/settings-form";
+import { PageHeader } from "@/components/dashboard/page-header";
 
 export const metadata = { title: "Settings — Handoff" };
 
@@ -38,13 +39,11 @@ export default async function SettingsPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Your account, security, and workspace standing.
-        </p>
-      </div>
+    <div className="workspace-page space-y-6">
+      <PageHeader
+        title="Settings"
+        description="Manage your profile, security, and workspace details."
+      />
 
       <SettingsForm
         name={user?.name ?? ""}
