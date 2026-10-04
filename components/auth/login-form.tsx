@@ -54,11 +54,11 @@ export default function LoginForm() {
   }, [state, router]);
 
   return (
-    <Card className="w-full max-w-sm">
+    <Card className="auth-form-card w-full max-w-none">
       <CardHeader>
         <CardTitle>Sign in</CardTitle>
         <CardDescription>
-          Enter your credentials to access your Handoff account.
+          Use the email and password linked to your workspace.
         </CardDescription>
       </CardHeader>
 

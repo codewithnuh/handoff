@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { AuthPageShell } from "@/components/auth/auth-page-shell";
 import RegisterForm from "@/components/auth/register-form";
 
 export const metadata: Metadata = {
@@ -9,18 +9,15 @@ export const metadata: Metadata = {
 
 export default function RegisterPage() {
   return (
-    <main className="bg-background flex flex-1 flex-col items-center justify-center gap-6 px-4 py-16">
+    <AuthPageShell
+      eyebrow="Start with Handoff"
+      title="Make room for your best work."
+      description="Create a workspace for your clients, projects, and the details that keep everything moving."
+      alternatePrompt="Already have a workspace?"
+      alternateLabel="Sign in"
+      alternateHref="/login"
+    >
       <RegisterForm />
-
-      <p className="text-muted-foreground text-sm">
-        Already have an account?{" "}
-        <Link
-          href="/login"
-          className="text-foreground font-medium underline-offset-4 hover:underline"
-        >
-          Sign in
-        </Link>
-      </p>
-    </main>
+    </AuthPageShell>
   );
 }

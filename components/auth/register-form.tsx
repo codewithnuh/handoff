@@ -50,11 +50,11 @@ export default function RegisterForm() {
   }, [state, router]);
 
   return (
-    <Card className="w-full max-w-sm">
+    <Card className="auth-form-card w-full max-w-none">
       <CardHeader>
-        <CardTitle>Create account</CardTitle>
+        <CardTitle>Create your workspace</CardTitle>
         <CardDescription>
-          Start managing clients and projects in minutes.
+          One account for your clients, projects, and day-to-day work.
         </CardDescription>
       </CardHeader>
 
