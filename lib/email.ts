@@ -1,6 +1,7 @@
 import "server-only";
 
-import { Resend } from "resend";
+import nodemailer, { type Transporter } from "nodemailer";
+import { Resend, type CreateEmailOptions } from "resend";
 
 import { env } from "@/env";
 
@@ -11,7 +12,38 @@ export type EmailPayload = {
   html?: string;
 };
 
+// Resend (API key) is the primary transport. SMTP remains supported as a
+// fallback for the local E2E capture harness when no API key is configured.
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
+
+const isSmtpConfigured = Boolean(
+  env.SMTP_HOST && env.SMTP_PORT && env.EMAIL_FROM,
+);
+
+let transporter: Transporter | null = null;
+
+/**
+ * Lazily create the SMTP transport. A single pooled connection is reused
+ * across emails to avoid repeated TLS handshakes on serverless platforms.
+ */
+const getTransporter = (): Transporter => {
+  if (transporter) return transporter;
+
+  transporter = nodemailer.createTransport({
+    host: env.SMTP_HOST,
+    port: env.SMTP_PORT,
+    secure: env.SMTP_PORT === 465,
+    auth:
+      env.SMTP_USER && env.SMTP_PASSWORD
+        ? { user: env.SMTP_USER, pass: env.SMTP_PASSWORD }
+        : undefined,
+    pool: true,
+    maxConnections: 3,
+    maxMessages: 100,
+  });
+
+  return transporter;
+};
 
 const logEmailToConsole = (payload: EmailPayload): void => {
   const body = payload.text ?? payload.html ?? "";
@@ -21,32 +53,47 @@ const logEmailToConsole = (payload: EmailPayload): void => {
 };
 
 /**
- * Sends an email via Resend API.
+ * Sends an email through Resend when RESEND_API_KEY is set, otherwise falls
+ * back to the configured SMTP transport.
  *
- * In development without Resend configuration, emails are logged to the
- * console so flows remain testable. In production, a missing transport
- * throws — verification / reset emails must never be silently dropped.
+ * In development without either transport, emails are logged to the console
+ * so flows remain testable. In production, a missing transport throws —
+ * verification / reset emails must never be silently dropped.
  */
 export const sendEmail = async (payload: EmailPayload): Promise<void> => {
-  if (!resend || !env.EMAIL_FROM) {
-    if (env.NODE_ENV === "production") {
-      throw new Error(
-        "Email transport is not configured for production. " +
-          "Set RESEND_API_KEY and EMAIL_FROM.",
-      );
-    }
-    logEmailToConsole(payload);
+  if (resend && env.EMAIL_FROM) {
+    const base = {
+      from: env.EMAIL_FROM,
+      to: payload.to,
+      subject: payload.subject,
+    };
+    const emailPayload: CreateEmailOptions = payload.html
+      ? { ...base, html: payload.html }
+      : { ...base, text: payload.text ?? "" };
+
+    await resend.emails.send(emailPayload);
     return;
   }
 
-  const emailPayload: Parameters<typeof resend.emails.send>[0] = {
-    from: env.EMAIL_FROM,
-    to: payload.to,
-    subject: payload.subject,
-  };
-  if (payload.text) emailPayload.text = payload.text;
-  if (payload.html) emailPayload.html = payload.html;
-  await resend.emails.send(emailPayload);
+  if (isSmtpConfigured) {
+    await getTransporter().sendMail({
+      from: env.EMAIL_FROM,
+      to: payload.to,
+      subject: payload.subject,
+      text: payload.text,
+      html: payload.html,
+    });
+    return;
+  }
+
+  if (env.NODE_ENV === "production") {
+    throw new Error(
+      "Email transport is not configured for production. " +
+        "Set RESEND_API_KEY (recommended) or SMTP_HOST, SMTP_PORT and EMAIL_FROM.",
+    );
+  }
+
+  logEmailToConsole(payload);
 };
 
 // ──────────────────────────────────────────────
