@@ -1,6 +1,6 @@
 import "server-only";
 
-import nodemailer, { type Transporter } from "nodemailer";
+import { Resend } from "resend";
 
 import { env } from "@/env";
 
@@ -11,34 +11,7 @@ export type EmailPayload = {
   html?: string;
 };
 
-const isSmtpConfigured = Boolean(
-  env.SMTP_HOST && env.SMTP_PORT && env.EMAIL_FROM,
-);
-
-let transporter: Transporter | null = null;
-
-/**
- * Lazily create the SMTP transport. A single pooled connection is reused
- * across emails to avoid repeated TLS handshakes on serverless platforms.
- */
-const getTransporter = (): Transporter => {
-  if (transporter) return transporter;
-
-  transporter = nodemailer.createTransport({
-    host: env.SMTP_HOST,
-    port: env.SMTP_PORT,
-    secure: env.SMTP_PORT === 465,
-    auth:
-      env.SMTP_USER && env.SMTP_PASSWORD
-        ? { user: env.SMTP_USER, pass: env.SMTP_PASSWORD }
-        : undefined,
-    pool: true,
-    maxConnections: 3,
-    maxMessages: 100,
-  });
-
-  return transporter;
-};
+const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
 
 const logEmailToConsole = (payload: EmailPayload): void => {
   const body = payload.text ?? payload.html ?? "";
@@ -48,25 +21,25 @@ const logEmailToConsole = (payload: EmailPayload): void => {
 };
 
 /**
- * Sends an email through the configured SMTP transport.
+ * Sends an email via Resend API.
  *
- * In development without SMTP configuration, emails are logged to the
+ * In development without Resend configuration, emails are logged to the
  * console so flows remain testable. In production, a missing transport
  * throws — verification / reset emails must never be silently dropped.
  */
 export const sendEmail = async (payload: EmailPayload): Promise<void> => {
-  if (!isSmtpConfigured) {
+  if (!resend || !env.EMAIL_FROM) {
     if (env.NODE_ENV === "production") {
       throw new Error(
         "Email transport is not configured for production. " +
-          "Set SMTP_HOST, SMTP_PORT and EMAIL_FROM.",
+          "Set RESEND_API_KEY and EMAIL_FROM.",
       );
     }
     logEmailToConsole(payload);
     return;
   }
 
-  await getTransporter().sendMail({
+  await resend.emails.send({
     from: env.EMAIL_FROM,
     to: payload.to,
     subject: payload.subject,
