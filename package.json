@@ -60,7 +60,8 @@
     "files:cleanup": "tsx scripts/cleanup-file-uploads.ts",
     "files:make-private": "tsx scripts/make-uploadthing-files-private.ts",
     "db:studio": "prisma studio",
-    "lint": "eslint"
+    "lint": "eslint",
+    "validate": "pnpm db:generate && pnpm test:db-guard && pnpm lint && pnpm typecheck && pnpm test:unit"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
