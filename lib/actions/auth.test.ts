@@ -271,7 +271,11 @@ describe("login", () => {
 
 describe("logout", () => {
   it("signs out the current session", async () => {
-    signOut.mockResolvedValue({ success: true });
+    signOut.mockResolvedValue({
+      success: true,
+      url: undefined,
+      redirect: false,
+    });
 
     const result = await logout();
 
