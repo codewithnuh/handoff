@@ -78,11 +78,22 @@ describe("server environment validation", () => {
     expect(result.success).toBe(false);
     if (result.success) return;
     const message = describeEnvironmentErrors("server", result.error);
-    expect(message).toContain("SMTP_HOST: is required in production");
-    expect(message).toContain("SMTP_PORT: is required in production");
+    expect(message).toContain("RESEND_API_KEY: is required in production");
     expect(message).toContain("EMAIL_FROM: is required in production");
     expect(message).toContain("UPLOADTHING_TOKEN");
     expect(message).not.toContain("not-a-token");
+  });
+
+  it("accepts a Resend API key as the production email transport", () => {
+    const result = parseServerEnvironment(
+      validEnvironment({
+        NODE_ENV: "production",
+        RESEND_API_KEY: "re_ci_placeholder_key",
+        EMAIL_FROM: "Handoff <ci@example.invalid>",
+      }),
+    );
+
+    expect(result.success).toBe(true);
   });
 
   it("accepts distinct strong production secrets and safe SMTP fixtures", () => {

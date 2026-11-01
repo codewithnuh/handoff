@@ -94,6 +94,7 @@ const serverSchema = z
     BETTER_AUTH_SECRET: z.string().min(32),
     BETTER_AUTH_URL: httpUrl,
     NODE_ENV: z.enum(["development", "test", "production"]),
+    RESEND_API_KEY: optionalText,
     SMTP_HOST: optionalText,
     SMTP_PORT: optionalPort,
     SMTP_USER: optionalText,
@@ -135,14 +136,22 @@ const serverSchema = z
       });
     }
 
-    for (const key of ["SMTP_HOST", "SMTP_PORT", "EMAIL_FROM"] as const) {
-      if (config[key] === undefined) {
-        context.addIssue({
-          code: "custom",
-          path: [key],
-          message: "is required in production",
-        });
-      }
+    const hasResendApiKey = Boolean(config.RESEND_API_KEY);
+    const hasSmtpConfig = Boolean(config.SMTP_HOST && config.SMTP_PORT);
+    if (!hasResendApiKey && !hasSmtpConfig) {
+      context.addIssue({
+        code: "custom",
+        path: ["RESEND_API_KEY"],
+        message: "is required in production (set RESEND_API_KEY or SMTP credentials)",
+      });
+    }
+
+    if (config.EMAIL_FROM === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["EMAIL_FROM"],
+        message: "is required in production",
+      });
     }
 
     if (config.UPLOADTHING_TOKEN === undefined) {
