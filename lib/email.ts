@@ -39,13 +39,14 @@ export const sendEmail = async (payload: EmailPayload): Promise<void> => {
     return;
   }
 
-  await resend.emails.send({
+  const emailPayload: Parameters<typeof resend.emails.send>[0] = {
     from: env.EMAIL_FROM,
     to: payload.to,
     subject: payload.subject,
-    text: payload.text,
-    html: payload.html,
-  });
+  };
+  if (payload.text) emailPayload.text = payload.text;
+  if (payload.html) emailPayload.html = payload.html;
+  await resend.emails.send(emailPayload);
 };
 
 // ──────────────────────────────────────────────
