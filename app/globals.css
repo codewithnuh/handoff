@@ -355,6 +355,31 @@
     min-width: 320px;
   }
 
+  /* Browsers paint autofilled fields with their own pale surface and text
+     colour, which leaves light text illegible on this dark theme. Chrome
+     ignores `background-color` here, so repaint the surface with an inset
+     shadow, restore the text fill colour, and keep the focus ring visible. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:active {
+    -webkit-text-fill-color: var(--foreground) !important;
+    -webkit-box-shadow: 0 0 0 1000px var(--secondary) inset !important;
+    box-shadow: 0 0 0 1000px var(--secondary) inset !important;
+    caret-color: var(--foreground);
+  }
+
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:focus-visible {
+    -webkit-text-fill-color: var(--foreground) !important;
+    -webkit-box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--ring) 16%, transparent),
+      0 0 0 1000px var(--secondary) inset !important;
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--ring) 16%, transparent),
+      0 0 0 1000px var(--secondary) inset !important;
+    caret-color: var(--foreground);
+  }
+
   html {
     @apply font-sans;
     scroll-behavior: smooth;

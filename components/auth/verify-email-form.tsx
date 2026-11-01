@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { REGEXP_ONLY_DIGITS } from "input-otp";
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,18 @@ import { sendVerificationOtp, verifyEmailOtp } from "@/lib/actions/auth";
 import { useServerAction } from "@/hooks/use-server-action";
 
 const RESEND_COOLDOWN_SECONDS = 60;
+
+/**
+ * Codes are often copied with spaces, dashes, or surrounding text
+ * ("123 456", "code: 123456"). Strip everything but the digits so the paste
+ * still fills all six slots. If the clipboard holds no digits, hand the
+ * original value back and let `pattern` reject it instead of clearing the
+ * field.
+ */
+function extractOtpDigits(pasted: string) {
+  const digits = pasted.replace(/\D/g, "");
+  return digits.length > 0 ? digits : pasted;
+}
 
 export default function VerifyEmailForm({ email }: { email: string }) {
   const router = useRouter();
@@ -79,7 +92,13 @@ export default function VerifyEmailForm({ email }: { email: string }) {
           onComplete={(value) => void handleVerify(value)}
           autoFocus
           aria-label="Verification code"
-          pattern="^\d{6}$"
+          // `pattern` is tested against the whole current value on every
+          // keystroke, so requiring all six digits up front blocks typing.
+          // Digits-only is the correct constraint here.
+          pattern={REGEXP_ONLY_DIGITS}
+          pasteTransformer={extractOtpDigits}
+          inputMode="numeric"
+          autoComplete="one-time-code"
         >
           <InputOTPGroup>
             <InputOTPSlot index={0} />
